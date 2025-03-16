@@ -3,6 +3,7 @@
 #include<ctime>
 #include<cstdlib>
 #include <fstream>
+#include <cmath>
 #include <sstream>
 
 #include "source/fsa.h"

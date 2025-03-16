@@ -3,6 +3,7 @@
 #include <map>
 #include <unordered_map>
 #include <set>
+#include <cmath>
 #include <queue>
 #include <limits>
 
@@ -314,7 +315,7 @@ public:
 
     double get_zscore(long long vertex) {
         double variance = m2 / edge_num;
-        double std_dev = sqrt(variance);
+        double std_dev = std::sqrt(variance);
 
         if (std_dev == 0) return 0;
 

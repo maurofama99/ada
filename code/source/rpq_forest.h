@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <utility>
 #include <stack>
+#include <algorithm>
 
 #include "streaming_graph.h"
 

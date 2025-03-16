@@ -5,6 +5,7 @@
 #include<unordered_map>
 #include<unordered_set>
 #include <queue>
+#include <algorithm>
 #include <chrono>
 #include "forest_struct.h"
 #include "../fsa.h"
@@ -73,7 +74,7 @@ public:
 		for (auto it = updated_nodes.begin(); it != updated_nodes.end(); it++)
 		{
 			long long dst = it->first;
-			long long time = min(it->second, lm_time);
+			long long time = min_custom(it->second, lm_time);
 			if (dst == root_ID)
 				continue;
 			unsigned long long result_pair = (((unsigned long long)root_ID << 32) | dst);
@@ -92,7 +93,7 @@ public:
 		for (auto & updated_node : updated_nodes)
 		{
 			long long dst = updated_node.first;
-			long long time = min(updated_node.second, lm_time);
+			long long time = min_custom(updated_node.second, lm_time);
 			if (dst == root_ID)
 				continue;
 			unsigned long long result_pair = (((unsigned long long)root_ID << 32) | dst);
@@ -177,7 +178,7 @@ public:
 			time_info_index* root_index = root_lm_tree->time_info[state_iter->first];
 			for (auto iter = subtree_index->index.begin(); iter != subtree_index->index.end(); iter++)
 			{
-				long long time = min(lm_time, iter->second); // compute the time of latest path from root of root_lm_tree to the node
+				long long time = min_custom(lm_time, iter->second); // compute the time of latest path from root of root_lm_tree to the node
 				if (root_index->index.find(iter->first) == root_index->index.end())
 				{
 					root_index->index[iter->first] = time;
@@ -222,7 +223,7 @@ public:
 			{
 				long long successor = suc.d;
 				long long label = suc.label;
-				long long time = min(tmp->timestamp, suc.timestamp);
+				long long time = min_custom(tmp->timestamp, suc.timestamp);
 				long long exp = suc.expiration_time;
 				if (aut_edge.find(label) == aut_edge.end())
 					continue;
@@ -284,8 +285,8 @@ public:
 				tree_node* lm_node = tree_pt->node_map[state]->index[lm];
 
 				unordered_map<unsigned long long, long long> tracked_nodes;
-				long long local_src_time = min(lm_node->timestamp, src_time); // timestamp of the path from the root of tree_pt to src node passing the landmark.
-				long long local_dst_time = min(lm_node->timestamp, dst_time); // timestamp of the path from the root of tree_pt to dst node passing the landmark.
+				long long local_src_time = min_custom(lm_node->timestamp, src_time); // timestamp of the path from the root of tree_pt to src node passing the landmark.
+				long long local_dst_time = min_custom(lm_node->timestamp, dst_time); // timestamp of the path from the root of tree_pt to dst node passing the landmark.
 				unsigned long long src_info = merge_long_long(src, src_state);
 				unsigned long long dst_info = merge_long_long(dst, dst_state);
 				if (tree_pt->get_time_info(src, src_state) > local_src_time) // if this is not the latest path to the src node, prune this backtrack
@@ -299,7 +300,7 @@ public:
 				}
 				for (auto iter2 = updated_nodes.begin(); iter2 != updated_nodes.end(); iter2++)
 				{
-					long long time = min(lm_node->timestamp, iter2->second);
+					long long time = min_custom(lm_node->timestamp, iter2->second);
 					if (tree_pt->get_time_info((iter2->first >> 32), (iter2->first & 0xFFFFFFFF)) >= time) // if the time info of the node iter->first can not be updated, continue to next node
 						continue;
 					tree_pt->add_time_info((iter2->first >> 32), (iter2->first & 0xFFFFFFFF), time); // update the time info.
@@ -338,19 +339,19 @@ public:
 		unsigned long long dst_info = merge_long_long(d, dst_state);
 		if (src_pt->timestamp < lm_tree->get_time_info(s, src_state)) // if the local path is not the latest, prune this update.
 			return;
-		if (lm_tree->get_time_info(d, dst_state) >= min(src_pt->timestamp, timestamp)) // if there is an exisiting path to dst with no smaller timestamp, prune this update. 
+		if (lm_tree->get_time_info(d, dst_state) >= min_custom(src_pt->timestamp, timestamp)) // if there is an exisiting path to dst with no smaller timestamp, prune this update. 
 			return;
 
 		tree_node* dst_pt = nullptr;
 		if (lm_tree->node_map.find(dst_state) == lm_tree->node_map.end() || lm_tree->node_map[dst_state]->index.find(d) == lm_tree->node_map[dst_state]->index.end()) // add the dst node if it is not in the tree yet.
-			dst_pt = add_lm_node(lm_tree, d, dst_state, lm_tree->root->node_ID, lm_tree->root->state, src_pt, min(src_pt->timestamp, timestamp), exp, timestamp);
+			dst_pt = add_lm_node(lm_tree, d, dst_state, lm_tree->root->node_ID, lm_tree->root->state, src_pt, min_custom(src_pt->timestamp, timestamp), exp, timestamp);
 		else { // else the new timestamp must be larger than the existing timestamp of dst node in this tree, otherwise we should have returned in the above check.
 			dst_pt = lm_tree->node_map[dst_state]->index[d];
-			if (dst_pt->timestamp < min(src_pt->timestamp, timestamp))
+			if (dst_pt->timestamp < min_custom(src_pt->timestamp, timestamp))
 			{
 				if (dst_pt->parent != src_pt)
 					lm_tree->substitute_parent(src_pt, dst_pt);
-				dst_pt->timestamp = min(src_pt->timestamp, timestamp);
+				dst_pt->timestamp = min_custom(src_pt->timestamp, timestamp);
 				dst_pt->edge_timestamp = timestamp;
 			}
 		}
@@ -384,7 +385,7 @@ public:
 				for (auto iter = lm_tree->time_info[final_state]->index.begin(); iter != lm_tree->time_info[final_state]->index.end(); iter++)
 				{
 					long long v = iter->first;
-					long long time = min(lm_time, iter->second);
+					long long time = min_custom(lm_time, iter->second);
 					if (updated_results.find(v) != updated_results.end())
 						updated_results[v] = updated_results[v] > time ? updated_results[v] : time;
 					else
@@ -428,7 +429,7 @@ public:
 					long long dst_state = aut->getNextState(tmp->state, edge_label); // check if we can travel to a dst state
 					if (dst_state == -1)
 						continue;
-					long long time = min(tmp->timestamp, i.timestamp); // compute timestamp of the dst node
+					long long time = min_custom(tmp->timestamp, i.timestamp); // compute timestamp of the dst node
 					long long exp = i.expiration_time;
 					if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(successor) == tree_pt->node_map[dst_state]->index.end()) // add dst node to the tree if it does not exist 
 						q.push(add_node(tree_pt, successor, dst_state, tree_pt->root->node_ID, tmp, time, exp, i.timestamp));
@@ -474,13 +475,13 @@ public:
 				RPQ_tree* lm_tree = forests[lm_info];
 				tree_node* lm_node = tree_pt->find_node((lm_info >> 32), (lm_info & 0xFFFFFFFF));
 				long long local_src_time = lm_tree->get_time_info(s, src_state);
-				if (min(local_src_time, lm_node->timestamp) > max_src_time) {
-					max_src_time = min(local_src_time, lm_node->timestamp);
+				if (min_custom(local_src_time, lm_node->timestamp) > max_src_time) {
+					max_src_time = min_custom(local_src_time, lm_node->timestamp);
 					max_src_lm = lm_info;
 				}
 				long long local_dst_time = lm_tree->get_time_info(d, dst_state);
-				if (min(local_dst_time, lm_node->timestamp) > max_dst_time) {
-					max_dst_time = min(local_dst_time, lm_node->timestamp);
+				if (min_custom(local_dst_time, lm_node->timestamp) > max_dst_time) {
+					max_dst_time = min_custom(local_dst_time, lm_node->timestamp);
 					max_dst_lm = lm_info;
 				}
 			}
@@ -492,12 +493,12 @@ public:
 			if (tmp_index->index.find(s) != tmp_index->index.end())
 			{
 				tree_node* src_pt = tmp_index->index[s];
-				if (!src_pt->lm && src_pt->timestamp > max_src_time && min(src_pt->timestamp, timestamp) > max_dst_time) // we expand this normal tree only if the local path has larger timestamp than the paths passing landmarks
+				if (!src_pt->lm && src_pt->timestamp > max_src_time && min_custom(src_pt->timestamp, timestamp) > max_dst_time) // we expand this normal tree only if the local path has larger timestamp than the paths passing landmarks
 					// and no exisiting path has larger, or equal timestamp than the new local path to the dst node 
 				{
-					long long time = min(src_pt->timestamp, timestamp);
+					long long time = min_custom(src_pt->timestamp, timestamp);
 					if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(d) == tree_pt->node_map[dst_state]->index.end()) { // need to be checked
-						tree_node* dst_pt = add_node(tree_pt, d, dst_state, tree_pt->root->node_ID, src_pt, min(src_pt->timestamp, timestamp), exp, timestamp);
+						tree_node* dst_pt = add_node(tree_pt, d, dst_state, tree_pt->root->node_ID, src_pt, min_custom(src_pt->timestamp, timestamp), exp, timestamp);
 						non_lm_expand(dst_pt, tree_pt);
 					}
 					else
@@ -518,7 +519,7 @@ public:
 		}
 
 		// if we do not expand the normal tree, we need to update it with the paths pass landmarks.
-		if (max_dst_time > min(max_src_time, timestamp)) // in this case the new edge cannot produce latest paths
+		if (max_dst_time > min_custom(max_src_time, timestamp)) // in this case the new edge cannot produce latest paths
 			return;
 		if (lm_results.find(max_src_lm) != lm_results.end()) { // otherwise we find the landmark passing which the timestamp of path to src is latest, and update the result sets with the recorded updated nodes. 
 			long long lm_ID = max_src_lm >> 32;
@@ -668,7 +669,7 @@ public:
 			{
 				long long v = child->node_ID;
 				long long state = child->state;
-				long long time = min(child->edge_timestamp, expand_tree_node->timestamp); // compute the timestamp of this child in tree_pt
+				long long time = min_custom(child->edge_timestamp, expand_tree_node->timestamp); // compute the timestamp of this child in tree_pt
 				long long exp = child->edge_expiration;
 				if (tree_pt->node_map.find(state) == tree_pt->node_map.end() || tree_pt->node_map[state]->index.find(v) == tree_pt->node_map[state]->index.end()) 
 				{
@@ -732,7 +733,7 @@ public:
 					if (tree_pt->time_info.find(state) == tree_pt->time_info.end())
 						tree_pt->time_info[state] = new time_info_index;
 					for (auto info_iter = iter.second->index.begin(); info_iter != iter.second->index.end(); info_iter++)
-						tree_pt->time_info[state]->index[info_iter->first] = tree_pt->time_info[state]->index[info_iter->first] > min(info_iter->second, lm_time) ? tree_pt->time_info[state]->index[info_iter->first] : min(info_iter->second, lm_time);
+						tree_pt->time_info[state]->index[info_iter->first] = tree_pt->time_info[state]->index[info_iter->first] > min_custom(info_iter->second, lm_time) ? tree_pt->time_info[state]->index[info_iter->first] : min_custom(info_iter->second, lm_time);
 
 				}
 			}
@@ -791,7 +792,7 @@ public:
 								if (forests.find(lm_info) != forests.end())
 								{
 									tree_node* tmp_lm = tree_pt->find_node((lm_info >> 32), (lm_info & 0xFFFFFFFF));
-									if (min(forests[lm_info]->get_time_info(v, state), tmp_lm->timestamp) >= lm_node->timestamp)
+									if (min_custom(forests[lm_info]->get_time_info(v, state), tmp_lm->timestamp) >= lm_node->timestamp)
 									{
 										latest = false;
 										break;
@@ -942,7 +943,7 @@ public:
 						while (child)
 						{
 							q.push(child);
-							lm_time[merge_long_long(child->node_ID, child->state)] = min(time, child->edge_timestamp);
+							lm_time[merge_long_long(child->node_ID, child->state)] = min_custom(time, child->edge_timestamp);
 							vec.push_back(child);  // we store all the tree nodes in a vector, and delete them after we gather all the necessary nodes.
 							child = child->brother;
 						}
@@ -1000,7 +1001,7 @@ public:
 					long long dst_state = aut->getNextState(cur->state, j.label);
 					if (dst_state == -1)
 						continue;
-					long long time = min(cur->timestamp, j.timestamp);
+					long long time = min_custom(cur->timestamp, j.timestamp);
 					if (necessary_nodes.find(merge_long_long(successor, dst_state)) == necessary_nodes.end() && tree_pt->get_time_info(successor, dst_state) > time) // we prune a branch if it is not a necessary nodes and the path to it is not the latest.
 						continue;
 					if (tree_pt->node_map.find(dst_state) != tree_pt->node_map.end() && tree_pt->node_map[dst_state]->index.find(successor) != tree_pt->node_map[dst_state]->index.end()) 
@@ -1051,7 +1052,7 @@ public:
 			{
 				long long successor = suc.d;
 				long long label = suc.label;
-				long long time = min(tmp->timestamp, suc.timestamp);
+				long long time = min_custom(tmp->timestamp, suc.timestamp);
 				if (aut_edge.find(label) == aut_edge.end())
 					continue;
 				long long dst_state = aut_edge[label];

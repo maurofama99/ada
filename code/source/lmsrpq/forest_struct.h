@@ -9,9 +9,12 @@
 #define um_shrink_threshold 2
 #define merge_long_long(s, d) (((unsigned long long)s<<32)|d)
 using namespace std;
-#define min(x, y) (x<y?x:y)
+
 #define MAX_INT 0x7FFFFFFF
 
+inline long long min_custom (long long x, long long y) {
+	return x < y ? x : y;
+}
 
 // this file defines the basic structures and associated functions shared by both S-PATH and LM-SRPQ. Note that some variables are not needed by S-PATH, and they will not be included in memory computation for S-PATH.
 
