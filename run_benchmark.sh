@@ -3,8 +3,6 @@
 # Compile main.cpp with -O3 optimization
 g++ -std=c++11 -O3 -Wno-c++11-extensions -Wno-c++17-extensions -Wno-deprecated -o main code/main.cpp
 
-#FIX
-
 # Check if compilation was successful
 if [ $? -ne 0 ]; then
     echo "Compilation failed"

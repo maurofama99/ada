@@ -18,6 +18,8 @@ struct Node {
     std::vector<Node *> children;
     Node *parent;
     std::vector<Node *> candidate_parents;
+    bool isCandidateParent = false;
+    bool isValid = true;
 
     Node(long long child_id, long long child_vertex, long long child_state, Node *node) : id(child_id), vertex(child_vertex),
         state(child_state), parent(node) {
@@ -83,38 +85,68 @@ public:
             vertex_tree_map[childVertex].insert(trees[rootVertex]);
             return true;
         }
-        // cerr << "ERROR: Could not find parent in tree" << endl;
+        // cout << "Could not find parent in tree" << endl;
         return false;
     }
 
-    void changeParent(Node *child, Node *newParent) {
-        if (child && newParent) {
+    static bool changeParent(Node *child, Node *newParent) {
+        if (!newParent->isValid) {
+            return false;
+        }
+        if (child) {
             // Remove child from its current parent's children list
             if (child->parent) {
                 auto &siblings = child->parent->children;
-                siblings.erase(std::remove(siblings.begin(), siblings.end(), child), siblings.end());
+                auto it = std::remove(siblings.begin(), siblings.end(), child);
+                if (it == siblings.end()) {
+                    throw std::runtime_error("ERROR: Child not found in parent's children list");
+                }
+                siblings.erase(it, siblings.end());
             } else {
                 cout << "ERROR: Could not find new parent in tree" << endl;
                 exit(1);
             }
-
             // Set the new parent
             child->parent = newParent;
             newParent->children.push_back(child);
         } else {
-            if (!child) std::cout << "ERROR: Could not find child in tree" << std::endl;
-            if (!newParent) std::cout << "ERROR: Could not find new parent in tree" << std::endl;
+            std::cout << "ERROR: Could not find child in tree" << std::endl;
             exit(1);
         }
+        return true;
     }
 
     bool hasTree(long long rootVertex) {
         return trees.find(rootVertex) != trees.end();
     }
 
-    Node *findNodeInTree(long long rootVertex, long long vertex, long long state, Node **parent = nullptr) {
+    Node *findNodeInTree(long long rootVertex, long long vertex, long long state) {
         Node *root = trees[rootVertex].rootNode;
-        return searchNodeParent(root, vertex, state, parent);
+        return searchNode(root, vertex, state);
+    }
+
+    Node *findCandidateParentInTree(long long rootVertex, long long candidateparentVertex, long long candidateparentState, long long childVertex, long long childState) {
+        Node *root = trees[rootVertex].rootNode;
+        std::queue<Node *> node_queue;
+        node_queue.push(root);
+
+        while (!node_queue.empty()) {
+            Node *current = node_queue.front();
+            node_queue.pop();
+
+            if (current->vertex == candidateparentVertex && current->state == candidateparentState) {
+                return current;
+            }
+
+            if (current->vertex == childVertex && current->state == childState) {
+                return nullptr;
+            }
+
+            for (Node *child: current->children) {
+                node_queue.push(child);
+            }
+        }
+        return nullptr;
     }
 
     std::set<long long> getKeySet(long long vertex) {
@@ -162,8 +194,9 @@ public:
                         if (current->parent) {
                             if (!current->candidate_parents.empty()) {
                                 // there is at least a new candidate parent before deletion
-                                changeParent(current, current->candidate_parents.back());
-                                current->candidate_parents.pop_back();
+                                if (changeParent(current, current->candidate_parents.back())) {
+                                    current->candidate_parents.pop_back();
+                                } // else delete current->candidate_parents.back();
                             } else {
                                 deleteSubTree(current, rootVertex);
                             }
@@ -277,17 +310,6 @@ private:
         return root_copy;
     }
 
-    Node *searchNodeParent(Node *node, long long vertex, long long state, Node **parent = nullptr) {
-        if (!node) return nullptr;
-        if (node->vertex == vertex && node->state == state) return node;
-        for (Node *child: node->children) {
-            if (parent) *parent = node;
-            Node *found = searchNodeParent(child, vertex, state, parent);
-            if (found) return found;
-        }
-        return nullptr;
-    }
-
     Node *searchNode(Node *node, long long vertex, long long state) {
         if (!node) return nullptr;
         if (node->vertex == vertex && node->state == state) return node;
@@ -349,7 +371,10 @@ private:
             if (vertex_tree_map[current->vertex].empty()) {
                 vertex_tree_map.erase(current->vertex);
             }
-            delete current;
+            if (!current->isCandidateParent) delete current;
+            else {
+                current->isValid = false;
+            }
         }
     }
 

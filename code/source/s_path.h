@@ -104,10 +104,15 @@ public:
                         if (!forest.addChildToParent(tree.rootVertex, element.vb, element.sb, element.edge_id,
                                                      element.vd, element.sd)) continue;
                     } else {
-                        // if tree already contains <vj,sj>
+                        // if tree already contains <vj,sj> (not descendant of <vi,si>)
                         // add vi_si to the list of candidate parents of <vj,sj>
-                        if (auto candidate_parent = forest.findNodeInTree(tree.rootVertex, element.vb, element.sb))
+                        auto candidate_parent = forest.findCandidateParentInTree(tree.rootVertex, element.vb, element.sb, element.vd, element.sd);
+
+                        if (candidate_parent != nullptr) {
+                            candidate_parent->isCandidateParent = true;
                             vj_sj_node->candidate_parents.emplace_back(candidate_parent);
+                        }
+
                     }
                     // update result set
                     if (fsa.isFinalState(element.sd)) {
