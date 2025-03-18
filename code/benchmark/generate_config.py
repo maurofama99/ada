@@ -28,12 +28,12 @@ def generate_config_files(output_folder, datasets, algorithms, window_slide_pair
                             print(f"Generated {config_filepath}")
 
 def main():
-    output_folder = "/home/ssh_user/Mauro/sgadwin_exp/results_so/"
+    output_folder = "code/benchmark/results_so/"
     datasets = ["code/dataset/so/so-stream_labelled.txt"]
     algorithms = [1,3]
     window_slide_pairs = [(86400, 43200), (129600, 43200), (172800, 86400), (259200, 86400)]
     query_label_pairs = [(1,[1]), (4, [1, 2, 3]), (3, [1, 2]),  (2, [1, 2]),  (5, [3, 1, 2]), (6, [2, 1, 3]), (7, [1, 2, 3, 1]) , (8, [1, 2]), (9, [3, 1, 2]), (10, [1, 2, 3])]
-    z_scores = [(0,0), (1,0), (0.25,12)]
+    z_scores = [(0,0), (1.2,0), (0.25,12), (0.4,20), (0.8,0)]
     watermarks = [(0, 1)]
 
     generate_config_files(output_folder, datasets, algorithms, window_slide_pairs, query_label_pairs, z_scores, watermarks)

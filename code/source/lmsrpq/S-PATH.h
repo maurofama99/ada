@@ -198,12 +198,13 @@ public:
 
 		sg_edge* new_sg_edge = g->insert_edge(id, s, d, label, timestamp, exp); // update snapshot graph
 
-		if (aut->getNextState(0, label) != -1 && forests.find(merge_long_long(s, 0)) == forests.end()) // if this edge can be accepted by the initial state, and this is no spanning tree with root (s, 0), we add this tree
+		if (aut->getNextState(0, label) != -1) // if this edge can be accepted by the initial state, and this is no spanning tree with root (s, 0), we add this tree
 		{
-			auto* new_tree = new RPQ_tree();
-			// todo Propagating expiration time from here
-			new_tree->root = add_node(new_tree, s, 0, s, nullptr, MAX_INT, MAX_INT, exp);
-			forests[merge_long_long(s, 0)] = new_tree;
+			if (forests.find(merge_long_long(s, 0)) == forests.end()) {
+				auto* new_tree = new RPQ_tree();
+				new_tree->root = add_node(new_tree, s, 0, s, nullptr, MAX_INT, MAX_INT, exp);
+				forests[merge_long_long(s, 0)] = new_tree;
+			}
 		}
 		vector<pair<long long, long long> >vec = aut->getStatePairsWithTransition(label);// find all the state pairs where the src state can translate to the dst state when accepting this label
 		for (auto & i : vec) {

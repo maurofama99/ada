@@ -165,8 +165,6 @@ int main(int argc, char *argv[]) {
 
     auto query = new SPathHandler(*aut, *f, *sg); // Density-based Retention
 
-    // TODO: esperimento shuffling dataset per verificare la densità
-
     clock_t start = clock();
     while (fin >> s >> d >> l >> t) {
         edge_number++;
@@ -399,11 +397,13 @@ int main(int argc, char *argv[]) {
             sg->time_list_head = evict_end_point;
             sg->time_list_head->prev = nullptr;
 
-            if (algorithm == 1)
+            if (algorithm == 1) {
                 f1->expire(time, deleted_edges);
-            else if (algorithm == 2) {
+                deleted_edges.clear();
+            } else if (algorithm == 2) {
                 f2->expire(time, deleted_edges);
                 f2->dynamic_lm_select(candidate_rate, benefit_threshold);
+                deleted_edges.clear();
             } else if (algorithm == 3) {
                 f->expire(candidate_for_deletion);
                 candidate_for_deletion.clear();
@@ -444,49 +444,15 @@ int main(int argc, char *argv[]) {
 
     clock_t finish = clock();
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
-    cout
-            <<
-            "execution time: "
-            <<
-            time_used
-            <<
-            endl;
-    printf(
-        "processed edges: %lld\n"
-        ,
-        edge_number
-    );
-    printf(
-        "saved edges: %lld\n"
-        ,
-        sg
-        ->
-        saved_edges
-    );
-    printf(
-        "avg degree: %f\n"
-        ,
-        sg
-        ->
-        mean
-    );
-    if
-    (algorithm
-     ==
-     1
-    ) {
+    cout << "execution time: " << time_used << endl;
+    printf("processed edges: %lld\n", edge_number);
+    printf("saved edges: %lld\n", sg->saved_edges);
+    printf("avg degree: %f\n", sg->mean);
+    if (algorithm == 1) {
         cout << "resulting paths: " << f1->distinct_results << "\n\n";
-    } else if
-    (algorithm
-     ==
-     2
-    ) {
+    } else if (algorithm == 2) {
         cout << "resulting paths: " << f2->distinct_results << "\n\n";
-    } else if
-    (algorithm
-     ==
-     3
-    ) {
+    } else if (algorithm == 3) {
         cout << "resulting paths: " << query->results_count << "\n\n";
     }
 
@@ -503,11 +469,7 @@ int main(int argc, char *argv[]) {
 
     // Open file for writing
     std::ofstream outFile(output_file.c_str());
-    if
-    (
-        !
-        outFile
-    ) {
+    if(!outFile) {
         std::cerr << "Error opening file for writing: " << output_file << std::endl;
 
         if (algorithm == 1) {
@@ -517,7 +479,6 @@ int main(int argc, char *argv[]) {
         } else if (algorithm == 3) {
             cout << "resulting paths: " << query->results_count << "\n";
         }
-
         cout << "processed edges: " << edge_number << "\n";
         cout << "saved edges: " << sg->saved_edges << "\n";
         cout << "execution time: " << time_used << "\n";
@@ -525,81 +486,24 @@ int main(int argc, char *argv[]) {
     }
 
     // Write data to the file
-    if
-    (algorithm
-     ==
-     1
-    ) {
+    if (algorithm == 1) {
         outFile << "resulting paths: " << f1->distinct_results << "\n";
-    } else if
-    (algorithm
-     ==
-     2
-    ) {
+    } else if (algorithm == 2) {
         outFile << "resulting paths: " << f2->distinct_results << "\n";
         outFile << "landmark trees: " << f2->landmarks_count << "\n";
-    } else if
-    (algorithm
-     ==
-     3
-    ) {
+    } else if (algorithm == 3) {
         outFile << "resulting paths: " << query->results_count << "\n";
     }
-    outFile
-            <<
-            "processed edges: "
-            <<
-            edge_number
-            <<
-            "\n";
-    outFile
-            <<
-            "saved edges: "
-            <<
-            sg
-            ->
-            saved_edges
-            <<
-            "\n";
-    outFile
-            <<
-            "execution time: "
-            <<
-            time_used
-            <<
-            "\n";
-
-    if
-    (algorithm
-     ==
-     1
-    ) {
-        f1->export_result(output_file_csv);
-    } else if
-    (algorithm
-     ==
-     2
-    ) {
-        f2->export_result(output_file_csv);
-    } else if (algorithm == 3) {
-        query->exportResultSet(output_file_csv);
-    }
+    outFile << "processed edges: " << edge_number << "\n";
+    outFile << "saved edges: " << sg->saved_edges << "\n";
+    outFile << "execution time: " << time_used << "\n";
 
     // Close the file
     outFile.close();
 
-    std::cout
-            <<
-            "Results written to: "
-            <<
-            output_file
-            <<
-            std::endl;
-
-    delete
-            sg;
-    return
-            0;
+    std::cout<<"Results written to: "<<output_file<<std::endl;
+    delete sg;
+    return 0;
 }
 
 // Set up the automaton correspondant for each query
@@ -607,73 +511,52 @@ vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *au
     vector<long long> scores;
 
     switch (query_type) {
-        case 1:
+        case 1: // a*
             aut->addFinalState(0);
             aut->addTransition(0, 0, labels[0]);
             scores.emplace(scores.begin(), 6);
             break;
-        case 2:
-            aut->addFinalState(1);
+        case 2: // a(bc)*
+            aut->addFinalState(3);
             aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(0, 1, labels[1]);
-            aut->addTransition(1, 1, labels[1]);
-            scores.emplace(scores.begin(), 0); //score of s0 is set to 0 as it has no incoming edge
-            scores.emplace(scores.begin() + 1, 6);
+            aut->addTransition(1, 2, labels[1]);
+            aut->addTransition(2, 3, labels[2]);
+            aut->addTransition(3, 2, labels[1]);
             break;
         case 3: // ab*
             aut->addFinalState(1);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(1, 1, labels[1]);
-            scores.emplace(scores.begin(), 0);
-            scores.emplace(scores.begin() + 1, 6);
             break;
-        case 4:
+        case 4: // (a|ab)
+            aut->addFinalState(1);
+            aut->addFinalState(2);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 2, labels[1]);
+            break;
+        case 5: // abc
             aut->addFinalState(3);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(1, 2, labels[1]);
             aut->addTransition(2, 3, labels[2]);
-            scores.emplace(scores.begin(), 0);
-            scores.emplace(scores.begin() + 1, 2); // 1 loop, 1 edge 0->1, thus 1*6+1 = 7
-            scores.emplace(scores.begin() + 2, 1);
-            scores.emplace(scores.begin() + 3, 0);
             break;
-        case 5:
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(2, 2, labels[2]);
-            scores.emplace(scores.begin(), 0);
-            scores.emplace(scores.begin() + 1, 7);
-            scores.emplace(scores.begin() + 2, 6);
-            break;
-        case 6:
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[1]);
-            aut->addTransition(1, 2, labels[2]);
-            scores.emplace(scores.begin(), 0);
-            scores.emplace(scores.begin() + 1, 7);
-            scores.emplace(scores.begin() + 2, 0);
-            break;
-        case 7:
+        case 7: // (a|b|c)d*
             aut->addFinalState(1);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(0, 1, labels[1]);
             aut->addTransition(0, 1, labels[2]);
             aut->addTransition(1, 1, labels[3]);
-            scores.emplace(scores.begin(), 0);
-            scores.emplace(scores.begin() + 1, 6);
             break;
-        case 8:
-            aut->addFinalState(0);
+        case 8: // a*b*
             aut->addFinalState(1);
-            aut->addTransition(0, 0, labels[0]);
-            aut->addTransition(0, 1, labels[1]);
-            aut->addTransition(1, 1, labels[1]);
-            scores.emplace(scores.begin(), 13);
-            scores.emplace(scores.begin() + 1, 6);
+            aut->addFinalState(2);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 1, labels[0]);
+            aut->addTransition(1, 2, labels[1]);
+            aut->addTransition(0, 2, labels[1]);
+            aut->addTransition(2, 2, labels[1]);
             break;
-        case 9:
+        case 9: // ab*c*
             aut->addFinalState(1);
             aut->addFinalState(2);
             aut->addTransition(0, 1, labels[0]);
@@ -683,25 +566,6 @@ vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *au
             scores.emplace_back(0);
             scores.emplace_back(13); // 2 loops, 1 edge 1->2, thus 2*6+1 = 13
             scores.emplace_back(6);
-            break;
-        case 10:
-            aut->addFinalState(0);
-            aut->addTransition(0, 0, labels[0]);
-            aut->addTransition(0, 0, labels[1]);
-            aut->addTransition(0, 0, labels[2]);
-            scores.emplace_back(6);
-            break;
-        case 11:
-            aut->addFinalState(4);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(2, 3, labels[2]);
-            aut->addTransition(3, 4, labels[3]);
-            scores.emplace(scores.begin(), 0);
-            scores.emplace(scores.begin() + 1, 13); // 2 loops, 1 edge 1->2, thus 2*6+1 = 13
-            scores.emplace(scores.begin() + 2, 6);
-            scores.emplace(scores.begin() + 3, 0);
-            scores.emplace(scores.begin() + 4, 13); // 2 loops, 1 edge 1->2, thus 2*6+1 = 13
             break;
         default:
             cout << "ERROR: Wrong query type" << endl;

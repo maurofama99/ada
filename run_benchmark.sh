@@ -15,5 +15,5 @@ config_dir="code/benchmark/config"
 # Execute the program with each configuration file in the directory and its subdirectories
 find "$config_dir" -type f -name "*.txt" | while read -r config_file; do
     echo "Running with configuration file: $config_file"
-    ./main "$config_file"
+    ./main "$config_file" > dump.txt
 done

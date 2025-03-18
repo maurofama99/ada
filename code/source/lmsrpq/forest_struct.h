@@ -212,7 +212,14 @@ public:
 				node_map.erase(node->state);
 		}
 		node_cnt--; // need to modify the node index in the upper layer.
-		if (node_cnt == 0) cout << "ERROR: Removing root node" << endl;
+		if (node_cnt == 0) {
+			cout << "ERROR: Removing root node" << endl;
+			cout << node->node_ID << endl;
+			cout << node->state << endl;
+			cout << "ts " << node->timestamp << endl;
+			cout << "exp " << node->edge_expiration << endl;
+			exit(1);
+		}
 		landmarks.erase((unsigned long long)node->node_ID << 32 | node->state);
 		shrink(landmarks);
 	}
