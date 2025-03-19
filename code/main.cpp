@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
     vector<size_t> to_evict;
     long long last_expired_window = 0;
 
-    long long checkpoint = 1;
+    long long checkpoint = 1000000;
 
     auto *f1 = new RPQ_forest(sg, aut); // TS Propagation
 
@@ -426,7 +426,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        if (time >= checkpoint * 3600) {
+        if (edge_number >= checkpoint) {
             checkpoint += checkpoint;
 
             printf("processed edges: %lld\n", edge_number);
@@ -534,13 +534,13 @@ vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *au
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(1, 2, labels[1]);
             break;
-        case 5: // abc
+        case 5: // (abc)
             aut->addFinalState(3);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(1, 2, labels[1]);
             aut->addTransition(2, 3, labels[2]);
             break;
-        case 7: // (a|b|c)d*
+        case 7: // (a|b)c*
             aut->addFinalState(1);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(0, 1, labels[1]);

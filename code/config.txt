@@ -1,10 +1,10 @@
-algorithm=1
+algorithm=3
 input_data_path=code/dataset/so/so-stream_debug_15kk.txt
 output_base_folder=code/
-size=86400
-slide=28800
+size=172800
+slide=86400
 query_type=9
-labels=1,2,3
+labels=3,1,2
 zscore=0
 reachability_threshold=0
 watermark=0
