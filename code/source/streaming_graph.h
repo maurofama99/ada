@@ -80,7 +80,7 @@ public:
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
     // key: pair ts open, ts close, value: adjacency list
-    std::unordered_map<std::pair<unsigned, unsigned>, unordered_map<long long, vector<pair<long long, sg_edge *> > >, pair_hash_aj > backup_aj;
+    std::unordered_map<std::pair<long long, long long>, unordered_map<long long, vector<pair<long long, sg_edge *> > >, pair_hash_aj > backup_aj;
 
     // Z-score computation
     double mean = 0;
@@ -358,7 +358,7 @@ public:
         backup_aj[key] = copy;
     }
 
-    void delete_expired_adj(unsigned ts_open, unsigned ts_close) {
+    void delete_expired_adj(long long ts_open, long long ts_close) {
         auto it = backup_aj.find(std::make_pair(ts_open, ts_close));
         if (it != backup_aj.end()) {
             backup_aj.erase(it);

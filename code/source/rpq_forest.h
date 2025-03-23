@@ -42,7 +42,7 @@ struct TreeHash {
     }
 };
 
-// Custom hash function for std::pair<unsigned, unsigned>
+// Custom hash function for std::pair<long long, long long>
 struct pair_hash {
     template<class T1, class T2>
     std::size_t operator()(const std::pair<T1, T2> &p) const {
@@ -58,8 +58,11 @@ public:
     std::unordered_map<long long, std::unordered_set<Tree, TreeHash> > vertex_tree_map;
     // Maps vertex to tree to which it belongs to
     // key: pair ts open, ts close, value: a pair of trees (first) and vertex_tree_map (second)
-    std::unordered_map<std::pair<unsigned, unsigned>, std::pair<std::unordered_map<long long, Tree>,
-        std::unordered_map<long long, std::unordered_set<Tree, TreeHash> > >, pair_hash> backup_map;
+    std::unordered_map<std::pair<long long, long long>, std::pair<std::unordered_map<long long, Tree>,
+    std::unordered_map<long long, std::unordered_set<Tree, TreeHash> > >, pair_hash> backup_map;
+
+    long long node_count = 0;
+
 
     ~Forest() {
         for (auto &[fst, snd]: trees) {
@@ -75,6 +78,7 @@ public:
             auto rootNode = new Node(rootId, rootVertex, rootState, nullptr);
             trees[rootVertex] = (Tree){rootVertex, rootNode, false};
             vertex_tree_map[rootVertex].insert(trees[rootVertex]);
+            node_count++;
         }
     }
 
@@ -82,6 +86,7 @@ public:
                           long long childVertex, long long childState) {
         if (Node *parent = findNodeInTree(rootVertex, parentVertex, parentState)) {
             parent->children.push_back(new Node(childId, childVertex, childState, parent));
+            node_count++;
             vertex_tree_map[childVertex].insert(trees[rootVertex]);
             return true;
         }
@@ -176,7 +181,7 @@ public:
         return result;
     }
 
-    void expire(const std::vector<pair<unsigned, unsigned> > &candidate_edges) {
+    void expire(const std::vector<pair<long long, long long> > &candidate_edges) {
         // Map each vertex to the trees it belongs to
         // When we need to delete a vertex, we trace back to the trees and navigate them until we find the corresponding node
         // From the corresponding node, we delete the node and its entire subtree
@@ -212,7 +217,7 @@ public:
         }
     }
 
-    void deepCopyTreesAndVertexTreeMap(unsigned ts_open, unsigned ts_close) {
+    void deepCopyTreesAndVertexTreeMap(long long ts_open, long long ts_close) {
         std::unordered_map<long long, Tree> trees_copy;
         std::unordered_map<long long, std::unordered_set<Tree, TreeHash> > vertex_tree_map_copy;
 
@@ -235,7 +240,7 @@ public:
         backup_map[std::make_pair(ts_open, ts_close)] = std::make_pair(trees_copy, vertex_tree_map_copy);
     }
 
-    void deleteExpiredForest(unsigned ts_open, unsigned ts_close) {
+    void deleteExpiredForest(long long ts_open, long long ts_close) {
         auto it = backup_map.find(std::make_pair(ts_open, ts_close));
         if (it != backup_map.end()) {
             backup_map.erase(it);
@@ -371,7 +376,10 @@ private:
             if (vertex_tree_map[current->vertex].empty()) {
                 vertex_tree_map.erase(current->vertex);
             }
-            if (!current->isCandidateParent) delete current;
+            if (!current->isCandidateParent) {
+                delete current;
+                node_count--;
+            }
             else {
                 current->isValid = false;
             }
@@ -399,6 +407,7 @@ private:
             vertex_tree_map.erase(node->vertex);
         }
         delete node;
+        node_count--;
     }
 };
 

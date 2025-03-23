@@ -32,8 +32,8 @@ def main():
     datasets = ["code/dataset/so/so-stream_labelled.txt"]
     algorithms = [1,3]
     window_slide_pairs = [(86400, 43200), (129600, 43200), (172800, 86400)] #(259200, 86400)
-    query_label_pairs = [(1, [2]), (9, [3, 1, 2])] # (3, [1, 2]),  (2, [3, 1, 2]), (5, [1, 2, 3]), (7, [1, 2, 3]),  (4, [1, 2])]   #    # (8, [1, 2])
-    z_scores = [(0,0), (1.2,0), (0.4,20)]
+    query_label_pairs = [ (3, [1, 2]),  (2, [3, 1, 2]), (5, [1, 2, 3]), (7, [1, 2, 3]),  (4, [1, 2])]   # (9, [3, 1, 2]), (8, [1, 2])  (1, [2])
+    z_scores = [(2,0), (1,8)]
     watermarks = [(0, 1)]
 
     generate_config_files(output_folder, datasets, algorithms, window_slide_pairs, query_label_pairs, z_scores, watermarks)

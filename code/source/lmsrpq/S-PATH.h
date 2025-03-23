@@ -418,6 +418,23 @@ public:
 		return std::make_pair(result_pairs.size(), tree_node_num);
 	}
 
+	long long count_nodes_forest() {
+		long long tree_node_num = 0;
+		for (auto & iter : v2t_index)
+		{
+			for (auto & iter2 : iter.second->tree_index)
+			{
+				tree_info* tmp = iter2.second;
+				while (tmp)
+				{
+					tree_node_num++;
+					tmp = tmp->next;
+				}
+			}
+		}
+		return tree_node_num;
+	}
+
 	void print_tree(long long ID, long long state)
 	{
 

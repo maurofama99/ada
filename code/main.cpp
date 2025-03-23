@@ -4,6 +4,7 @@
 #include<cstdlib>
 #include <fstream>
 #include <cmath>
+#include <numeric>
 #include <sstream>
 
 #include "source/fsa.h"
@@ -162,6 +163,8 @@ int main(int argc, char *argv[]) {
     double benefit_threshold = 1.5;
     for (long long i = 0; i < scores.size(); i++)
         f2->aut_scores[i] = scores.at(i);
+
+    vector<long long> node_count;
 
     auto query = new SPathHandler(*aut, *f, *sg); // Density-based Retention
 
@@ -344,7 +347,7 @@ int main(int argc, char *argv[]) {
         /* EVICT */
         if (evict) {
             vector<edge_info> deleted_edges;
-            std::vector<pair<unsigned, unsigned> > candidate_for_deletion;
+            std::vector<pair<long long, long long> > candidate_for_deletion;
             timed_edge *evict_start_point = windows[to_evict[0]].first;
             timed_edge *evict_end_point = windows[to_evict.back() + 1].first;
 
@@ -409,6 +412,12 @@ int main(int argc, char *argv[]) {
                 candidate_for_deletion.clear();
             }
             evict = false;
+
+            if (algorithm == 1) {
+                node_count.emplace_back(f1->count_nodes_forest());
+            } else if (algorithm == 3) {
+                node_count.emplace_back(f->node_count);
+            }
         }
 
         if (watermark != 0) {
@@ -439,6 +448,7 @@ int main(int argc, char *argv[]) {
             } else if (algorithm == 3) {
                 cout << "resulting paths: " << query->results_count << "\n\n";
             }
+            cout << "nodes in forest: " << node_count.back() << "\n";
         }
     }
 
@@ -496,7 +506,7 @@ int main(int argc, char *argv[]) {
     outFile << "processed edges: " << edge_number << "\n";
     outFile << "saved edges: " << sg->saved_edges << "\n";
     outFile << "execution time: " << time_used << "\n";
-
+    outFile << "average nodes in forest: " << std::accumulate(node_count.begin(), node_count.end(), 0.0) / node_count.size() << "\n";
     // Close the file
     outFile.close();
 

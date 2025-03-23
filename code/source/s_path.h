@@ -137,7 +137,7 @@ public:
         }
     }
 
-    void compute_missing_results(unsigned id, unsigned s, unsigned d, unsigned l, unsigned time, unsigned window_close,
+    void compute_missing_results(long long id, long long s, long long d, long long l, long long time, long long window_close,
                                  vector<std::pair<long long, long long> > &windows, // windows to recover
                                  unordered_map<long long, vector<sg_edge *> > &windows_backup) {
         if (windows.empty()) return;
