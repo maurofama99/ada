@@ -458,11 +458,10 @@ int main(int argc, char *argv[]) {
 
     // Construct output file path
     std::string retention = BACKWARD_RETENTION ? std::to_string(zscore) : "0";
-    std::string algorithm_name = BACKWARD_RETENTION ? "4" : std::to_string(algorithm);
-    std::string output_file = config.output_base_folder + "output_a" + algorithm_name + "_S" +
+    std::string output_file = config.output_base_folder + "output_a" + std::to_string(algorithm) + "_S" +
                               std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
                               "_z" + retention + "_wm" + std::to_string(watermark) + ".txt";
-    std::string output_file_csv = config.output_base_folder + "output_a" + algorithm_name + "_S" +
+    std::string output_file_csv = config.output_base_folder + "output_a" + std::to_string(algorithm) + "_S" +
                                   std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(
                                       query_type) +
                                   "_z" + retention + "_wm" + std::to_string(watermark) + ".csv";

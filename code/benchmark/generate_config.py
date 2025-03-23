@@ -22,17 +22,17 @@ def generate_config_files(output_folder, datasets, algorithms, window_slide_pair
                                 f"ooo_strategy={ooo_strategy}\n"
                             )
                             config_filename = f"config_a{algorithm}_S{size}_s{slide}_q{query_type}_z{zscore}_wm{watermark}.txt"
-                            config_filepath = os.path.join("config_vm", config_filename)
+                            config_filepath = os.path.join("config", config_filename)
                             with open(config_filepath, 'w') as config_file:
                                 config_file.write(config_content)
                             print(f"Generated {config_filepath}")
 
 def main():
-    output_folder = "code/benchmark/results_so/"
+    output_folder = "/home/ssh_user/Mauro/sgadwin_exp/results_so/"
     datasets = ["code/dataset/so/so-stream_labelled.txt"]
     algorithms = [1,3]
     window_slide_pairs = [(86400, 43200), (129600, 43200), (172800, 86400)] #(259200, 86400)
-    query_label_pairs = [(3, [1, 2]),  (2, [3, 1, 2]), (5, [1, 2, 3]), (7, [1, 2, 3]),  (4, [1, 2])]   #  (1, [2]), (8, [1, 2]), (9, [3, 1, 2])
+    query_label_pairs = [(1, [2]), (9, [3, 1, 2])] # (3, [1, 2]),  (2, [3, 1, 2]), (5, [1, 2, 3]), (7, [1, 2, 3]),  (4, [1, 2])]   #    # (8, [1, 2])
     z_scores = [(0,0), (1.2,0), (0.4,20)]
     watermarks = [(0, 1)]
 
@@ -40,3 +40,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # scp -r config ssh_user@134.214.143.99:/home/ssh_user/Mauro/sgadwin_exp/CbAW4DGSP/code/benchmark
