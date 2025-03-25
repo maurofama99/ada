@@ -519,10 +519,12 @@ int main(int argc, char *argv[]) {
 vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels) {
     vector<long long> scores;
 
+    // fixme: some queries do not have minimal FSA due to final state equal to initial state bug in LM-SRPQ
     switch (query_type) {
         case 1: // a*
-            aut->addFinalState(0);
-            aut->addTransition(0, 0, labels[0]);
+            aut->addFinalState(1);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 1, labels[0]);
             scores.emplace(scores.begin(), 6);
             break;
         case 2: // a(bc)*
