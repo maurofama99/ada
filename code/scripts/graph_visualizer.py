@@ -6,7 +6,7 @@ def read_edges_from_file(filename):
     with open(filename, 'r') as file:
         for line in file:
             source, destination, label, timestamp = line.split()
-            edges.append((long long(source), long long(destination), (label, timestamp)))
+            edges.append((int(source), int(destination), (label, timestamp)))
     return edges
 
 def draw_graph(edges):

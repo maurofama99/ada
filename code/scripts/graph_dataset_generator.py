@@ -36,9 +36,9 @@ def generate_dynamic_graph(file_name, num_vertices, num_edges, num_labels):
 
 # Esempio di utilizzo
 if __name__ == "__main__":
-    output_file = "//code/dataset/debug_small.txt"
-    unique_vertices = 20  # Numero di vertici univoci
-    total_edges = 50     # Numero totale di archi
+    output_file = "../dataset/debug_small.txt"
+    unique_vertices = 10 # Numero di vertici univoci
+    total_edges = 25     # Numero totale di archi
     total_labels = 2
 
     generate_dynamic_graph(output_file, unique_vertices, total_edges, total_labels)

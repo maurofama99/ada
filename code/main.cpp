@@ -10,9 +10,7 @@
 #include "source/fsa.h"
 #include "source/rpq_forest.h"
 #include "source/streaming_graph.h"
-#include "source/s_path.h"
-#include "source/lmsrpq/LM-SRPQ.h"
-#include "source/lmsrpq/S-PATH.h"
+#include "source/query_handler.h"
 
 using namespace std;
 
@@ -156,17 +154,16 @@ int main(int argc, char *argv[]) {
 
     long long checkpoint = 1000000;
 
-    auto *f1 = new RPQ_forest(sg, aut); // TS Propagation
-
-    auto *f2 = new LM_forest(sg, aut); // Landmark Trees
+    /*
     double candidate_rate = 0.2;
     double benefit_threshold = 1.5;
     for (long long i = 0; i < scores.size(); i++)
         f2->aut_scores[i] = scores.at(i);
+        */
 
     vector<long long> node_count;
 
-    auto query = new SPathHandler(*aut, *f, *sg); // Density-based Retention
+    auto query = new QueryHandler(*aut, *f, *sg); // Density-based Retention
 
     clock_t start = clock();
     while (fin >> s >> d >> l >> t) {
@@ -230,13 +227,7 @@ int main(int argc, char *argv[]) {
         timed_edge *t_edge;
         sg_edge *new_sgt;
 
-        if (algorithm == 1) new_sgt = f1->insert_edge_spath(edge_number, s, d, l, time, window_close);
-        else if (algorithm == 2) new_sgt = f2->insert_edge_lmsrpq(edge_number, s, d, l, time, window_close);
-        else if (algorithm == 3) new_sgt = sg->insert_edge(edge_number, s, d, l, time, window_close);
-        else {
-            cerr << "ERROR: Wrong algorithm selection." << endl;
-            exit(1);
-        }
+        new_sgt = sg->insert_edge(edge_number, s, d, l, time, window_close);
 
         // duplicate handling in tuple list, important to not evict an updated edge
         if (!new_sgt) {
@@ -342,14 +333,16 @@ int main(int argc, char *argv[]) {
         new_sgt->time_pos = t_edge;
 
         /* QUERY */
-        if (algorithm == 3) query->pattern_matching(new_sgt);
+        if (algorithm == 1)  query->pattern_matching_tc(new_sgt);
+        else if (algorithm == 2)  cerr << "ERROR: Query handler not implemented." << endl;
+        else if (algorithm == 3)  query->pattern_matching_lc(new_sgt);
 
         /* EVICT */
         if (evict) {
-            vector<edge_info> deleted_edges;
             std::vector<pair<long long, long long> > candidate_for_deletion;
             timed_edge *evict_start_point = windows[to_evict[0]].first;
             timed_edge *evict_end_point = windows[to_evict.back() + 1].first;
+            long long to_evict_timestamp = windows[to_evict.back() + 1].t_open;
 
             if (!evict_start_point) {
                 cerr << "ERROR: Evict start point is null." << endl;
@@ -373,15 +366,9 @@ int main(int argc, char *argv[]) {
                     auto target_window_index = last_window_index;
                     sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
                 } else {
-                    if (algorithm == 3) {
-                        // check for parent switch before final deletion
-                        candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
-                        // possible optimization: if the candidate parent is in the slide that we are evicting, avoid parent changing
-                    } else if (algorithm == 1 || algorithm == 2) {
-                        deleted_edges.emplace_back(cur_edge->s, cur_edge->d, cur_edge->timestamp, cur_edge->label,
-                                                   cur_edge->expiration_time,
-                                                   -1); // schedule for expiration from RPQ Forest
-                    }
+                    // check for parent switch before final deletion
+                    candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
+
                     sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
                     sg->delete_timed_edge(current); // delete from window state store
                 }
@@ -394,37 +381,31 @@ int main(int argc, char *argv[]) {
                 windows[i].first = nullptr;
                 windows[i].last = nullptr;
             }
-            to_evict.clear();
 
             // reset time list pointers
             sg->time_list_head = evict_end_point;
             sg->time_list_head->prev = nullptr;
 
             if (algorithm == 1) {
-                f1->expire(time, deleted_edges);
-                deleted_edges.clear();
+                f->expire_timestamped(to_evict_timestamp, candidate_for_deletion);
             } else if (algorithm == 2) {
-                f2->expire(time, deleted_edges);
-                f2->dynamic_lm_select(candidate_rate, benefit_threshold);
-                deleted_edges.clear();
+                cerr << "ERROR: Query handler not implemented." << endl;
             } else if (algorithm == 3) {
                 f->expire(candidate_for_deletion);
-                candidate_for_deletion.clear();
             }
+
+            to_evict.clear();
+            candidate_for_deletion.clear();
             evict = false;
 
-            if (algorithm == 1) {
-                node_count.emplace_back(f1->count_nodes_forest());
-            } else if (algorithm == 3) {
-                node_count.emplace_back(f->node_count);
-            }
+            node_count.emplace_back(f->node_count);
         }
 
         if (watermark != 0) {
             for (long long i = last_expired_window; i < windows.size(); i++) {
                 if (windows[i].t_close <= time - watermark) {
                     if (ooo_strategy == 0) {
-                        f->deleteExpiredForest(windows[i].t_open, windows[i].t_close);
+                        //f->deleteExpiredForest(windows[i].t_open, windows[i].t_close);
                         sg->delete_expired_adj(windows[i].t_open, windows[i].t_close);
                     } else {
                         windows_backup.erase(windows[i].t_close);
@@ -442,13 +423,11 @@ int main(int argc, char *argv[]) {
             printf("saved edges: %lld\n", sg->saved_edges);
             printf("avg degree: %f\n", sg->mean);
             if (algorithm == 1) {
-                cout << "resulting paths: " << f1->distinct_results << "\n\n";
-            } else if (algorithm == 2) {
-                cout << "resulting paths: " << f2->distinct_results << "\n\n";
+                cout << "resulting paths: " <<  query->results_count << "\n\n";
             } else if (algorithm == 3) {
                 cout << "resulting paths: " << query->results_count << "\n\n";
             }
-            cout << "nodes in forest: " << node_count.back() << "\n";
+            //cout << "nodes in forest: " << node_count.back() << "\n";
         }
     }
 
@@ -459,22 +438,24 @@ int main(int argc, char *argv[]) {
     printf("saved edges: %lld\n", sg->saved_edges);
     printf("avg degree: %f\n", sg->mean);
     if (algorithm == 1) {
-        cout << "resulting paths: " << f1->distinct_results << "\n\n";
+        cout << "resulting paths: " <<  query->results_count << "\n\n";
     } else if (algorithm == 2) {
-        cout << "resulting paths: " << f2->distinct_results << "\n\n";
+        cout << "query operator not implemented" << "\n\n";
     } else if (algorithm == 3) {
         cout << "resulting paths: " << query->results_count << "\n\n";
     }
 
     // Construct output file path
-    std::string retention = BACKWARD_RETENTION ? std::to_string(zscore) : "0";
+    std::string retention = BACKWARD_RETENTION ? std::to_string(static_cast<int>(zscore)) : "0";
+    std::string reachability = REACHABLE_EXTENSION ? std::to_string(static_cast<int>(reachability_threshold)) : "0";
     std::string output_file = config.output_base_folder + "output_a" + std::to_string(algorithm) + "_S" +
-                              std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
-                              "_z" + retention + "_wm" + std::to_string(watermark) + ".txt";
+                                std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
+                                    "_z" + retention + "_r" + reachability + ".txt";
     std::string output_file_csv = config.output_base_folder + "output_a" + std::to_string(algorithm) + "_S" +
-                                  std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(
-                                      query_type) +
-                                  "_z" + retention + "_wm" + std::to_string(watermark) + ".csv";
+                                    std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
+                                        "_z" + retention + "_r" + reachability + ".csv";
+
+    // query->exportResultSet(output_file_csv);
 
     // Open file for writing
     std::ofstream outFile(output_file.c_str());
@@ -482,9 +463,7 @@ int main(int argc, char *argv[]) {
         std::cerr << "Error opening file for writing: " << output_file << std::endl;
 
         if (algorithm == 1) {
-            cout << "resulting paths: " << f1->distinct_results << "\n";
-        } else if (algorithm == 2) {
-            cout << "resulting paths: " << f2->distinct_results << "\n";
+            cout << "resulting paths: " <<  query->results_count << "\n";
         } else if (algorithm == 3) {
             cout << "resulting paths: " << query->results_count << "\n";
         }
@@ -496,10 +475,12 @@ int main(int argc, char *argv[]) {
 
     // Write data to the file
     if (algorithm == 1) {
-        outFile << "resulting paths: " << f1->distinct_results << "\n";
+        outFile << "resulting paths: " <<  query->results_count << "\n";
     } else if (algorithm == 2) {
+        /*
         outFile << "resulting paths: " << f2->distinct_results << "\n";
         outFile << "landmark trees: " << f2->landmarks_count << "\n";
+        */
     } else if (algorithm == 3) {
         outFile << "resulting paths: " << query->results_count << "\n";
     }

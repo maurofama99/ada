@@ -21,8 +21,8 @@ def generate_config_files(output_folder, datasets, algorithms, window_slide_pair
                                 f"watermark={watermark}\n"
                                 f"ooo_strategy={ooo_strategy}\n"
                             )
-                            config_filename = f"config_a{algorithm}_S{size}_s{slide}_q{query_type}_z{zscore}_wm{watermark}.txt"
-                            config_filepath = os.path.join("config", config_filename)
+                            config_filename = f"config_a{algorithm}_S{size}_s{slide}_q{query_type}_z{zscore}_r{reachability_threshold}.txt"
+                            config_filepath = os.path.join("config_2", config_filename)
                             with open(config_filepath, 'w') as config_file:
                                 config_file.write(config_content)
                             print(f"Generated {config_filepath}")
@@ -30,10 +30,10 @@ def generate_config_files(output_folder, datasets, algorithms, window_slide_pair
 def main():
     output_folder = "/home/ssh_user/Mauro/sgadwin_exp/results_so/"
     datasets = ["code/dataset/so/so-stream_labelled.txt"]
-    algorithms = [1,3]
+    algorithms = [1]
     window_slide_pairs = [(86400, 43200), (129600, 43200), (172800, 86400)] #(259200, 86400)
-    query_label_pairs = [ (3, [1, 2]),  (2, [3, 1, 2]), (5, [1, 2, 3]), (7, [1, 2, 3]),  (4, [1, 2])]   # (9, [3, 1, 2]), (8, [1, 2])  (1, [2])
-    z_scores = [(2,0), (1,8)]
+    query_label_pairs = [(3, [1, 2]), (8, [1, 2]), (5, [1, 2, 3]), (7, [1, 2, 3]),  (4, [1, 2]), (9, [3, 1, 2]),  (1, [2]), (2, [3, 1, 2])]
+    z_scores = [(0,0)] #
     watermarks = [(0, 1)]
 
     generate_config_files(output_folder, datasets, algorithms, window_slide_pairs, query_label_pairs, z_scores, watermarks)

@@ -20,10 +20,10 @@ struct Node {
     std::vector<Node *> candidate_parents;
     bool isCandidateParent = false;
     bool isValid = true;
+    long long timestamp;
+    bool isRoot = false;
 
-    Node(long long child_id, long long child_vertex, long long child_state, Node *node) : id(child_id), vertex(child_vertex),
-        state(child_state), parent(node) {
-    };
+    Node(long long child_id, long long child_vertex, long long child_state, Node *node) : id(child_id), vertex(child_vertex), state(child_state), parent(node) {}
 };
 
 struct Tree {
@@ -34,6 +34,11 @@ struct Tree {
     bool operator==(const Tree &other) const {
         return rootVertex == other.rootVertex;
     }
+
+    Tree() = default;
+
+    Tree(long long root_vertex, Node *node, bool cond) : rootVertex(root_vertex), rootNode(node), expired(cond) {}
+
 };
 
 struct TreeHash {
@@ -63,7 +68,6 @@ public:
 
     long long node_count = 0;
 
-
     ~Forest() {
         for (auto &[fst, snd]: trees) {
             deleteTreeRecursive(snd.rootNode, fst);
@@ -75,26 +79,40 @@ public:
     // it exists only one pair vertex-state that can be root of a tree
     void addTree(long long rootId, long long rootVertex, long long rootState) {
         if (trees.find(rootVertex) == trees.end()) {
-            auto rootNode = new Node(rootId, rootVertex, rootState, nullptr);
-            trees[rootVertex] = (Tree){rootVertex, rootNode, false};
-            vertex_tree_map[rootVertex].insert(trees[rootVertex]);
+            trees.emplace(rootVertex, Tree(rootVertex, new Node(rootId, rootVertex, rootState, nullptr), false));
+            vertex_tree_map[rootVertex].insert(trees.at(rootVertex));
+
+            trees.at(rootVertex).rootNode->timestamp = INT64_MAX;
+            trees.at(rootVertex).rootNode->isRoot = true;
+
             node_count++;
         }
     }
 
-    bool addChildToParent(long long rootVertex, long long parentVertex, long long parentState, long long childId,
-                          long long childVertex, long long childState) {
+    bool addChildToParent(long long rootVertex, long long parentVertex, long long parentState, long long childId, long long childVertex, long long childState) {
         if (Node *parent = findNodeInTree(rootVertex, parentVertex, parentState)) {
             parent->children.push_back(new Node(childId, childVertex, childState, parent));
             node_count++;
             vertex_tree_map[childVertex].insert(trees[rootVertex]);
             return true;
         }
-        // cout << "Could not find parent in tree" << endl;
         return false;
     }
 
-    static bool changeParent(Node *child, Node *newParent) {
+    bool addChildToParentTimestamped(long long rootVertex, long long parentVertex, long long parentState, long long childVertex, long long childState, long long timestamp) {
+        if (Node *parent = findNodeInTree(rootVertex, parentVertex, parentState)) {
+            auto child = new Node(-1, childVertex, childState, parent);
+            child->timestamp = timestamp < parent->timestamp ? timestamp : parent->timestamp;
+            parent->children.emplace_back(child);
+            node_count++;
+            vertex_tree_map[childVertex].insert(trees[rootVertex]);
+            return true;
+        }
+        cout << "Could not find parent in tree" << endl;
+        return false;
+    }
+
+    bool changeParent(Node *child, Node *newParent) {
         if (!newParent->isValid) {
             return false;
         }
@@ -113,6 +131,34 @@ public:
             }
             // Set the new parent
             child->parent = newParent;
+            newParent->children.push_back(child);
+        } else {
+            std::cout << "ERROR: Could not find child in tree" << std::endl;
+            exit(1);
+        }
+        return true;
+    }
+
+    bool changeParentTimestamped(Node *child, Node *newParent, long long timestamp) {
+        if (!newParent->isValid) {
+            return false;
+        }
+        if (child) {
+            // Remove child from its current parent's children list
+            if (child->parent) {
+                auto &siblings = child->parent->children;
+                auto it = std::remove(siblings.begin(), siblings.end(), child);
+                if (it == siblings.end()) {
+                    throw std::runtime_error("ERROR: Child not found in parent's children list");
+                }
+                siblings.erase(it, siblings.end());
+            } else {
+                cout << "ERROR: Could not find new parent in tree" << endl;
+                exit(1);
+            }
+            // Set the new parent
+            child->parent = newParent;
+            child->timestamp = timestamp < newParent->timestamp ? timestamp : newParent->timestamp;
             newParent->children.push_back(child);
         } else {
             std::cout << "ERROR: Could not find child in tree" << std::endl;
@@ -154,17 +200,6 @@ public:
         return nullptr;
     }
 
-    std::set<long long> getKeySet(long long vertex) {
-        std::set<long long> result;
-
-        if (vertex_tree_map.count(vertex)) {
-            for (auto tree: vertex_tree_map.find(vertex)->second) {
-                if (searchNodeNoState(tree.rootNode, vertex)) result.insert(tree.rootNode->vertex);
-            }
-        }
-        return result;
-    }
-
     /**
      * @param vertex id of the vertex in the AL
      * @param state state associated to the vertex node
@@ -174,8 +209,8 @@ public:
         std::vector<Tree> result;
         // TODO Optimize by storing the state in the vertex-tree map
         if (vertex_tree_map.count(vertex)) {
-            for (auto tree: vertex_tree_map.find(vertex)->second) {
-                if (searchNode(tree.rootNode, vertex, state)) result.push_back(tree);
+            for (auto &tree: vertex_tree_map[vertex]) {
+                if (searchNode(tree.rootNode, vertex, state)) result.emplace_back(tree.rootVertex, tree.rootNode, tree.expired);
             }
         }
         return result;
@@ -188,7 +223,6 @@ public:
         // During the traversal of the subtree, for each node
         // we access the map and remove the current tree from the vertex we are visiting
         // Remove the vertex from the map
-
         for (auto [src, dst]: candidate_edges) {
             std::vector<long long> vertexes = {src, dst};
             for (auto vertex: vertexes) {
@@ -196,19 +230,52 @@ public:
                 auto treesSet = vertex_tree_map.at(vertex);
                 for (auto [rootVertex, rootNode, expired]: treesSet) {
                     if (Node *current = searchNodeNoState(rootNode, vertex)) {
-                        if (current->parent) {
-                            if (!current->candidate_parents.empty()) {
-                                // there is at least a new candidate parent before deletion
-                                if (changeParent(current, current->candidate_parents.back())) {
+                        if (current->isRoot) {
+                            // current vertex is the root node
+                            deleteTreeIterative(rootNode, rootVertex);
+                            trees.erase(rootVertex);
+                        } else if (current->parent){
+                            if (!current->candidate_parents.empty()) { // there is at least a new candidate parent before deletion
+                                bool parentFound = false;
+                                for (auto candidateParent: current->candidate_parents) {
+                                    if (changeParent(current, candidateParent)) {
+                                        parentFound = true;
+                                        current->candidate_parents.pop_back();
+                                        break;
+                                    }
                                     current->candidate_parents.pop_back();
-                                } // else delete current->candidate_parents.back();
+                                }
+                                if (!parentFound) deleteSubTree(current, rootVertex);
                             } else {
                                 deleteSubTree(current, rootVertex);
                             }
                         } else {
-                            // current vertex is the root node
-                            deleteTreeIterative(rootNode, rootVertex);
-                            trees.erase(vertex);
+                            cerr << "ERROR: child node has null parent" << endl;
+                            exit(1);
+                        }
+                    }
+                }
+                vertex_tree_map.erase(vertex);
+            }
+        }
+    }
+
+    void expire_timestamped(long long eviction_time, const std::vector<pair<long long, long long> > &candidate_edges) {
+        for (auto [src, dst]: candidate_edges) {
+            std::vector<long long> vertexes = {src, dst};
+            for (auto vertex: vertexes) {
+                if (vertex_tree_map.find(vertex) == vertex_tree_map.end()) continue;
+                auto treesSet = vertex_tree_map.at(vertex);
+                for (auto [rootVertex, rootNode, expired]: treesSet) {
+                    if (Node *current = searchNodeNoState(rootNode, vertex)) {
+                        if (current->timestamp < eviction_time || current->isRoot) {
+                            if (current->parent) {
+                                deleteSubTree(current, rootVertex);
+                            } else {
+                                // current vertex is the root node
+                                trees.erase(rootVertex);
+                                deleteTreeRecursive(rootNode, rootVertex);
+                            }
                         }
                     }
                 }
@@ -218,6 +285,7 @@ public:
     }
 
     void deepCopyTreesAndVertexTreeMap(long long ts_open, long long ts_close) {
+        /*
         std::unordered_map<long long, Tree> trees_copy;
         std::unordered_map<long long, std::unordered_set<Tree, TreeHash> > vertex_tree_map_copy;
 
@@ -245,6 +313,7 @@ public:
         if (it != backup_map.end()) {
             backup_map.erase(it);
         }
+        */
     }
 
     void printTree(Node *node, long long depth = 0) const {
@@ -269,51 +338,6 @@ public:
     }
 
 private:
-    Tree deepCopyTree(const Tree &tree) {
-        Tree tree_copy;
-        tree_copy.rootVertex = tree.rootVertex;
-        tree_copy.expired = tree.expired;
-        tree_copy.rootNode = deepCopyNodeIterative(tree.rootNode);
-        return tree_copy;
-    }
-
-    Node *deepCopyNode(Node *node, Node *parent) {
-        if (!node) return nullptr;
-        Node *node_copy = new Node(node->id, node->vertex, node->state, parent);
-        for (Node *child: node->children) {
-            node_copy->children.push_back(deepCopyNode(child, node_copy));
-        }
-        return node_copy;
-    }
-
-    Node *deepCopyNodeIterative(Node *root) {
-        if (!root) return nullptr;
-
-        std::unordered_map<Node *, Node *> node_map;
-        std::queue<Node *> node_queue;
-        node_queue.push(root);
-
-        auto root_copy = new Node(root->id, root->vertex, root->state, nullptr);
-        node_map[root] = root_copy;
-
-        while (!node_queue.empty()) {
-            Node *current = node_queue.front();
-            node_queue.pop();
-
-            Node *current_copy = node_map[current];
-
-            for (Node *child: current->children) {
-                if (node_map.find(child) == node_map.end()) {
-                    auto child_copy = new Node(child->id, child->vertex, child->state, current_copy);
-                    node_map[child] = child_copy;
-                    node_queue.push(child);
-                }
-                current_copy->children.push_back(node_map[child]);
-            }
-        }
-
-        return root_copy;
-    }
 
     Node *searchNode(Node *node, long long vertex, long long state) {
         if (!node) return nullptr;
@@ -378,11 +402,11 @@ private:
             }
             if (!current->isCandidateParent) {
                 delete current;
-                node_count--;
             }
             else {
                 current->isValid = false;
             }
+            node_count--;
         }
     }
 
