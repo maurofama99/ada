@@ -40,4 +40,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # scp -r config ssh_user@134.214.143.99:/home/ssh_user/Mauro/sgadwin_exp/CbAW4DGSP/code/benchmark

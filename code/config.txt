@@ -1,11 +1,11 @@
-algorithm=3
+algorithm=1
 input_data_path=code/dataset/so/so-stream_labelled.txt
 output_base_folder=code/output_so/
 size=86400
-slide=28800
+slide=43200
 query_type=3
 labels=1,2
-zscore=0.8
-reachability_threshold=0
+zscore=0.15
+reachability_threshold=3
 watermark=0
 ooo_strategy=1

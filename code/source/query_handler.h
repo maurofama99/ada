@@ -171,11 +171,11 @@ public:
                     if (auto vj_sj_node = forest.findNodeInTree(tree.rootVertex, element->vd, element->sd); !vj_sj_node) {
                         // if tree does not contain <vj,sj>
                         // add <vj,sj> into tree with parent vi_si
-                        if (!forest.addChildToParentTimestamped(tree.rootVertex, element->vb, element->sb,  element->vd, element->sd, element->edge_timestamp)) cerr << "ERROR: Parent not found" << endl;
+                        if (!forest.addChildToParentTimestamped(tree.rootVertex, element->vb, element->sb,  element->vd, element->sd, element->edge_timestamp)) continue;
                     } else if (auto candidate_parent = forest.findNodeInTree(tree.rootVertex, element->vb, element->sb); vj_sj_node->timestamp < (element->s_timestamp < candidate_parent->timestamp ? element->s_timestamp : candidate_parent->timestamp)) {
                         // if tree already contains <vj,sj>
                         // change parent to vi_si if the timestamp is smaller
-                        if (!forest.changeParentTimestamped(vj_sj_node, candidate_parent, element->edge_timestamp)) cerr << "ERROR: Parent not changed" << endl;
+                        if (!forest.changeParentTimestamped(vj_sj_node, candidate_parent, element->edge_timestamp)) continue;
                     } else
                         continue;
                     // update result set
