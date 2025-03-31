@@ -108,7 +108,7 @@ public:
             vertex_tree_map[childVertex].insert(trees[rootVertex]);
             return true;
         }
-        cout << "Could not find parent in tree" << endl;
+        // cout << "Could not find parent in tree" << endl;
         return false;
     }
 

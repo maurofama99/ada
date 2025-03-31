@@ -172,7 +172,7 @@ public:
                         // if tree does not contain <vj,sj>
                         // add <vj,sj> into tree with parent vi_si
                         if (!forest.addChildToParentTimestamped(tree.rootVertex, element->vb, element->sb,  element->vd, element->sd, element->edge_timestamp)) continue;
-                    } else if (auto candidate_parent = forest.findNodeInTree(tree.rootVertex, element->vb, element->sb); vj_sj_node->timestamp < (element->s_timestamp < candidate_parent->timestamp ? element->s_timestamp : candidate_parent->timestamp)) {
+                    } else if (auto candidate_parent = forest.findNodeInTree(tree.rootVertex, element->vb, element->sb); candidate_parent != nullptr && vj_sj_node->timestamp < (element->s_timestamp < candidate_parent->timestamp ? element->s_timestamp : candidate_parent->timestamp)) {
                         // if tree already contains <vj,sj>
                         // change parent to vi_si if the timestamp is smaller
                         if (!forest.changeParentTimestamped(vj_sj_node, candidate_parent, element->edge_timestamp)) continue;
