@@ -40,13 +40,13 @@ def transform_file(input_file, output_file, label_map, default_value, max_lines)
 
 def main():
     # File di configurazione
-    config_file = "config_so.txt"
+    config_file = "config_ldbc.txt"
     # File di input e output
-    input_file = "../dataset/so/so-stream.txt"
-    output_file = "../dataset/so/so-stream_labelled.txt"
+    input_file = "../dataset/ldbc/ldbc-sf10-updatestream.txt"
+    output_file = "../dataset/ldbc/ldbc-sf10-updatestream_postprocess.txt"
 
     # Limite sul numero di righe del file di output (-1 per nessun limite)
-    max_lines = 100000000000  # Cambia questo valore come necessario
+    max_lines = 100000000000000  # Cambia questo valore come necessario
 
     # Leggi la mappa delle etichette e il valore di default
     label_map, default_value = parse_label_map(config_file)

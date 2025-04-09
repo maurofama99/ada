@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include "fsa.h"
 #include "rpq_forest.h"
+#include "sink.h"
 #include "streaming_graph.h"
 
 struct tree_expansion {
@@ -43,55 +44,22 @@ struct visitedpairHash {
     }
 };
 
-struct result {
-    long long destination;
-    long long timestamp;
-
-    bool operator==(const result &other) const {
-        return destination == other.destination;
-    }
-};
-
-struct resultHash {
-    size_t operator()(const result &p) const {
-        return hash<long long>()(p.destination);
-        //^ hash<long long>()(p.timestamp);
-    }
-};
-
 class QueryHandler {
 public:
     FiniteStateAutomaton &fsa;
     Forest &forest;
     streaming_graph &sg;
+    Sink &sink;
 
-    unordered_map<long long, std::unordered_set<result, resultHash> > result_set;
     // Maps source vertex to destination vertex and timestamp of path creation
-    long long results_count = 0;
     int debug_counter = 0;
 
+    QueryHandler(FiniteStateAutomaton &fsa, Forest &forest, streaming_graph &sg, Sink &sink)
+        : fsa(fsa), forest(forest), sg(sg), sink(sink) {
+    }
+
     QueryHandler(FiniteStateAutomaton &fsa, Forest &forest, streaming_graph &sg)
-        : fsa(fsa), forest(forest), sg(sg) {
-    }
-
-    void printResultSet() {
-        for (const auto &[source, destinations]: result_set) {
-            for (const auto &destination: destinations) {
-                cout << "Path from " << source << " to " << destination.destination << " at time " << destination.
-                        timestamp << endl;
-            }
-        }
-    }
-
-    // export the result set into a file in form of csv with columns source, destination, timestamp
-    void exportResultSet(const string &filename) {
-        ofstream file(filename);
-        for (const auto &[source, destinations]: result_set) {
-            for (const auto &destination: destinations) {
-                file << source << "," << destination.destination << "," << destination.timestamp << endl;
-            }
-        }
-        file.close();
+        : fsa(fsa), forest(forest), sg(sg), sink(*new Sink()) {
     }
 
     void pattern_matching_lc(const sg_edge *edge) {
@@ -131,9 +99,7 @@ public:
                     // update result set
                     if (fsa.isFinalState(element->sd)) {
                         // check if in the result set we already have a path from root to element.vd
-                        if (result_set[tree.rootVertex].insert((result){element->vd, edge->timestamp}).second) {
-                            results_count++;
-                        }
+                        sink.addEntry(tree.rootVertex, element->vd, edge->timestamp);
                     }
                     // for all vertex <vq,sq> where exists a successor vertex in the snapshot graph where the label the same as the transition in the automaton from the state sj to state sq, push into Q
                     for (auto successors: sg.get_all_suc(element->vd)) {
@@ -180,10 +146,9 @@ public:
                         continue;
                     // update result set
                     if (fsa.isFinalState(element->sd)) {
+                        // cout << "Found a path from " << element->vb << " to " << element->vd << " at time " << element->edge_timestamp << endl;
                         // check if in the result set we already have a path from root to element.vd
-                        if (result_set[tree.rootVertex].insert((result){element->vd, edge->timestamp}).second) {
-                            results_count++;
-                        }
+                        sink.addEntry(tree.rootVertex, element->vd, edge->timestamp);
                     }
                     // for all vertex <vq,sq> where exists a successor vertex in the snapshot graph where the label the same as the transition in the automaton from the state sj to state sq, push into Q
                     for (auto successors: sg.get_all_suc(element->vd)) {

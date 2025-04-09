@@ -68,11 +68,13 @@ public:
 
     long long node_count = 0;
 
+    /*
     ~Forest() {
         for (auto &[fst, snd]: trees) {
             deleteTreeRecursive(snd.rootNode, fst);
         }
     }
+    */
 
     // a vertex can be root of only one tree
     // proof: since we have only one initial state and the tree has an initial state as root

@@ -78,6 +78,7 @@ public:
     timed_edge *first;
     timed_edge *last;
     bool evicted = false;
+    long long elements_count = 0;
 
     // Constructor
     window(long long t_open, long long t_close, timed_edge *first, timed_edge *last) {
@@ -121,14 +122,14 @@ int main(int argc, char *argv[]) {
     }
 
     if (algorithm != 3 and watermark != 0) {
-        cerr << "Out of order not supported for this algorithm" << endl;
-        exit(1);
+        watermark = 0;
     }
 
     auto *aut = new FiniteStateAutomaton();
     vector<long long> scores = setup_automaton(query_type, aut, config.labels);
     auto *f = new Forest();
     auto *sg = new streaming_graph();
+    auto *sink = new Sink();
 
     vector<window> windows;
 
@@ -136,8 +137,6 @@ int main(int argc, char *argv[]) {
     unordered_map<long long, vector<sg_edge *> > windows_backup;
     // key: window opening time, value: vector of elements belonging to the window.
 
-    long long s, d, l;
-    long long t;
 
     long long t0 = 0;
     long long edge_number = 0;
@@ -162,11 +161,27 @@ int main(int argc, char *argv[]) {
         */
 
     vector<long long> node_count;
+    long long saved_edges = 0;
 
-    auto query = new QueryHandler(*aut, *f, *sg); // Density-based Retention
+    std::vector<std::tuple<long long, long long, long long, long long>> edges;
+    std::string line;
+
+    cout << "SINGLE WINDOW" << endl;
+
+    cout << "reading input dataset..." << endl;
+    while (std::getline(fin, line)) {
+        std::istringstream iss(line);
+        long long s, d, l, t;
+        if (iss >> s >> d >> l >> t) {
+            edges.emplace_back(s, d, l, t);
+        }
+    }
+    cout << "read complete" << endl;
+
+    auto query = new QueryHandler(*aut, *f, *sg, *sink); // Density-based Retention
 
     clock_t start = clock();
-    while (fin >> s >> d >> l >> t) {
+    for (const auto& [s, d, l, t] : edges) {
         edge_number++;
         if (t0 == 0) {
             t0 = t;
@@ -182,16 +197,13 @@ int main(int argc, char *argv[]) {
 
         long long watermark_gap = current_time - time;
 
-        /* ADD */
-        double c_sup = ceil(static_cast<double>(time) / static_cast<double>(slide)) * slide;
-        double o_i = c_sup - size;
-        long long window_close;
 
+        long long window_close;
         handle_ooo = false;
         if (time >= current_time) {
             // in-order element
-            if (time == current_time) time++;
-            current_time = time;
+            double c_sup = ceil(static_cast<double>(time) / static_cast<double>(slide)) * slide;
+            double o_i = c_sup - size;
             do {
                 window_close = o_i + size;
                 if (windows[last_window_index].t_close < window_close) {
@@ -199,10 +211,12 @@ int main(int argc, char *argv[]) {
                     last_window_index++;
                 }
                 o_i += slide;
-            } while (o_i <= time);
+            } while (o_i < time);
         } else if (watermark_gap > 0 && watermark_gap <= watermark) {
             // out-of-order element before watermark expiration
             std::vector<std::pair<long long, long long> > windows_to_recover;
+            double c_sup = ceil(static_cast<double>(time) / static_cast<double>(slide)) * slide;
+            double o_i = c_sup - size;
             do {
                 window_close = o_i + size;
                 if (windows[last_window_index].t_close < window_close) {
@@ -231,6 +245,7 @@ int main(int argc, char *argv[]) {
 
         // duplicate handling in tuple list, important to not evict an updated edge
         if (!new_sgt) {
+            // TODO If existing edge is not in the same window, do not shift place but instead reinsert it
             // search for the duplicate
             auto existing_edge = sg->search_existing_edge(s, d, l);
             if (!existing_edge) {
@@ -293,12 +308,14 @@ int main(int argc, char *argv[]) {
                     }
                     if (!windows[i].first) windows[i].last = t_edge;
                     windows[i].first = t_edge;
+                    windows[i].elements_count++;
                 } else if (!windows[i].last || time > windows[i].last->edge_pt->timestamp) {
                     if (handle_ooo && windows[i].last->next != t_edge) {
                         cerr << "ERROR: Window last is not the next element." << endl;
                         exit(1);
                     }
                     windows[i].last = t_edge;
+                    windows[i].elements_count++;
                 }
             } else if (time >= windows[i].t_close) {
                 if (watermark != 0) {
@@ -322,7 +339,6 @@ int main(int argc, char *argv[]) {
                         else windows_backup[windows[i].t_close] = windows_backup[windows[to_evict[0]].t_close];
                     }
                 }
-
                 // schedule window for eviction
                 window_offset = i + 1;
                 to_evict.push_back(i);
@@ -355,17 +371,21 @@ int main(int argc, char *argv[]) {
             }
 
             timed_edge *current = evict_start_point;
+
             while (current && current != evict_end_point) {
                 auto cur_edge = current->edge_pt;
                 auto next = current->next;
 
-                if ((BACKWARD_RETENTION && !REACHABLE_EXTENSION && sg->get_zscore(cur_edge->s) > zscore)
+                if ((BACKWARD_RETENTION && !REACHABLE_EXTENSION && cur_edge->lives > 0 && sg->get_zscore(cur_edge->s) > zscore)
                     || (BACKWARD_RETENTION && REACHABLE_EXTENSION && sg->get_zscore(cur_edge->s) > zscore && sg->
                         dfs_with_threshold(cur_edge->s, reachability_threshold, evict_end_point->edge_pt->timestamp))) {
-                    sg->saved_edges++;
+                    cur_edge->lives--;
+                    saved_edges++;
                     auto target_window_index = last_window_index;
                     sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
-                } else {
+                }
+
+                else {
                     // check for parent switch before final deletion
                     candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
 
@@ -420,14 +440,13 @@ int main(int argc, char *argv[]) {
             checkpoint += checkpoint;
 
             printf("processed edges: %lld\n", edge_number);
-            printf("saved edges: %lld\n", sg->saved_edges);
+            printf("saved edges: %lld\n", saved_edges);
             printf("avg degree: %f\n", sg->mean);
             if (algorithm == 1) {
-                cout << "resulting paths: " <<  query->results_count << "\n\n";
+                cout << "resulting paths: " <<  sink->getResultSetSize() << "\n\n";
             } else if (algorithm == 3) {
-                cout << "resulting paths: " << query->results_count << "\n\n";
+                cout << "resulting paths: " << sink->getResultSetSize() << "\n\n";
             }
-            //cout << "nodes in forest: " << node_count.back() << "\n";
         }
     }
 
@@ -435,15 +454,18 @@ int main(int argc, char *argv[]) {
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
     cout << "execution time: " << time_used << endl;
     printf("processed edges: %lld\n", edge_number);
-    printf("saved edges: %lld\n", sg->saved_edges);
+    printf("saved edges: %lld\n", saved_edges);
     printf("avg degree: %f\n", sg->mean);
-    if (algorithm == 1) {
-        cout << "resulting paths: " <<  query->results_count << "\n\n";
-    } else if (algorithm == 2) {
-        cout << "query operator not implemented" << "\n\n";
-    } else if (algorithm == 3) {
-        cout << "resulting paths: " << query->results_count << "\n\n";
+    cout << "resulting paths: " <<  sink->getResultSetSize() << "\n\n";
+    cout << "windows created: " << windows.size() << "\n";
+
+    // compute average window size using the number of elements for each window in elements_count
+    double avg_window_size = 0;
+    for (const auto &win : windows) {
+        avg_window_size += win.elements_count;
     }
+    avg_window_size /= windows.size();
+    cout << "avg window size: " << avg_window_size << "\n";
 
     // Construct output file path
     std::string retention = BACKWARD_RETENTION ? std::to_string(static_cast<int>(zscore)) : "0";
@@ -455,39 +477,22 @@ int main(int argc, char *argv[]) {
                                     std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
                                         "_z" + retention + "_r" + reachability + ".csv";
 
-    // query->exportResultSet(output_file_csv);
+    // sink->exportResultSet(output_file_csv);
 
     // Open file for writing
     std::ofstream outFile(output_file.c_str());
     if(!outFile) {
         std::cerr << "Error opening file for writing: " << output_file << std::endl;
-
-        if (algorithm == 1) {
-            cout << "resulting paths: " <<  query->results_count << "\n";
-        } else if (algorithm == 3) {
-            cout << "resulting paths: " << query->results_count << "\n";
-        }
-        cout << "processed edges: " << edge_number << "\n";
-        cout << "saved edges: " << sg->saved_edges << "\n";
-        cout << "execution time: " << time_used << "\n";
         return EXIT_FAILURE;
     }
 
-    // Write data to the file
-    if (algorithm == 1) {
-        outFile << "resulting paths: " <<  query->results_count << "\n";
-    } else if (algorithm == 2) {
-        /*
-        outFile << "resulting paths: " << f2->distinct_results << "\n";
-        outFile << "landmark trees: " << f2->landmarks_count << "\n";
-        */
-    } else if (algorithm == 3) {
-        outFile << "resulting paths: " << query->results_count << "\n";
-    }
+    outFile << "resulting paths: " << sink->getResultSetSize() << "\n";
     outFile << "processed edges: " << edge_number << "\n";
-    outFile << "saved edges: " << sg->saved_edges << "\n";
+    outFile << "saved edges: " << saved_edges << "\n";
     outFile << "execution time: " << time_used << "\n";
-    outFile << "average nodes in forest: " << std::accumulate(node_count.begin(), node_count.end(), 0.0) / node_count.size() << "\n";
+    outFile << "windows created: " << windows.size() << "\n";
+    outFile << "avg window size: " << avg_window_size << "\n";
+
     // Close the file
     outFile.close();
 

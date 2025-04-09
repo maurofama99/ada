@@ -51,6 +51,7 @@ public:
     timed_edge *time_pos;
     long long s, d;
     long long id;
+    int lives = 1;
 
     sg_edge(const long long id_, const long long src, const long long dst, const long long label_, const long long time) {
         id = id_;
@@ -71,11 +72,33 @@ struct pair_hash_aj {
     }
 };
 
+
+struct replication_rank_element {
+    long long from;
+    long long to;
+    long long replication = 0;
+    long long timestamp;
+
+    replication_rank_element(long long f, long long t) : from(f), to (t) {}
+
+    replication_rank_element(long long f, long long t, long long r, long long timestamp) : from(f), to (t), replication(r), timestamp(timestamp) {}
+
+    bool operator==(const replication_rank_element &other) const {
+        return from == other.from && to == other.to;
+    }
+};
+
+struct replication_comparator {
+    bool operator() (replication_rank_element const &t1, replication_rank_element const &t2) const {
+        return t1.replication>t2.replication;
+    }
+};
+
 class streaming_graph {
 public:
     unordered_map<long long, vector<pair<long long, sg_edge *> > > adjacency_list;
 
-    long long edge_num=0; // number of edges in the window
+    double edge_num=0; // number of edges in the window
     long long vertex_num=0; // number of vertices in the window
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
@@ -86,8 +109,6 @@ public:
     double mean = 0;
     double m2 = 0;
     unordered_map<long long, long long> density;
-    long long slide_threshold = 10;
-    long long saved_edges = 0;
 
     explicit streaming_graph() {
         edge_num = 0;
@@ -341,7 +362,7 @@ public:
         if (target == time_list_tail) time_list_tail = to_insert;
 
         to_insert->edge_pt->expiration_time = target->edge_pt->expiration_time;
-        to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
+        //to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
     }
 
     void deep_copy_adjacency_list(long long ts_open, long long ts_close) {
