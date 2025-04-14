@@ -4,8 +4,6 @@
 #include <unordered_map>
 #include <set>
 #include <cmath>
-#include <queue>
-#include <limits>
 
 using namespace std;
 
@@ -51,15 +49,17 @@ public:
     timed_edge *time_pos;
     long long s, d;
     long long id;
-    int lives = 1;
+    int lives;
 
-    sg_edge(const long long id_, const long long src, const long long dst, const long long label_, const long long time) {
+    sg_edge(const long long id_, const long long src, const long long dst, const long long label_, const long long time, int lives_, const long long expiration_time_) {
         id = id_;
         s = src;
         d = dst;
         timestamp = time;
         label = label_;
         time_pos = nullptr;
+        lives = lives_;
+        expiration_time = expiration_time_;
     }
 };
 
@@ -78,8 +78,6 @@ struct replication_rank_element {
     long long to;
     long long replication = 0;
     long long timestamp;
-
-    replication_rank_element(long long f, long long t) : from(f), to (t) {}
 
     replication_rank_element(long long f, long long t, long long r, long long timestamp) : from(f), to (t), replication(r), timestamp(timestamp) {}
 
@@ -102,6 +100,9 @@ public:
     long long vertex_num=0; // number of vertices in the window
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
+
+    int lives;
+
     // key: pair ts open, ts close, value: adjacency list
     std::unordered_map<std::pair<long long, long long>, unordered_map<long long, vector<pair<long long, sg_edge *> > >, pair_hash_aj > backup_aj;
 
@@ -110,10 +111,11 @@ public:
     double m2 = 0;
     unordered_map<long long, long long> density;
 
-    explicit streaming_graph() {
+    explicit streaming_graph(const int lives_) {
         edge_num = 0;
         time_list_head = nullptr;
         time_list_tail = nullptr;
+        lives = lives_;
     }
 
     ~streaming_graph() {
@@ -208,7 +210,7 @@ public:
         return nullptr;
     }
 
-    sg_edge* insert_edge(long long edge_id, const long long from,  long long to, const long long label, const long long timestamp,
+    sg_edge* insert_edge(const long long edge_id, const long long from,  long long to, const long long label, const long long timestamp,
                          const long long expiration_time) {
 
         // Check if the edge already exists in the adjacency list
@@ -220,8 +222,7 @@ public:
 
         edge_num++;;
         // Otherwise, create a new edge
-        auto *edge = new sg_edge(edge_id, from, to, label, timestamp);
-        edge->expiration_time = expiration_time;
+        auto *edge = new sg_edge(edge_id, from, to, label, timestamp, lives, expiration_time);
 
         // Add the edge to the adjacency list if it doesn't exist
         if (adjacency_list[from].empty()) {
@@ -362,7 +363,7 @@ public:
         if (target == time_list_tail) time_list_tail = to_insert;
 
         to_insert->edge_pt->expiration_time = target->edge_pt->expiration_time;
-        //to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
+        // to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
     }
 
     void deep_copy_adjacency_list(long long ts_open, long long ts_close) {

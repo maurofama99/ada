@@ -31,12 +31,13 @@ def main():
     output_folder = "/home/ssh_user/Mauro/sgadwin_exp/results_ldbc/"
     datasets = ["code/dataset/ldbc/ldbc-sf10-updatestream_postprocess.txt"]
     algorithms = [1]
-    window_slide_pairs = [(89400, 44700), (89400, 29800), (45400, 22700)]
+    window_slide_pairs = [ (129600, 64800)]
     query_label_pairs = [(3, [9, 3]), (8, [9, 3]), (5, [10, 5, 4]), (7, [4, 10, 5]),  (4, [10, 5]), (9, [9, 3, 1]),  (1, [3]), (2, [4, 10, 5])]
-    z_scores = [(0,0)]
+    z_scores = [(4.3,0)]
     watermarks = [(0, 1)]
 
     generate_config_files(output_folder, datasets, algorithms, window_slide_pairs, query_label_pairs, z_scores, watermarks)
 
 if __name__ == "__main__":
     main()
+# scp -r config ssh_user@134.214.143.99:/home/ssh_user/Mauro/sgadwin_exp/CbAW4DGSP/code/benchmark

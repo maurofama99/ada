@@ -23,7 +23,7 @@ typedef struct Config {
     long long query_type;
     std::vector<long long> labels;
     double zscore;
-    long long reachability_threshold;
+    int lives;
     long long watermark;
     long long ooo_strategy;
 } config;
@@ -66,7 +66,7 @@ config readConfig(const std::string &filename) {
     config.zscore = std::stod(configMap["zscore"]);
     config.watermark = std::stoi(configMap["watermark"]);
     config.ooo_strategy = std::stoi(configMap["ooo_strategy"]);
-    config.reachability_threshold = std::stoi(configMap["reachability_threshold"]);
+    config.lives = std::stoi(configMap["lives"]);
 
     return config;
 }
@@ -102,9 +102,8 @@ int main(int argc, char *argv[]) {
     long long slide = config.slide;
     long long query_type = config.query_type;
     double zscore = config.zscore;
-    long long reachability_threshold = config.reachability_threshold;
+    int lives = config.lives;
     bool BACKWARD_RETENTION = zscore != 0;
-    bool REACHABLE_EXTENSION = reachability_threshold != 0;
 
     long long watermark = config.watermark;
     long long ooo_strategy = config.ooo_strategy; // 0: Copy State, 1: Window Replay
@@ -128,7 +127,7 @@ int main(int argc, char *argv[]) {
     auto *aut = new FiniteStateAutomaton();
     vector<long long> scores = setup_automaton(query_type, aut, config.labels);
     auto *f = new Forest();
-    auto *sg = new streaming_graph();
+    auto *sg = new streaming_graph(lives);
     auto *sink = new Sink();
 
     vector<window> windows;
@@ -376,21 +375,19 @@ int main(int argc, char *argv[]) {
                 auto cur_edge = current->edge_pt;
                 auto next = current->next;
 
-                if ((BACKWARD_RETENTION && !REACHABLE_EXTENSION && cur_edge->lives > 0 && sg->get_zscore(cur_edge->s) > zscore)
-                    || (BACKWARD_RETENTION && REACHABLE_EXTENSION && sg->get_zscore(cur_edge->s) > zscore && sg->
-                        dfs_with_threshold(cur_edge->s, reachability_threshold, evict_end_point->edge_pt->timestamp))) {
-                    cur_edge->lives--;
-                    saved_edges++;
-                    auto target_window_index = last_window_index;
-                    sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
-                }
-
-                else {
+                // TODO TRY RANDOM DELETION
+                if (cur_edge->lives == 0 || sg->get_zscore(cur_edge->s) > zscore) { //
                     // check for parent switch before final deletion
                     candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
-
                     sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
                     sg->delete_timed_edge(current); // delete from window state store
+                } else {
+                    cur_edge->lives--;
+                    saved_edges++;
+                    auto shift = last_window_index - static_cast<size_t>(std::ceil(sg->get_zscore(cur_edge->s)));
+                    auto target_window_index = shift < (to_evict.back() + 1) ? (to_evict.back() + 1) : shift;
+                    target_window_index > last_window_index ? target_window_index = last_window_index : target_window_index;
+                    sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
                 }
                 current = next;
             }
@@ -469,13 +466,12 @@ int main(int argc, char *argv[]) {
 
     // Construct output file path
     std::string retention = BACKWARD_RETENTION ? std::to_string(static_cast<int>(zscore)) : "0";
-    std::string reachability = REACHABLE_EXTENSION ? std::to_string(static_cast<int>(reachability_threshold)) : "0";
     std::string output_file = config.output_base_folder + "output_a" + std::to_string(algorithm) + "_S" +
                                 std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
-                                    "_z" + retention + "_r" + reachability + ".txt";
+                                    "_z" + retention + ".txt";
     std::string output_file_csv = config.output_base_folder + "output_a" + std::to_string(algorithm) + "_S" +
                                     std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
-                                        "_z" + retention + "_r" + reachability + ".csv";
+                                        "_z" + retention + ".csv";
 
     // sink->exportResultSet(output_file_csv);
 
@@ -537,7 +533,7 @@ vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *au
             aut->addTransition(1, 2, labels[1]);
             aut->addTransition(2, 3, labels[2]);
             break;
-        case 7: // (a|b)c*
+        case 7: // (a|b|c)d*
             aut->addFinalState(1);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(0, 1, labels[1]);
