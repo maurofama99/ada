@@ -220,7 +220,8 @@ public:
             }
         }
 
-        edge_num++;;
+        edge_num++;
+        edge_num++;
         // Otherwise, create a new edge
         auto *edge = new sg_edge(edge_id, from, to, label, timestamp, lives, expiration_time);
 
@@ -232,16 +233,20 @@ public:
         adjacency_list[from].emplace_back(to, edge);
 
         // update z score
-        density[from]++;
-        // cout << "density: " << density[from] << ", z_score: " << get_zscore(from) << endl;
-
         if (edge_num == 1) {
-            mean = density[from];
+            density[from]++;
+            density[to]++;
+            mean = (density[from] + density[to]) / 2;
             m2 = 0;
         } else {
+            density[from]++;
             double old_mean = mean;
             mean += (density[from] - mean) / edge_num;
             m2 += (density[from] - old_mean) * (density[from] - mean);
+            density[to]++;
+            old_mean = mean;
+            mean += (density[to] - mean) / edge_num;
+            m2 += (density[to] - old_mean) * (density[to] - mean);
         }
 
         return edge;
@@ -269,8 +274,14 @@ public:
                 double old_mean = mean;
                 mean -= (mean - density[from]) / (edge_num - 1);
                 m2 -= (density[from] - old_mean) * (density[from] - mean);
-
                 density[from]--;
+
+                old_mean = mean;
+                mean -= (mean - density[to]) / (edge_num - 1);
+                m2 -= (density[to] - old_mean) * (density[to] - mean);
+                density[to]--;
+
+                edge_num--;
                 edge_num--;
 
                 // If the vertex has no more edges, remove it from the adjacency list
@@ -363,7 +374,18 @@ public:
         if (target == time_list_tail) time_list_tail = to_insert;
 
         to_insert->edge_pt->expiration_time = target->edge_pt->expiration_time;
-        // to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
+        to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
+        // check if the edge timestamp is in order with respect to next and previous edges
+        if (to_insert->next) {
+            if (to_insert->edge_pt->timestamp > to_insert->next->edge_pt->timestamp) {
+                to_insert->edge_pt->timestamp = to_insert->next->edge_pt->timestamp;
+            }
+        }
+        if (to_insert->prev) {
+            if (to_insert->edge_pt->timestamp < to_insert->prev->edge_pt->timestamp) {
+                to_insert->edge_pt->timestamp = to_insert->prev->edge_pt->timestamp;
+            }
+        }
     }
 
     void deep_copy_adjacency_list(long long ts_open, long long ts_close) {

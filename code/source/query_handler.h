@@ -68,7 +68,7 @@ public:
             // forall (sb, sd) where delta(sb, label) = sd
             if (sb_sd.first == 0 && !forest.hasTree(edge->s)) {
                 // if sb=0 and there is no tree with root vertex vb
-                forest.addTree(edge->id, edge->s, 0);
+                forest.addTree(edge->id, edge->s, 0, edge->timestamp);
             }
             for (auto tree: forest.findTreesWithNode(edge->s, sb_sd.first)) {
                 // for all Trees that contain ⟨vb,sb⟩
@@ -124,7 +124,7 @@ public:
             // forall (sb, sd) where delta(sb, label) = sd
             if (sb_sd.first == 0 && !forest.hasTree(edge->s)) {
                 // if sb=0 and there is no tree with root vertex vb
-                forest.addTree(edge->id, edge->s, 0);
+                forest.addTree(edge->id, edge->s, 0, edge->timestamp);
             }
             for (auto tree: forest.findTreesWithNode(edge->s, sb_sd.first)) {
                 // for all Trees that contain ⟨vb,sb⟩

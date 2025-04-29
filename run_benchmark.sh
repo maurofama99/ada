@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # Compile main.cpp with -O3 optimization
-g++ -std=c++11 -O3 -Wno-c++11-extensions -Wno-c++17-extensions -Wno-deprecated -o main code/main.cpp
+g++ -std=c++17 -O3 -Wno-c++11-extensions -Wno-c++17-extensions -Wno-deprecated -o main code/single_window.cpp
 
 # Check if compilation was successful
+# shellcheck disable=SC2181
 if [ $? -ne 0 ]; then
     echo "Compilation failed"
     exit 1
@@ -15,5 +16,5 @@ config_dir="code/benchmark/config"
 # Execute the program with each configuration file in the directory and its subdirectories
 find "$config_dir" -type f -name "*.txt" | while read -r config_file; do
     echo "Running with configuration file: $config_file"
-    ./main "$config_file" > dump.txt
+    ./main "$config_file" >> dump.txt
 done

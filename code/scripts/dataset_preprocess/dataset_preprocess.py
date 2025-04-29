@@ -32,7 +32,7 @@ def transform_file(input_file, output_file, label_map, default_value, max_lines)
                 break
             parts = line.strip().split()
             if len(parts) == 4:
-                num1, label, num2, num3 = parts
+                num1, num2, num3, label = parts
                 # Converti l'etichetta in intero usando la mappa, o usa il valore di default
                 label_int = label_map.get(label, default_value)
                 # Scrivi la riga trasformata nel file di output
@@ -40,10 +40,10 @@ def transform_file(input_file, output_file, label_map, default_value, max_lines)
 
 def main():
     # File di configurazione
-    config_file = "config_ldbc.txt"
+    config_file = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/scripts/dataset_preprocess/config_higgs.txt"
     # File di input e output
-    input_file = "../dataset/ldbc/ldbc-sf10-updatestream.txt"
-    output_file = "../dataset/ldbc/ldbc-sf10-updatestream_postprocess.txt"
+    input_file = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/dataset/higgs-activity/higgs-activity_time.txt"
+    output_file = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"
 
     # Limite sul numero di righe del file di output (-1 per nessun limite)
     max_lines = 100000000000000  # Cambia questo valore come necessario
