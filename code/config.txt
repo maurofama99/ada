@@ -1,11 +1,11 @@
 algorithm=1
 input_data_path=/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/dataset/higgs-activity/higgs-activity_time_postprocess.txt
 output_base_folder=/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/scripts/parameter_selection/
-size=9472
+size=30000
 slide=10000
-query_type=3
-labels=3,1
-zscore=8.7
-lives=5
+query_type=7
+labels=1,2,3,1
+zscore=0
+lives=1
 watermark=0
 ooo_strategy=1

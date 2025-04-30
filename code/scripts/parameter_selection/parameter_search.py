@@ -54,7 +54,7 @@ def run_binary(binary, config_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    # g++ -std=c++17 -O3 -Wno-c++11-extensions -Wno-c++17-extensions -Wno-deprecated -o code/scripts/parameter_selection/run_main code/main_parameter_search.cpp
+    # g++ -std=c++17 -O3 -Wno-c++11-extensions -Wno-c++17-extensions -Wno-deprecated -o code/scripts/parameter_selection/run_main code/main.cpp
     parser.add_argument('--binary', help='Path to C++ executable (e.g. ./main)')
     parser.add_argument('--base_config', help='Baseline config file')
     parser.add_argument('--n_calls', type=int, default=20, help='Number of Bayesian optimization calls')
@@ -72,9 +72,9 @@ if __name__ == '__main__':
 
     # define search space: lives, scale factor for size, zscore
     space = [
-        Integer(2, 6, name='lives'),
+        Integer(4, 5, name='lives'),
         Real(1.0, 1.5, name='scale'),
-        Real(2, 9, name='zscore')
+        Real(3, 6, name='zscore')
     ]
 
     @use_named_args(space)
@@ -99,7 +99,7 @@ if __name__ == '__main__':
         # result count constraint
         if rp < rp0 or rp > rp0 * 1.05:
             penalty = 1e5 + abs(rp - rp0)
-            print(f"  -> resulting paths {rp:.0f} outside [{rp0:.0f}, {rp0*1.1:.0f}], penalty {penalty:.1f} (exec. time {m['execution time']})")
+            print(f"  -> resulting paths {rp:.0f} outside [{rp0:.0f}, {rp0*1.05:.0f}], penalty {penalty:.1f} (exec. time {m['execution time']})")
             return penalty
 
         # memory constraint

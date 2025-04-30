@@ -116,10 +116,6 @@ int main(int argc, char *argv[]) {
     long long current_time = 0;
     bool handle_ooo = false;
 
-    if (size % slide != 0) {
-        printf("WARNING: Size is not a multiple of slide\n");
-    }
-
     if (fin.fail()) {
         cerr << "Error opening file" << endl;
         exit(1);
@@ -146,6 +142,7 @@ int main(int argc, char *argv[]) {
     long long edge_number = 0;
     long long time;
     long long timestamp;
+    int dense_edges = 0;
 
     long long last_window_index = 0;
     long long window_offset = 0;
@@ -155,7 +152,14 @@ int main(int argc, char *argv[]) {
     vector<size_t> to_evict;
     long long last_expired_window = 0;
 
-    long long checkpoint = 50000;
+    long long checkpoint = 9223372036854775807LL;
+
+    /*
+    double candidate_rate = 0.2;
+    double benefit_threshold = 1.5;
+    for (long long i = 0; i < scores.size(); i++)
+        f2->aut_scores[i] = scores.at(i);
+        */
 
     vector<long long> node_count;
     long long saved_edges = 0;
@@ -163,9 +167,6 @@ int main(int argc, char *argv[]) {
     std::vector<std::tuple<long long, long long, long long, long long>> edges;
     std::string line;
 
-    cout << "SINGLE WINDOW" << endl;
-
-    cout << "reading input dataset..." << endl;
     while (std::getline(fin, line)) {
         std::istringstream iss(line);
         long long s, d, l, t;
@@ -173,12 +174,12 @@ int main(int argc, char *argv[]) {
             edges.emplace_back(s, d, l, t);
         }
     }
-    cout << "read complete" << endl;
 
     auto query = new QueryHandler(*aut, *f, *sg, *sink); // Density-based Retention
 
     clock_t start = clock();
     for (const auto& [s, d, l, t] : edges) {
+        // cout << "Processing edge: " << s << " -> " << d << " with label: " << l << " at time: " << t << endl;
         edge_number++;
         if (t0 == 0) {
             t0 = t;
@@ -191,6 +192,9 @@ int main(int argc, char *argv[]) {
         // process the edge if the label is part of the query
         if (!aut->hasLabel(l))
             continue;
+
+        long long watermark_gap = current_time - time;
+
 
         long long window_close;
         handle_ooo = false;
@@ -222,8 +226,6 @@ int main(int argc, char *argv[]) {
                 cerr << "ERROR: Existing edge not found." << endl;
                 exit(1);
             }
-
-            if (watermark != 0 && existing_edge->timestamp > time) continue;
 
             // adjust window boundaries if needed
             for (size_t i = window_offset; i < windows.size(); i++) {
@@ -264,26 +266,17 @@ int main(int argc, char *argv[]) {
 
         // add edge to time list
         t_edge = new timed_edge(new_sgt);
-        if (handle_ooo) sg->add_timed_edge_inorder(t_edge); // ooo: add element in order into already existing window
-        else sg->add_timed_edge(t_edge); // io: append element to last window
+        sg->add_timed_edge(t_edge); // io: append element to last window
 
         // add edge to window and check for window eviction
         for (size_t i = window_offset; i < windows.size(); i++) {
             if (windows[i].t_open <= time && time < windows[i].t_close) {
                 // add new sgt to window
                 if (!windows[i].first || time <= windows[i].first->edge_pt->timestamp) {
-                    if (handle_ooo && windows[i].first->prev != t_edge) {
-                        cerr << "ERROR: Window first is not the previous element." << endl;
-                        exit(1);
-                    }
                     if (!windows[i].first) windows[i].last = t_edge;
                     windows[i].first = t_edge;
                     windows[i].elements_count++;
                 } else if (!windows[i].last || time > windows[i].last->edge_pt->timestamp) {
-                    if (handle_ooo && windows[i].last->next != t_edge) {
-                        cerr << "ERROR: Window last is not the next element." << endl;
-                        exit(1);
-                    }
                     windows[i].last = t_edge;
                     windows[i].elements_count++;
                 }
@@ -327,6 +320,7 @@ int main(int argc, char *argv[]) {
                 auto next = current->next;
 
                  if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) { // if (cur_edge->lives == 1 || (static_cast<double>(rand()) / RAND_MAX) < 0.005)
+                     if (sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) dense_edges++;
                     // check for parent switch before final deletion
                     candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
                     sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
@@ -334,11 +328,7 @@ int main(int argc, char *argv[]) {
                 } else {
                     cur_edge->lives--;
                     saved_edges++;
-                    /*
-                    auto shift = static_cast<double>(last_window_index) - std::ceil(sg->get_zscore(cur_edge->s));
-                    auto target_window_index = shift < (static_cast<double>(to_evict.back()) + 1) ? (static_cast<double>(to_evict.back()) + 1) : shift;
-                    target_window_index > static_cast<double>(last_window_index) ? target_window_index = static_cast<double>(last_window_index) : target_window_index;
-                    */
+
                     auto z_score_s = sg->get_zscore(cur_edge->s);
                     auto z_score_d = sg->get_zscore(cur_edge->d);
                     auto selected_score = z_score_s > z_score_d ? z_score_s : z_score_d;
@@ -356,8 +346,9 @@ int main(int argc, char *argv[]) {
                     // finally compute the target index
                     auto target_window_index = std::clamp(min_shift + resized_shift, min_shift, static_cast<double>(last_window_index));
 
-                    sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
-                    windows[target_window_index].elements_count++;
+                    target_window_index = max_shift;
+                    sg->shift_timed_edge(cur_edge->time_pos, windows[last_window_index].first);
+                    windows[last_window_index].elements_count++;
                 }
                 current = next;
             }
@@ -388,23 +379,8 @@ int main(int argc, char *argv[]) {
             node_count.emplace_back(f->node_count);
         }
 
-        if (watermark != 0) {
-            for (long long i = last_expired_window; i < windows.size(); i++) {
-                if (windows[i].t_close <= time - watermark) {
-                    if (ooo_strategy == 0) {
-                        //f->deleteExpiredForest(windows[i].t_open, windows[i].t_close);
-                        sg->delete_expired_adj(windows[i].t_open, windows[i].t_close);
-                    } else {
-                        windows_backup.erase(windows[i].t_close);
-                    }
-
-                    last_expired_window = i;
-                } else break;
-            }
-        }
-
         if (edge_number >= checkpoint) {
-            checkpoint += checkpoint;
+            checkpoint += 100000;
 
             printf("processed edges: %lld\n", edge_number);
             printf("saved edges: %lld\n", saved_edges);
@@ -415,16 +391,18 @@ int main(int argc, char *argv[]) {
                 cout << "resulting paths: " << sink->getResultSetSize() << "\n\n";
             }
         }
+
     }
 
     clock_t finish = clock();
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
-    cout << "execution time: " << time_used << endl;
+
+    cout << "resulting paths: " <<  sink->getResultSetSize() << "\n";
     printf("processed edges: %lld\n", edge_number);
     printf("saved edges: %lld\n", saved_edges);
-    printf("avg degree: %f\n", sg->mean);
-    cout << "resulting paths: " <<  sink->getResultSetSize() << "\n\n";
+    cout << "execution time: " << time_used << endl;
     cout << "windows created: " << windows.size() << "\n";
+    cout << "dense edges: " << dense_edges << "\n";
 
     // compute average window size using the number of elements for each window in elements_count
     double avg_window_size = 0;
@@ -434,35 +412,6 @@ int main(int argc, char *argv[]) {
     avg_window_size /= windows.size();
     cout << "avg window size: " << avg_window_size << "\n";
 
-    // Construct output file path
-    std::string retention = BACKWARD_RETENTION ? std::to_string(static_cast<int>(zscore)) : "0";
-    std::string output_file = config.output_base_folder + "output_a" + std::to_string(algorithm) + "_S" +
-                                std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
-                                    "_z" + retention + ".txt";
-    std::string output_file_csv = config.output_base_folder + "output_a" + std::to_string(algorithm) + "_S" +
-                                    std::to_string(size) + "_s" + std::to_string(slide) + "_q" + std::to_string(query_type) +
-                                        "_z" + retention + ".csv";
-
-    // sink->exportResultSet(output_file_csv);
-
-    // Open file for writing
-    std::ofstream outFile(output_file.c_str());
-    if(!outFile) {
-        std::cerr << "Error opening file for writing: " << output_file << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    outFile << "resulting paths: " << sink->getResultSetSize() << "\n";
-    outFile << "processed edges: " << edge_number << "\n";
-    outFile << "saved edges: " << saved_edges << "\n";
-    outFile << "execution time: " << time_used << "\n";
-    outFile << "windows created: " << windows.size() << "\n";
-    outFile << "avg window size: " << avg_window_size << "\n";
-
-    // Close the file
-    outFile.close();
-
-    std::cout<<"Results written to: "<<output_file<<std::endl;
     delete sg;
     return 0;
 }

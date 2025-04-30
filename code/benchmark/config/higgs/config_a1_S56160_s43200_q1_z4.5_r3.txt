@@ -1,0 +1,11 @@
+algorithm=1
+input_data_path=code/dataset/higgs-activity/higgs-activity_time_postprocess.txt
+output_base_folder=code/benchmark/results_higgs/
+size=56160
+slide=43200
+query_type=1
+labels=2
+zscore=4.5
+lives=3
+watermark=0
+ooo_strategy=1

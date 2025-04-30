@@ -22,18 +22,18 @@ def generate_config_files(output_folder, datasets, algorithms, window_slide_pair
                                 f"ooo_strategy={ooo_strategy}\n"
                             )
                             config_filename = f"config_a{algorithm}_S{size}_s{slide}_q{query_type}_z{zscore}_r{lives}.txt"
-                            config_filepath = os.path.join("config", config_filename)
+                            config_filepath = os.path.join("config/higgs", config_filename)
                             with open(config_filepath, 'w') as config_file:
                                 config_file.write(config_content)
                             print(f"Generated {config_filepath}")
 
 def main():
-    output_folder = "code/output_debug/"
-    datasets = ["code/dataset/ldbc/ldbc-sf10-updatestream_postprocess.txt"]
+    output_folder = "code/benchmark/results_higgs/"
+    datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
     algorithms = [1]
-    window_slide_pairs = [(90000,5000), (100000,10000), (100000,5000)]
-    query_label_pairs = [(1, [5])] # [(8, [9, 3]), (7, [4, 10, 5]), (4, [10, 5]), (9, [9, 3, 1]),  (1, [3]), (2, [4, 10, 5])]
-    z_scores = [(0, 0)]
+    window_slide_pairs = [(14040,10800)]           # sw: [(129600,10800), (86400,10800), (172800,10800), (129600,21600), (86400,21600), (172800,21600), (129600,43200), (86400,43200), (172800,43200)]
+    query_label_pairs = [(1, [2]), (2, [2,1,3]), (3, [3,1]), (4, [1,3]), (5, [1,2,3]), (7, [1,2,3,3]), (9, [1,2,3])]
+    z_scores = [(4.5, 8)]
     watermarks = [(0, 1)]
 
     generate_config_files(output_folder, datasets, algorithms, window_slide_pairs, query_label_pairs, z_scores, watermarks)

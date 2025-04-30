@@ -375,17 +375,6 @@ public:
 
         to_insert->edge_pt->expiration_time = target->edge_pt->expiration_time;
         to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
-        // check if the edge timestamp is in order with respect to next and previous edges
-        if (to_insert->next) {
-            if (to_insert->edge_pt->timestamp > to_insert->next->edge_pt->timestamp) {
-                to_insert->edge_pt->timestamp = to_insert->next->edge_pt->timestamp;
-            }
-        }
-        if (to_insert->prev) {
-            if (to_insert->edge_pt->timestamp < to_insert->prev->edge_pt->timestamp) {
-                to_insert->edge_pt->timestamp = to_insert->prev->edge_pt->timestamp;
-            }
-        }
     }
 
     void deep_copy_adjacency_list(long long ts_open, long long ts_close) {
