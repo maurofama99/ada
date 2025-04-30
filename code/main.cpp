@@ -3,9 +3,12 @@
 #include<ctime>
 #include<cstdlib>
 #include <fstream>
+#include <filesystem>
 #include <cmath>
 #include <numeric>
 #include <sstream>
+
+namespace fs = std::filesystem;
 
 #include "source/fsa.h"
 #include "source/rpq_forest.h"
@@ -98,11 +101,15 @@ double normalize_shift(double shift, double min_shift, double max_shift, double 
 vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels);
 
 int main(int argc, char *argv[]) {
+
+    fs::path exe_path = fs::canonical(fs::absolute(argv[0]));
+    fs::path exe_dir = exe_path.parent_path();
+
     string config_path = argv[1];
-    config config = readConfig(config_path.c_str());
+    config config = readConfig(config_path);
 
     long long algorithm = config.algorithm;
-    ifstream fin(config.input_data_path.c_str());
+    // ifstream fin(config.input_data_path.c_str());
     string output_base_folder = config.output_base_folder;
     long long size = config.size;
     long long slide = config.slide;
@@ -116,9 +123,14 @@ int main(int argc, char *argv[]) {
     long long current_time = 0;
     bool handle_ooo = false;
 
-    if (fin.fail()) {
-        cerr << "Error opening file" << endl;
-        exit(1);
+    fs::path data_path = exe_dir / config.input_data_path;
+    data_path = fs::absolute(data_path).lexically_normal();
+
+    // 4. Open the data file
+    std::ifstream fin(data_path);
+    if (!fin.is_open()) {
+        std::cerr << "Error: Failed to open " << data_path << std::endl;
+        return 1;
     }
 
     if (algorithm != 3 and watermark != 0) {
