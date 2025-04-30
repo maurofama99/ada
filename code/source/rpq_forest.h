@@ -8,6 +8,7 @@
 #include <utility>
 #include <stack>
 #include <algorithm>
+#include <queue>
 
 #include "streaming_graph.h"
 
