@@ -31,13 +31,15 @@ def main():
     output_folder = "code/benchmark/results_higgs/"
     datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
     algorithms = [1]
-    window_slide_pairs = [(14040,10800)]           # sw: [(129600,10800), (86400,10800), (172800,10800), (129600,21600), (86400,21600), (172800,21600), (129600,43200), (86400,43200), (172800,43200)]
+    window_slide_pairs = [(129600,10800), (86400,10800), (172800,10800), (129600,21600), (86400,21600), (172800,21600), (129600,43200), (86400,43200), (172800,43200)]
     query_label_pairs = [(1, [2]), (2, [2,1,3]), (3, [3,1]), (4, [1,3]), (5, [1,2,3]), (7, [1,2,3,3]), (9, [1,2,3])]
-    z_scores = [(4.5, 8)]
+    z_scores = [(0, 1)]
     watermarks = [(0, 1)]
 
     generate_config_files(output_folder, datasets, algorithms, window_slide_pairs, query_label_pairs, z_scores, watermarks)
 
 if __name__ == "__main__":
     main()
+
+
 # scp -r config ssh_user@134.214.143.99:/home/ssh_user/Mauro/sgadwin_exp/CbAW4DGSP/code/benchmark

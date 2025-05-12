@@ -1,11 +1,11 @@
-#include<vector>
-#include<string>
-#include<ctime>
-#include<cstdlib>
+#include <vector>
+#include <string>
+#include <ctime>
+#include <cstdlib>
 #include <fstream>
 #include <filesystem>
 #include <cmath>
-#include <numeric>
+#include <algorithm>
 #include <sstream>
 
 namespace fs = std::filesystem;
@@ -92,16 +92,38 @@ public:
     }
 };
 
-double normalize_shift(double shift, double min_shift, double max_shift, double alpha) {
-    if (max_shift == min_shift) return 0.0; // avoid division by zero
-    double normalized = (shift - min_shift) / (max_shift - min_shift); // [0, 1]
-    return normalized * alpha; // [0, alpha]
+/// Map score ∈ [minScore…maxScore] into an index ∈ [firstIndex…lastIndex].
+/// Lower scores → values near lastIndex; higher scores → values near firstIndex.
+int computeShiftedIndex(int firstIndex, int lastIndex,
+                        double score,
+                        double minScore, double maxScore) {
+    // sanity‑check
+    if (minScore >= maxScore) {
+        cerr << "ERROR: minScore must be smaller than maxScore." << endl;
+        exit(1);
+    }
+    // ensure firstIndex≤lastIndex
+    if (firstIndex > lastIndex) {
+        std::swap(firstIndex, lastIndex);
+    }
+    // clamp score into [minScore…maxScore]
+    score = std::clamp(score, minScore, maxScore);
+
+    // normalize into [0…1]
+    double t = (score - minScore) / (maxScore - minScore);
+
+    // we want t=0 → lastIndex, t=1 → firstIndex
+    double range = lastIndex - firstIndex;
+    double offset = (1.0 - t) * range;
+
+    // round to nearest integer index
+    return firstIndex + static_cast<int>(std::round(offset));
 }
+
 
 vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels);
 
 int main(int argc, char *argv[]) {
-
     fs::path exe_path = fs::canonical(fs::absolute(argv[0]));
     fs::path exe_dir = exe_path.parent_path();
 
@@ -116,12 +138,9 @@ int main(int argc, char *argv[]) {
     long long query_type = config.query_type;
     double zscore = config.zscore;
     int lives = config.lives;
-    bool BACKWARD_RETENTION = zscore != 0;
 
     long long watermark = config.watermark;
-    long long ooo_strategy = config.ooo_strategy; // 0: Copy State, 1: Window Replay
     long long current_time = 0;
-    bool handle_ooo = false;
 
     fs::path data_path = exe_dir / config.input_data_path;
     data_path = fs::absolute(data_path).lexically_normal();
@@ -164,33 +183,17 @@ int main(int argc, char *argv[]) {
     vector<size_t> to_evict;
     long long last_expired_window = 0;
 
-    long long checkpoint = 9223372036854775807LL;
-
-    /*
-    double candidate_rate = 0.2;
-    double benefit_threshold = 1.5;
-    for (long long i = 0; i < scores.size(); i++)
-        f2->aut_scores[i] = scores.at(i);
-        */
+    long long checkpoint = 1000000;
 
     vector<long long> node_count;
     long long saved_edges = 0;
 
-    std::vector<std::tuple<long long, long long, long long, long long>> edges;
-    std::string line;
-
-    while (std::getline(fin, line)) {
-        std::istringstream iss(line);
-        long long s, d, l, t;
-        if (iss >> s >> d >> l >> t) {
-            edges.emplace_back(s, d, l, t);
-        }
-    }
-
     auto query = new QueryHandler(*aut, *f, *sg, *sink); // Density-based Retention
 
     clock_t start = clock();
-    for (const auto& [s, d, l, t] : edges) {
+    //for (const auto& [s, d, l, t] : edges) {
+    long long s, d, l, t;
+    while (fin >> s >> d >> l >> t) {
         // cout << "Processing edge: " << s << " -> " << d << " with label: " << l << " at time: " << t << endl;
         edge_number++;
         if (t0 == 0) {
@@ -207,9 +210,7 @@ int main(int argc, char *argv[]) {
 
         long long watermark_gap = current_time - time;
 
-
         long long window_close;
-        handle_ooo = false;
         if (time >= current_time) {
             // in-order element
             double c_sup = ceil(static_cast<double>(time) / static_cast<double>(slide)) * slide;
@@ -246,8 +247,8 @@ int main(int argc, char *argv[]) {
                         // if the window has more than one element
                         if (existing_edge->time_pos->next) windows[i].first = existing_edge->time_pos->next;
                         else {
-                            cerr << "ERROR: Time position not found." << endl;
-                            exit(1);
+                            windows[i].first = nullptr;
+                            windows[i].last = nullptr;
                         }
                     } else {
                         windows[i].first = nullptr;
@@ -259,8 +260,8 @@ int main(int argc, char *argv[]) {
                         // if the window has more than one element
                         if (existing_edge->time_pos->prev) windows[i].last = existing_edge->time_pos->prev;
                         else {
-                            cerr << "ERROR: Time position not found." << endl;
-                            exit(1);
+                            windows[i].first = nullptr;
+                            windows[i].last = nullptr;
                         }
                     } else {
                         windows[i].first = nullptr;
@@ -304,12 +305,14 @@ int main(int argc, char *argv[]) {
         new_sgt->time_pos = t_edge;
 
         /* QUERY */
-        if (algorithm == 1)  query->pattern_matching_tc(new_sgt);
-        else if (algorithm == 2)  cerr << "ERROR: Query handler not implemented." << endl;
-        else if (algorithm == 3)  query->pattern_matching_lc(new_sgt);
+        if (algorithm == 1) query->pattern_matching_tc(new_sgt);
+        else if (algorithm == 2) cerr << "ERROR: Query handler not implemented." << endl;
+        else if (algorithm == 3) query->pattern_matching_lc(new_sgt);
 
         /* EVICT */
         if (evict) {
+            // to compute window cost, we take the size of the snapshot graph of the window here, since no more elements will be added and it can be considered complete and closed
+
             std::vector<pair<long long, long long> > candidate_for_deletion;
             timed_edge *evict_start_point = windows[to_evict[0]].first;
             timed_edge *evict_end_point = windows[to_evict.back() + 1].first;
@@ -331,8 +334,10 @@ int main(int argc, char *argv[]) {
                 auto cur_edge = current->edge_pt;
                 auto next = current->next;
 
-                 if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) { // if (cur_edge->lives == 1 || (static_cast<double>(rand()) / RAND_MAX) < 0.005)
-                     if (sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) dense_edges++;
+                if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) >
+                    zscore) {
+                    // if (cur_edge->lives == 1 || (static_cast<double>(rand()) / RAND_MAX) < 0.005)
+                    if (sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) dense_edges++;
                     // check for parent switch before final deletion
                     candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
                     sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
@@ -343,23 +348,11 @@ int main(int argc, char *argv[]) {
 
                     auto z_score_s = sg->get_zscore(cur_edge->s);
                     auto z_score_d = sg->get_zscore(cur_edge->d);
-                    auto selected_score = z_score_s > z_score_d ? z_score_s : z_score_d;
-                    double raw_shift = static_cast<double>(last_window_index) - std::ceil(selected_score);
+                    auto score = z_score_d > z_score_s ? z_score_d : z_score_s;
 
-                    // define min and max shift bounds based on your data/logic
-                    auto propagation_start = static_cast<double>(size)/static_cast<double>(slide);
-                    propagation_start = ceil(propagation_start/2);
-                    double min_shift = static_cast<double>(to_evict.back()) + propagation_start;
-                    auto max_shift = static_cast<double>(last_window_index); // or an empirical upper bound
+                    auto index = computeShiftedIndex(to_evict.back()+1, last_window_index, score, -1, zscore);
 
-                    // alpha is your desired max output shift
-                    double resized_shift = normalize_shift(raw_shift, min_shift, max_shift, size/slide);
-
-                    // finally compute the target index
-                    auto target_window_index = std::clamp(min_shift + resized_shift, min_shift, static_cast<double>(last_window_index));
-
-                    target_window_index = max_shift;
-                    sg->shift_timed_edge(cur_edge->time_pos, windows[last_window_index].first);
+                    sg->shift_timed_edge(cur_edge->time_pos, windows[index].first);
                     windows[last_window_index].elements_count++;
                 }
                 current = next;
@@ -392,24 +385,23 @@ int main(int argc, char *argv[]) {
         }
 
         if (edge_number >= checkpoint) {
-            checkpoint += 100000;
+            checkpoint += checkpoint;
 
             printf("processed edges: %lld\n", edge_number);
             printf("saved edges: %lld\n", saved_edges);
             printf("avg degree: %f\n", sg->mean);
             if (algorithm == 1) {
-                cout << "resulting paths: " <<  sink->getResultSetSize() << "\n\n";
+                cout << "resulting paths: " << sink->getResultSetSize() << "\n\n";
             } else if (algorithm == 3) {
                 cout << "resulting paths: " << sink->getResultSetSize() << "\n\n";
             }
         }
-
     }
 
     clock_t finish = clock();
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
 
-    cout << "resulting paths: " <<  sink->getResultSetSize() << "\n";
+    cout << "resulting paths: " << sink->getResultSetSize() << "\n";
     printf("processed edges: %lld\n", edge_number);
     printf("saved edges: %lld\n", saved_edges);
     cout << "execution time: " << time_used << endl;
@@ -418,7 +410,7 @@ int main(int argc, char *argv[]) {
 
     // compute average window size using the number of elements for each window in elements_count
     double avg_window_size = 0;
-    for (const auto &win : windows) {
+    for (const auto &win: windows) {
         avg_window_size += win.elements_count;
     }
     avg_window_size /= windows.size();
@@ -492,7 +484,7 @@ vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *au
             scores.emplace_back(6);
             break;
         default:
-            cout << "ERROR: Wrong query type" << endl;
+            cerr << "ERROR: Wrong query type" << endl;
             exit(1);
     }
 

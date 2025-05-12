@@ -19,7 +19,6 @@ RT 1
 MT 2
 RE 3
 
-
 LDBC
 
 isLocatedIn 1
