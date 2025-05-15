@@ -70,16 +70,7 @@ public:
     std::unordered_map<long long, std::unordered_set<Tree*, TreeHash, TreeEqual> > vertex_tree_map; // Maps vertex to tree to which it belongs to
     std::unordered_map<long long, long long> tree_reference_counting; // Maps a tree (root vertex) to the number of references it has in the vertex tree map
 
-
     long long node_count = 0;
-
-    /*
-    ~Forest() {
-        for (auto &[fst, snd]: trees) {
-            deleteTreeRecursive(snd.rootNode, fst);
-        }
-    }
-    */
 
     // a vertex can be root of only one tree
     // proof: since we have only one initial state and the tree has an initial state as root

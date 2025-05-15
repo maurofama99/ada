@@ -113,15 +113,18 @@ int computeShiftedIndex(int firstIndex, int lastIndex,
     double t = (score - minScore) / (maxScore - minScore);
 
     // we want t=0 → lastIndex, t=1 → firstIndex
+    // range equals the number of scheduled adaptations until the current time
     double range = lastIndex - firstIndex;
     double offset = (1.0 - t) * range;
+
+    // if  (offset >= 0) cout << "range: " << range << ", offset: " << offset << endl;
 
     // round to nearest integer index
     return firstIndex + static_cast<int>(std::round(offset));
 }
 
 
-vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels);
+void setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels);
 
 int main(int argc, char *argv[]) {
     fs::path exe_path = fs::canonical(fs::absolute(argv[0]));
@@ -157,7 +160,7 @@ int main(int argc, char *argv[]) {
     }
 
     auto *aut = new FiniteStateAutomaton();
-    vector<long long> scores = setup_automaton(query_type, aut, config.labels);
+    setup_automaton(query_type, aut, config.labels);
     auto *f = new Forest();
     auto *sg = new streaming_graph(lives);
     auto *sink = new Sink();
@@ -183,7 +186,7 @@ int main(int argc, char *argv[]) {
     vector<size_t> to_evict;
     long long last_expired_window = 0;
 
-    long long checkpoint = 1000000;
+    long long checkpoint = 9223372036854775807L;
 
     vector<long long> node_count;
     long long saved_edges = 0;
@@ -421,49 +424,44 @@ int main(int argc, char *argv[]) {
 }
 
 // Set up the automaton correspondant for each query
-vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels) {
-    vector<long long> scores;
+void setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels) {
 
-    // fixme: some queries do not have minimal FSA due to final state equal to initial state bug in LM-SRPQ
     switch (query_type) {
         case 1: // a*
             aut->addFinalState(1);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(1, 1, labels[0]);
-            scores.emplace(scores.begin(), 6);
             break;
-        case 2: // a(bc)*
+        case 5: // ab*c
+            aut->addFinalState(2);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 1, labels[1]);
+            aut->addTransition(1, 2, labels[2]);
+            break;
+        case 7: // abc*
+            aut->addFinalState(2);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 2, labels[1]);
+            aut->addTransition(2, 2, labels[2]);
+            break;
+        case 11: // abc
             aut->addFinalState(3);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(1, 2, labels[1]);
             aut->addTransition(2, 3, labels[2]);
-            aut->addTransition(3, 2, labels[1]);
             break;
-        case 3: // ab*
+        case 2: // ab*
             aut->addFinalState(1);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(1, 1, labels[1]);
             break;
-        case 4: // (a|ab)
-            aut->addFinalState(1);
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            break;
-        case 5: // (abc)
-            aut->addFinalState(3);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(2, 3, labels[2]);
-            break;
-        case 7: // (a|b|c)d*
+        case 10: // (a|b)c*
             aut->addFinalState(1);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(0, 1, labels[1]);
-            aut->addTransition(0, 1, labels[2]);
-            aut->addTransition(1, 1, labels[3]);
+            aut->addTransition(1, 1, labels[2]);
             break;
-        case 8: // a*b*
+        case 6: // a*b*
             aut->addFinalState(1);
             aut->addFinalState(2);
             aut->addTransition(0, 1, labels[0]);
@@ -472,21 +470,16 @@ vector<long long> setup_automaton(long long query_type, FiniteStateAutomaton *au
             aut->addTransition(0, 2, labels[1]);
             aut->addTransition(2, 2, labels[1]);
             break;
-        case 9: // ab*c*
+        case 3: // ab*c*
             aut->addFinalState(1);
             aut->addFinalState(2);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(1, 1, labels[1]);
             aut->addTransition(1, 2, labels[2]);
             aut->addTransition(2, 2, labels[2]);
-            scores.emplace_back(0);
-            scores.emplace_back(13); // 2 loops, 1 edge 1->2, thus 2*6+1 = 13
-            scores.emplace_back(6);
             break;
         default:
             cerr << "ERROR: Wrong query type" << endl;
             exit(1);
     }
-
-    return scores;
 }

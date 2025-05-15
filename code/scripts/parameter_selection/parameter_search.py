@@ -57,8 +57,14 @@ if __name__ == '__main__':
     # g++ -std=c++17 -O3 -Wno-c++11-extensions -Wno-c++17-extensions -Wno-deprecated -o code/scripts/parameter_selection/run_main code/main.cpp
     parser.add_argument('--binary', help='Path to C++ executable (e.g. ./main)')
     parser.add_argument('--base_config', help='Baseline config file')
-    parser.add_argument('--n_calls', type=int, default=20, help='Number of Bayesian optimization calls')
+    parser.add_argument('--n_calls', type=int, default=30, help='Number of Bayesian optimization calls')
     args = parser.parse_args()
+
+    # define search space: scale factor for size, zscore
+    min_scale= 0.7
+    max_scale= 1.8
+    min_zscore= 2
+    max_zscore= 5
 
     # load baseline and run once
     base = load_config(args.base_config)
@@ -72,9 +78,9 @@ if __name__ == '__main__':
 
     # define search space: lives, scale factor for size, zscore
     space = [
-        Integer(4, 5, name='lives'),
-        Real(1.0, 1.5, name='scale'),
-        Real(3, 6, name='zscore')
+        Integer(4, 8, name='lives'),
+        Real(min_scale, max_scale, name='scale'),
+        Real(min_zscore, max_zscore, name='zscore')
     ]
 
     @use_named_args(space)
@@ -99,7 +105,7 @@ if __name__ == '__main__':
         # result count constraint
         if rp < rp0 or rp > rp0 * 1.05:
             penalty = 1e5 + abs(rp - rp0)
-            print(f"  -> resulting paths {rp:.0f} outside [{rp0:.0f}, {rp0*1.05:.0f}], penalty {penalty:.1f} (exec. time {m['execution time']})")
+            print(f"  -> resulting paths {rp:.0f} outside [{rp0:.0f}, {rp0*1.05:.0f}], penalty {penalty:.1f}, (exec. time {m['execution time']}, mem {mem})")
             return penalty
 
         # memory constraint
@@ -109,15 +115,26 @@ if __name__ == '__main__':
             #return penalty
 
         obj = -thr
-        print(f"  -> throughput {thr:.2f}, resulting paths {rp:.0f}, exec. time {m['execution time']} objective {obj:.2f} (throughput {thr:.2f})\n")
+        print(f"  -> throughput {thr:.2f}, resulting paths {rp:.0f}, exec. time {m['execution time']}, mem {mem}, objective {obj:.2f} (throughput {thr:.2f})\n")
+
         return obj
 
     print(f"Starting Bayesian optimization ({args.n_calls} calls)...")
-    res = gp_minimize(objective, space,
-                      n_calls=args.n_calls,
-                      n_initial_points=min(10, args.n_calls),
-                      acq_func='EI',
-                      random_state=0)
+    initial_points = [
+        [8, 1.8, 2.0],  # small zscore, high scale
+        [4, 0.7, 5.0],  # high zscore, low scale
+        [6, 1.3, 3.5], # mid-range
+    ]
+
+    res = gp_minimize(
+        objective, space,
+        n_calls=args.n_calls,
+        x0=initial_points,
+        y0=[objective(p) for p in initial_points],
+        n_initial_points=0,
+        acq_func='EI',
+        random_state=0
+    )
 
     print("Optimization done.")
     print(f"Best lives, scale, zscore: {res.x}")
