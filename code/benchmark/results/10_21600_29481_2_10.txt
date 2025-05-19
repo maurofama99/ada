@@ -1,0 +1,7 @@
+resulting paths: 10643806
+processed edges: 43604401
+saved edges: 213489035
+execution time: 525
+windows created: 3029
+dense edges: 6043147
+avg window size: 83361.7

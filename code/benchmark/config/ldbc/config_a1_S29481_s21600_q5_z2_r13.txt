@@ -1,0 +1,11 @@
+algorithm=1
+input_data_path=code/dataset/ldbc/social-graph12_14v2.txt
+output_base_folder=code/benchmark/results_ldbc/
+size=29481
+slide=21600
+query_type=5
+labels=3,0,8
+zscore=2
+lives=13
+watermark=0
+ooo_strategy=1
