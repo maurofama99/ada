@@ -22,19 +22,33 @@ def generate_config_files(output_folder, datasets, algorithms, window_slide_pair
                                 f"ooo_strategy={ooo_strategy}\n"
                             )
                             config_filename = f"config_a{algorithm}_S{size}_s{slide}_q{query_type}_z{zscore}_r{lives}.txt"
-                            config_filepath = os.path.join("config/higgs", config_filename)
+                            config_filepath = os.path.join("config/ldbc", config_filename)
                             with open(config_filepath, 'w') as config_file:
                                 config_file.write(config_content)
                             print(f"Generated {config_filepath}")
 
 def main():
-    output_folder = "code/benchmark/results_higgs/"
-    datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
+    output_folder = "code/benchmark/results_ldbc/"
+    datasets = ["code/dataset/ldbc/social-graph12_14v2.txt"]
     algorithms = [1]
-    window_slide_pairs = [(129600,10800), (86400,10800), (172800,10800), (129600,21600), (86400,21600), (172800,21600), (129600,43200), (86400,43200), (172800,43200)]
-    query_label_pairs = [(1, [2]), (2, [2,1,3]), (3, [3,1]), (4, [1,3]), (5, [1,2,3]), (7, [1,2,3,3]), (9, [1,2,3])]
-    z_scores = [(0, 1)]
-    watermarks = [(0, 1)]
+    window_slide_pairs = [(194400,21600), (259200,21600), (324000,21600), (388800,21600)] # (388800,21600), (453600, 21600), (518400, 21600), (583200, 21600) / (50544, 21600)
+    query_label_pairs = [(4, [3,0,8])] # (1, [0]), (5, [3,0,8]), (2, [3,0]), (10, [9,3,0]))
+    z_scores = [(0,1)]
+    watermarks = [(0,1)]
+
+    # 21600, 43200, 64800, 86400, 108000, 194400, 259200, 324000, 388800, 453600, 518400, 583200, 648000, 712800, 777600, 842800, 907200, 972000, 1036800, 1108800, 1180800, 1252800, 1324800, 1396800, 1468800, 1540800, 1612800, 1684800, 1756800, 1828800, 1900800, 1972800
+
+    # 1:  a*,
+    # 5:  ab*c,
+    # 7:  abc*,
+    # 11: abc,
+    # 2:  ab*,
+    # 10: (a|b)c*,
+    # 6:  a*b*,
+    # 3:  ab*c
+
+    # higgs: [(1,[1]), (5,[2,1,3]), (7,[2,3,1]), (2,[2,1]), (10,[2,3,1]), (6,[2,1]), (3,[3,2,1]), (4,[2,1,3])]
+    # ldbc: [(4, [3,0,8])] (1, [0]), (5, [3,0,8]), (2, [3,0]), (10, [9,3,0])) (7, [8,9,0])]
 
     generate_config_files(output_folder, datasets, algorithms, window_slide_pairs, query_label_pairs, z_scores, watermarks)
 

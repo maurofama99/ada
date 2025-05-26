@@ -1,11 +1,11 @@
 algorithm=1
 input_data_path=code/dataset/ldbc/social-graph12_14v2.txt
-output_base_folder=code/benchmark/results_higgs/
-size=259200
-slide=86400
-query_type=3
-labels=3,0
-zscore=3
+output_base_folder=code/benchmark/results_ldbc/
+size=194400
+slide=43200
+query_type=4
+labels=3,0,8
+zscore=0
 lives=1
 watermark=0
 ooo_strategy=1

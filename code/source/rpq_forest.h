@@ -307,6 +307,21 @@ public:
         treesToDelete.clear();
     }
 
+    // get the trees root vertexes of a vertex
+    std::vector<long long> getTreesRootVertex(long long vertex) {
+        std::vector<long long> result;
+        if (vertex_tree_map.find(vertex) == vertex_tree_map.end()) return result;
+
+        auto treesSet = vertex_tree_map.at(vertex);
+        for (auto tree : treesSet) {
+            result.push_back(tree->rootVertex);
+        }
+        if (result.empty()) {
+            std::cout << "WARNING: no trees found for vertex " << vertex << std::endl;
+        }
+        return result;
+    }
+
     void printTree(Node *node, long long depth = 0) const {
         if (!node) return;
         for (long long i = 0; i < depth; ++i) std::cout << "  ";

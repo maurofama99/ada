@@ -145,10 +145,12 @@ int main(int argc, char *argv[]) {
     long long watermark = config.watermark;
     long long current_time = 0;
 
+    int max_window_size = 257735;
+    int total_elements_count = 0;
+
     fs::path data_path = exe_dir / config.input_data_path;
     data_path = fs::absolute(data_path).lexically_normal();
 
-    // 4. Open the data file
     std::ifstream fin(data_path);
     if (!fin.is_open()) {
         std::cerr << "Error: Failed to open " << data_path << std::endl;
@@ -177,6 +179,7 @@ int main(int argc, char *argv[]) {
     long long time;
     long long timestamp;
     int dense_edges = 0;
+    int bad_tree = 0;
 
     long long last_window_index = 0;
     long long window_offset = 0;
@@ -184,7 +187,6 @@ int main(int argc, char *argv[]) {
 
     bool evict = false;
     vector<size_t> to_evict;
-    long long last_expired_window = 0;
 
     long long checkpoint = 9223372036854775807L;
 
@@ -292,9 +294,11 @@ int main(int argc, char *argv[]) {
                     if (!windows[i].first) windows[i].last = t_edge;
                     windows[i].first = t_edge;
                     windows[i].elements_count++;
+                    total_elements_count++;
                 } else if (!windows[i].last || time > windows[i].last->edge_pt->timestamp) {
                     windows[i].last = t_edge;
                     windows[i].elements_count++;
+                    total_elements_count++;
                 }
             } else if (time >= windows[i].t_close) {
                 if (windows[i].elements_count == 0) cout << "WARNING: Empty window." << endl;
@@ -308,9 +312,7 @@ int main(int argc, char *argv[]) {
         new_sgt->time_pos = t_edge;
 
         /* QUERY */
-        if (algorithm == 1) query->pattern_matching_tc(new_sgt);
-        else if (algorithm == 2) cerr << "ERROR: Query handler not implemented." << endl;
-        else if (algorithm == 3) query->pattern_matching_lc(new_sgt);
+        query->pattern_matching_tc(new_sgt);
 
         /* EVICT */
         if (evict) {
@@ -337,10 +339,24 @@ int main(int argc, char *argv[]) {
                 auto cur_edge = current->edge_pt;
                 auto next = current->next;
 
+                // retrieve the median of the tree scores associated with the edge, delete if belongs to stale trees
+                vector<double> scores;
+                for (auto tree_id: f->getTreesRootVertex(cur_edge->s)) {
+                    scores.emplace_back(query->tree_monitor->getTreeScore(tree_id, time));
+                }
+                for (auto tree_id: f->getTreesRootVertex(cur_edge->d)) {
+                    scores.emplace_back(query->tree_monitor->getTreeScore(tree_id, time));
+                }
+                if (!scores.empty()) {
+                    // sort scores to compute median
+                    std::sort(scores.begin(), scores.end());
+                }
+
                 if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) >
-                    zscore) {
-                    // if (cur_edge->lives == 1 || (static_cast<double>(rand()) / RAND_MAX) < 0.005)
+                    zscore || (scores.empty() ? false : (scores[scores.size()/2] < 30 ? true : false))) {
+
                     if (sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) dense_edges++;
+                    if (!scores.empty() && scores[scores.size()/2] < 30) bad_tree++;
                     // check for parent switch before final deletion
                     candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
                     sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
@@ -353,10 +369,11 @@ int main(int argc, char *argv[]) {
                     auto z_score_d = sg->get_zscore(cur_edge->d);
                     auto score = z_score_d > z_score_s ? z_score_d : z_score_s;
 
-                    auto index = computeShiftedIndex(to_evict.back()+1, last_window_index, score, -1, zscore);
+                    auto index = computeShiftedIndex(to_evict.back() + 1, last_window_index, score, -1, zscore);
 
                     sg->shift_timed_edge(cur_edge->time_pos, windows[index].first);
                     windows[last_window_index].elements_count++;
+                    total_elements_count++;
                 }
                 current = next;
             }
@@ -385,11 +402,17 @@ int main(int argc, char *argv[]) {
             evict = false;
 
             node_count.emplace_back(f->node_count);
+
+            double avg_window_size = static_cast<double>(total_elements_count) / windows.size();
+
+            if (avg_window_size > max_window_size * 1.05 && sg->lives > 10) sg->lives--;
+            if (avg_window_size < max_window_size * 0.95) sg->lives++;
         }
 
         if (edge_number >= checkpoint) {
             checkpoint += checkpoint;
 
+            cout << "trees in forest: " << f->trees.size() << "\n";
             printf("processed edges: %lld\n", edge_number);
             printf("saved edges: %lld\n", saved_edges);
             printf("avg degree: %f\n", sg->mean);
@@ -410,16 +433,18 @@ int main(int argc, char *argv[]) {
     cout << "execution time: " << time_used << endl;
     cout << "windows created: " << windows.size() << "\n";
     cout << "dense edges: " << dense_edges << "\n";
-
+    cout << "bad trees: " << bad_tree << "\n";
     // compute average window size using the number of elements for each window in elements_count
-    double avg_window_size = 0;
-    for (const auto &win: windows) {
-        avg_window_size += win.elements_count;
-    }
-    avg_window_size /= windows.size();
+    double avg_window_size = static_cast<double>(total_elements_count) / windows.size();
     cout << "avg window size: " << avg_window_size << "\n";
 
+    // cleanup
     delete sg;
+    delete f;
+    delete sink;
+    delete aut;
+    delete query;
+
     return 0;
 }
 
@@ -444,11 +469,12 @@ void setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vect
             aut->addTransition(1, 2, labels[1]);
             aut->addTransition(2, 2, labels[2]);
             break;
-        case 11: // abc
+        case 4: // (abc)+
             aut->addFinalState(3);
             aut->addTransition(0, 1, labels[0]);
             aut->addTransition(1, 2, labels[1]);
             aut->addTransition(2, 3, labels[2]);
+            aut->addTransition(3, 1, labels[0]);
             break;
         case 2: // ab*
             aut->addFinalState(1);
