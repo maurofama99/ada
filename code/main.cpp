@@ -7,6 +7,7 @@
 #include <cmath>
 #include <algorithm>
 #include <sstream>
+#include <numeric>
 
 namespace fs = std::filesystem;
 
@@ -18,17 +19,14 @@ namespace fs = std::filesystem;
 using namespace std;
 
 typedef struct Config {
-    long long algorithm;
     std::string input_data_path;
-    std::string output_base_folder;
+    bool adaptive;
     long long size;
     long long slide;
     long long query_type;
     std::vector<long long> labels;
-    double zscore;
-    int lives;
-    long long watermark;
-    long long ooo_strategy;
+    int max_size;
+    int min_size;
 } config;
 
 config readConfig(const std::string &filename) {
@@ -52,27 +50,90 @@ config readConfig(const std::string &filename) {
     }
 
     // Convert values from the map
-    config.algorithm = std::stoi(configMap["algorithm"]);
     config.input_data_path = configMap["input_data_path"];
-    config.output_base_folder = configMap["output_base_folder"];
+    config.adaptive = std::stoi(configMap["adaptive"]);
+
     config.size = std::stoi(configMap["size"]);
     config.slide = std::stoi(configMap["slide"]);
+    config.max_size = std::stoi(configMap["max_size"]);
+    config.min_size = std::stoi(configMap["min_size"]);
     config.query_type = std::stoi(configMap["query_type"]);
 
-    // Parse extra_args
     std::istringstream extraArgsStream(configMap["labels"]);
     std::string arg;
     while (std::getline(extraArgsStream, arg, ',')) {
         config.labels.push_back(std::stoi(arg));
     }
 
-    config.zscore = std::stod(configMap["zscore"]);
-    config.watermark = std::stoi(configMap["watermark"]);
-    config.ooo_strategy = std::stoi(configMap["ooo_strategy"]);
-    config.lives = std::stoi(configMap["lives"]);
-
     return config;
 }
+
+class DensityTracker {
+public:
+    void addDensity(double value) {
+        auto pos = std::lower_bound(sorted.begin(), sorted.end(), value);
+        sorted.insert(pos, value);
+
+        // maintain temporal order
+        order.push_back(value);
+
+        if (order.size() > maxDensitySize) {
+            double oldest = order.front();
+            order.pop_front();
+            auto it = std::lower_bound(sorted.begin(), sorted.end(), oldest);
+            if (it != sorted.end() && *it == oldest) {
+                sorted.erase(it);
+            }
+        }
+    }
+
+    void addResult(double value) {
+        results.push_back(value);
+        if (results.size() > maxResultSize) {
+            results.pop_front();
+        }
+    }
+
+    [[nodiscard]] double zScore(double x) const {
+        if (sorted.empty()) return 0.0;
+
+        double mean = std::accumulate(sorted.begin(), sorted.end(), 0.0) / sorted.size();
+
+        double sum_sq_diff = 0.0;
+        for (double val : sorted) {
+            double diff = val - mean;
+            sum_sq_diff += diff * diff;
+        }
+
+        double stddev = std::sqrt(sum_sq_diff / sorted.size());
+
+        if (stddev == 0.0) return 0.0; // Evita divisione per zero
+
+        return (x - mean) / stddev;
+    }
+
+    [[nodiscard]] double medianResult() const {
+        if (results.empty()) return 0.0;
+        std::vector<double> temp(results.begin(), results.end());
+        std::sort(temp.begin(), temp.end());
+        size_t n = temp.size();
+        if (n % 2 == 0) {
+            return (temp[n / 2 - 1] + temp[n / 2]) / 2.0;
+        }
+        return temp[n / 2];
+    }
+
+    [[nodiscard]] const std::vector<double>& getSorted() const {
+        return sorted;
+    }
+
+private:
+    static constexpr size_t maxDensitySize = 30;
+    static constexpr size_t maxResultSize = 30;
+    std::vector<double> sorted;
+    std::deque<double> order;
+    std::deque<double> results;
+};
 
 class window {
 public:
@@ -81,7 +142,17 @@ public:
     timed_edge *first;
     timed_edge *last;
     bool evicted = false;
+    clock_t start_time; // start time of the window
+    double latency = 0.0; // latency of the window
+    double normalized_latency = 0.0; // normalized latency of the window
+
+    double max_degree = 0.0;
+
     long long elements_count = 0;
+    int window_matches = 0;
+
+    int total_matched_results = 0;
+    int emitted_results = 0;
 
     // Constructor
     window(long long t_open, long long t_close, timed_edge *first, timed_edge *last) {
@@ -89,42 +160,11 @@ public:
         this->t_close = t_close;
         this->first = first;
         this->last = last;
+        this->start_time = clock();
     }
 };
 
-/// Map score ∈ [minScore…maxScore] into an index ∈ [firstIndex…lastIndex].
-/// Lower scores → values near lastIndex; higher scores → values near firstIndex.
-int computeShiftedIndex(int firstIndex, int lastIndex,
-                        double score,
-                        double minScore, double maxScore) {
-    // sanity‑check
-    if (minScore >= maxScore) {
-        cerr << "ERROR: minScore must be smaller than maxScore." << endl;
-        exit(1);
-    }
-    // ensure firstIndex≤lastIndex
-    if (firstIndex > lastIndex) {
-        std::swap(firstIndex, lastIndex);
-    }
-    // clamp score into [minScore…maxScore]
-    score = std::clamp(score, minScore, maxScore);
-
-    // normalize into [0…1]
-    double t = (score - minScore) / (maxScore - minScore);
-
-    // we want t=0 → lastIndex, t=1 → firstIndex
-    // range equals the number of scheduled adaptations until the current time
-    double range = lastIndex - firstIndex;
-    double offset = (1.0 - t) * range;
-
-    // if  (offset >= 0) cout << "range: " << range << ", offset: " << offset << endl;
-
-    // round to nearest integer index
-    return firstIndex + static_cast<int>(std::round(offset));
-}
-
-
-void setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels);
+int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels);
 
 int main(int argc, char *argv[]) {
     fs::path exe_path = fs::canonical(fs::absolute(argv[0]));
@@ -133,20 +173,11 @@ int main(int argc, char *argv[]) {
     string config_path = argv[1];
     config config = readConfig(config_path);
 
-    long long algorithm = config.algorithm;
-    // ifstream fin(config.input_data_path.c_str());
-    string output_base_folder = config.output_base_folder;
     long long size = config.size;
     long long slide = config.slide;
+    long long max_size = config.max_size;
+    long long min_size = config.min_size;
     long long query_type = config.query_type;
-    double zscore = config.zscore;
-    int lives = config.lives;
-
-    long long watermark = config.watermark;
-    long long current_time = 0;
-
-    int max_window_size = 257735;
-    int total_elements_count = 0;
 
     fs::path data_path = exe_dir / config.input_data_path;
     data_path = fs::absolute(data_path).lexically_normal();
@@ -157,29 +188,24 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (algorithm != 3 and watermark != 0) {
-        watermark = 0;
-    }
-
-    auto *aut = new FiniteStateAutomaton();
-    setup_automaton(query_type, aut, config.labels);
     auto *f = new Forest();
-    auto *sg = new streaming_graph(lives);
+    auto *sg = new streaming_graph(2.5);
     auto *sink = new Sink();
+    auto *aut = new FiniteStateAutomaton();
+
+    f->possible_states = setup_automaton(query_type, aut, config.labels);
+
+    int first_transition = config.labels[0];
+
+    auto query = new QueryHandler(*aut, *f, *sg, *sink); // Density-based Retention
 
     vector<window> windows;
-
-    // Buffer to store evicted windows eventually needed for out-of-order elements computation
-    unordered_map<long long, vector<sg_edge *> > windows_backup;
-    // key: window opening time, value: vector of elements belonging to the window.
-
+    int total_elements_count = 0;
 
     long long t0 = 0;
     long long edge_number = 0;
     long long time;
     long long timestamp;
-    int dense_edges = 0;
-    int bad_tree = 0;
 
     long long last_window_index = 0;
     long long window_offset = 0;
@@ -187,19 +213,45 @@ int main(int argc, char *argv[]) {
 
     bool evict = false;
     vector<size_t> to_evict;
+    long long last_t_open = -1;
 
-    long long checkpoint = 9223372036854775807L;
+    // long long checkpoint = 9223372036854775807L;
+    long long checkpoint = 10000;
 
     vector<long long> node_count;
     long long saved_edges = 0;
 
-    auto query = new QueryHandler(*aut, *f, *sg, *sink); // Density-based Retention
+    std::string mode = config.adaptive ? "ad" : "sl";
+    bool ADAPTIVE_WINDOW = config.adaptive > 0;
+    DensityTracker density_tracker;
+    static double cumulative_size = 0.0;
+    static long long size_count = 0;
+    double avg_size = 0;
+    int EINIT_count = 0;
+    double cost_max = 0.0;
+    double cost_min = std::numeric_limits<double>::max();
+    double lat_max = 0.0;
+    double lat_min = std::numeric_limits<double>::max();
+    int warmup = 0;
+
+    std::ofstream sizes_file("tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    sizes_file << "window_size,timestamp,mean_degree,incremental_matches\n";
+
+    std::ofstream csv_summary("summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
+
+    std::ofstream csv_file("window_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    csv_file << "window_index,t_open,t_close,window_results,incremental_matches,latency,cost,normalized_cost\n";
+
+    std::ofstream cost_csv("window_cost_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    cost_csv << "state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency\n";
+
+    std::ofstream state_csv("state_size_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    state_csv << "nodes_count,trees_count,trees\n";
 
     clock_t start = clock();
-    //for (const auto& [s, d, l, t] : edges) {
     long long s, d, l, t;
     while (fin >> s >> d >> l >> t) {
-        // cout << "Processing edge: " << s << " -> " << d << " with label: " << l << " at time: " << t << endl;
         edge_number++;
         if (t0 == 0) {
             t0 = t;
@@ -213,33 +265,312 @@ int main(int argc, char *argv[]) {
         if (!aut->hasLabel(l))
             continue;
 
-        long long watermark_gap = current_time - time;
+        if (l == first_transition) EINIT_count++;
 
         long long window_close;
-        if (time >= current_time) {
-            // in-order element
-            double c_sup = ceil(static_cast<double>(time) / static_cast<double>(slide)) * slide;
-            double o_i = c_sup - size;
-            do {
-                window_close = o_i + size;
-                if (windows[last_window_index].t_close < window_close) {
-                    windows.emplace_back(o_i, window_close, nullptr, nullptr);
-                    last_window_index++;
-                }
-                o_i += slide;
-            } while (o_i < time);
-        }
+        double base = std::floor(static_cast<double>(time) / slide) * slide;
+        double o_i  = base;
+        do {
+            auto window_open  = static_cast<long long>(o_i);
+            window_close = static_cast<long long>(o_i + size);
+
+            if (windows[last_window_index].t_close < window_close) { // new window opens
+                // update metrics for window adaptation
+                if (last_window_index >=1)
+                    windows[last_window_index].window_matches = sink->matched_paths - windows[last_window_index-1].window_matches;
+                else
+                    windows[last_window_index].window_matches = sink->matched_paths;
+
+                windows[last_window_index].total_matched_results = sink->matched_paths; // matched paths until this window
+                windows[last_window_index].emitted_results = sink->getResultSetSize(); // paths emitted on this window close
+                windows[last_window_index].window_matches = windows[last_window_index].emitted_results;
+
+                density_tracker.addDensity(sg->mean);
+                density_tracker.addResult(windows[last_window_index].window_matches);
+
+                windows.emplace_back(window_open, window_close, nullptr, nullptr);
+                last_window_index++;
+                // print the current window open and close times
+            }
+            o_i += slide;
+        } while (o_i < time);
 
         timed_edge *t_edge;
         sg_edge *new_sgt;
 
         new_sgt = sg->insert_edge(edge_number, s, d, l, time, window_close);
 
-        // duplicate handling in tuple list, important to not evict an updated edge
         if (!new_sgt) {
-            // TODO If existing edge is not in the same window, do not shift place but instead reinsert it
             // search for the duplicate
-            auto existing_edge = sg->search_existing_edge(s, d, l);
+            cerr << "ERROR: new sgt is null, time: " << time << endl;
+            exit(1);
+        }
+
+        // add edge to time list
+        t_edge = new timed_edge(new_sgt); // associate the timed edge with the snapshot graph edge
+        sg->add_timed_edge(t_edge); // append the element to the time list
+
+        // update window boundaries and check for window eviction
+        for (size_t i = window_offset; i < windows.size(); i++) {
+            if (windows[i].t_open <= time && time < windows[i].t_close) { // active window
+                if (!windows[i].first || time < windows[i].first->edge_pt->timestamp) {
+                    if (!windows[i].first) windows[i].last = t_edge;
+                    windows[i].first = t_edge;
+                    windows[i].elements_count++;
+                    total_elements_count++;
+                } else if (!windows[i].last || time >= windows[i].last->edge_pt->timestamp) {
+                    windows[i].last = t_edge;
+                    windows[i].elements_count++;
+                    total_elements_count++;
+                }
+                if (sg->density[s] > windows[i].max_degree) {
+                    windows[i].max_degree = sg->density[s];
+                }
+            } else if (time >= windows[i].t_close) { // schedule window for eviction
+                window_offset = i + 1;
+                to_evict.push_back(i);
+                evict = true;
+                if (windows[i].elements_count == 0) {
+                    cerr << "ERROR: Empty window: " << i << endl;
+                    exit(1);
+                }
+            }
+        }
+        new_sgt->time_pos = t_edge; // associate the snapshot graph edge with the timed edge
+
+        cumulative_size += size;
+        size_count++;
+        avg_size = cumulative_size / size_count;
+
+        sizes_file << size << "," << timestamp+t0 << "," << sg->mean << "," << sink->matched_paths << endl;
+
+        /* EVICT */
+        if (evict) {
+            // to compute window cost, we take the size of the snapshot graph of the window here, since no more elements will be added and it can be considered complete and closed
+            std::vector<pair<long long, long long> > candidate_for_deletion;
+            timed_edge *evict_start_point = windows[to_evict[0]].first;
+            timed_edge *evict_end_point = windows[to_evict.back() + 1].first;
+            long long to_evict_timestamp = windows[to_evict.back() + 1].t_open;
+
+            if (!evict_start_point) {
+                cerr << "ERROR: Evict start point is null." << endl;
+                exit(1);
+            }
+
+            if (evict_end_point == nullptr) {
+                evict_end_point = sg->time_list_tail;
+                cout << "WARNING: Evict end point is null, evicting whole buffer." << endl;
+            }
+
+            if (last_t_open != windows[to_evict[0]].t_open) sink->refresh_resultSet(windows[to_evict[0]].t_open);
+            last_t_open = windows[to_evict[0]].t_open;
+
+            timed_edge *current = evict_start_point;
+
+            while (current && current != evict_end_point) {
+
+                auto cur_edge = current->edge_pt;
+                auto next = current->next;
+
+                if (cur_edge->label == first_transition) EINIT_count--;
+
+                candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // schedule for deletion from RPQ forest
+                if (time >= cur_edge->expiration_time) {
+                    sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
+                }
+                sg->delete_timed_edge(current); // delete from time list
+
+                current = next;
+            }
+
+            // reset time list pointers
+            sg->time_list_head = evict_end_point;
+            sg->time_list_head->prev = nullptr;
+
+            f->expire_timestamped(to_evict_timestamp, candidate_for_deletion);
+
+            double max_deg = 0;
+            for (size_t i = window_offset; i < windows.size(); i++) {
+                if (windows[i].max_degree > max_deg) max_deg = windows[i].max_degree;
+            }
+
+            double n = 0;
+            if (EINIT_count > edge_number) cerr << "ERROR: more initial transitions than edges." << endl;
+            for (int i = 0; i < EINIT_count; i++) {
+                n += sg->edge_num-i;
+            }
+            double cost = n / max_deg;
+            // cout << "Cost: " << cost << ", EINIT count: " << EINIT_count << ", edge number: " << edge_number << ", n: " << n << ", max degree: " << max_deg << endl;
+
+            double alpha = 1; // smoothing factor for cost normalization
+            double decay_rate = 0.001;
+            cost_max *= (1 - decay_rate);
+            if (cost > cost_max) cost_max = (cost * alpha) + (1-alpha) * cost_max;
+            if (cost < cost_min) cost_min = (cost * alpha) + (1-alpha) * cost_min;
+            double cost_norm = (cost - cost_min) / (cost_max - cost_min);
+
+            // mark window as evicted
+            for (unsigned long i: to_evict) {
+                warmup++;
+                windows[i].evicted = true;
+                windows[i].first = nullptr;
+                windows[i].last = nullptr;
+                windows[i].latency = static_cast<double>(clock() - windows[i].start_time) / CLOCKS_PER_SEC;
+                if (windows[i].latency > lat_max) lat_max = windows[i].latency;
+                if (windows[i].latency < lat_min) lat_min = windows[i].latency;
+                windows[i].normalized_latency = (windows[i].latency - lat_min) / (lat_max - lat_min);
+                // state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency
+                if (warmup>10) cost_csv << f->node_count << "," << cost << "," << cost_norm << "," << windows[i].latency << "," << windows[i].normalized_latency << endl;
+            }
+
+            to_evict.clear();
+            candidate_for_deletion.clear();
+            evict = false;
+
+            // TODO adapt window based on the normalized cost
+            if (ADAPTIVE_WINDOW) {
+                if (edge_number > 5000) {
+                    if (cost < 100000) {
+                        size = std::min(max_size, size + slide);
+                    } else {
+                        size = std::max(min_size, size - slide);
+                    }
+                }
+            }
+
+            state_csv << f->node_count << "," << f->trees_count << "," << f->trees.size() << endl;
+        }
+
+        /* QUERY */
+        query->pattern_matching_tc(new_sgt);
+
+        if (edge_number % checkpoint == 0) {
+            printf("processed edges: %lld\n", edge_number);
+            printf("saved edges: %lld\n", saved_edges);
+            printf("avg degree: %f\n", sg->mean);
+            cout << "matched paths: " << sink->matched_paths << "\n\n";
+        }
+    }
+
+    clock_t finish = clock();
+    long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
+
+    double avg_window_size = static_cast<double>(total_elements_count) / windows.size();
+
+    csv_summary <<  edge_number << ",";
+    csv_summary <<  sink->matched_paths << ",";
+    csv_summary <<  time_used << ",";
+    csv_summary <<  windows.size() << ",";
+    csv_summary <<  avg_window_size << ",";
+    csv_summary <<  avg_size << "\n";
+
+    for (size_t i = 0; i < windows.size(); ++i) {
+        csv_file << i << ","
+        << windows[i].t_open << ","
+        << windows[i].t_close << ","
+        << windows[i].emitted_results << ","
+        << windows[i].total_matched_results << ","
+        << windows[i].latency << "\n";
+    }
+
+    sizes_file.close();
+    csv_file.close();
+    cost_csv.close();
+    state_csv.close();
+
+
+    // cleanup
+    delete sg;
+    delete f;
+    delete sink;
+    delete aut;
+    delete query;
+
+ return 0;
+}
+
+// Set up the automaton correspondant for each query
+int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels) {
+    int states_count = 0;
+    /*
+     * 0 - initial state
+     * 0 -> 1 - first transition
+     * Always enumerate the states starting from 0 and incrementing by 1.
+     */
+    switch (query_type) {
+        case 1: // a+
+            aut->addFinalState(1);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 1, labels[0]);
+            states_count = 2;
+            break;
+        case 5: // ab*c
+            aut->addFinalState(2);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 1, labels[1]);
+            aut->addTransition(1, 2, labels[2]);
+            states_count = 3;
+            break;
+        case 7: // abc*
+            aut->addFinalState(2);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 2, labels[1]);
+            aut->addTransition(2, 2, labels[2]);
+            states_count = 3;
+            break;
+        case 4: // (abc)+
+            aut->addFinalState(3);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 2, labels[1]);
+            aut->addTransition(2, 3, labels[2]);
+            aut->addTransition(3, 1, labels[0]);
+            states_count = 4;
+            break;
+        case 2: // ab*
+            aut->addFinalState(1);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 1, labels[1]);
+            states_count = 2;
+            break;
+        case 10: // (a|b)c*
+            aut->addFinalState(1);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(0, 1, labels[1]);
+            aut->addTransition(1, 1, labels[2]);
+            states_count = 2;
+            break;
+        case 6: // a*b*
+            aut->addFinalState(1);
+            aut->addFinalState(2);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 1, labels[0]);
+            aut->addTransition(1, 2, labels[1]);
+            aut->addTransition(0, 2, labels[1]);
+            aut->addTransition(2, 2, labels[1]);
+            states_count = 3;
+            break;
+        case 3: // ab*c*
+            aut->addFinalState(1);
+            aut->addFinalState(2);
+            aut->addTransition(0, 1, labels[0]);
+            aut->addTransition(1, 1, labels[1]);
+            aut->addTransition(1, 2, labels[2]);
+            aut->addTransition(2, 2, labels[2]);
+            states_count = 3;
+            break;
+        default:
+            cerr << "ERROR: Wrong query type" << endl;
+            exit(1);
+    }
+    return states_count;
+}
+
+
+
+/*
+ *
+ *if not !newsgt
+*            auto existing_edge = sg->search_existing_edge(s, d, l);
             if (!existing_edge) {
                 cerr << "ERROR: Existing edge not found." << endl;
                 exit(1);
@@ -280,232 +611,121 @@ int main(int argc, char *argv[]) {
             new_sgt = existing_edge;
             new_sgt->timestamp = time;
             new_sgt->expiration_time = window_close;
-        }
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
 
-        // add edge to time list
-        t_edge = new timed_edge(new_sgt);
-        sg->add_timed_edge(t_edge); // io: append element to last window
+   double R_target = 922337203685477;
+    double C_target = 0.0;
+    double smoothed_delta = 0.0;
+    /// SPIKY BURSTS
 
-        // add edge to window and check for window eviction
-        for (size_t i = window_offset; i < windows.size(); i++) {
-            if (windows[i].t_open <= time && time < windows[i].t_close) {
-                // add new sgt to window
-                if (!windows[i].first || time <= windows[i].first->edge_pt->timestamp) {
-                    if (!windows[i].first) windows[i].last = t_edge;
-                    windows[i].first = t_edge;
-                    windows[i].elements_count++;
-                    total_elements_count++;
-                } else if (!windows[i].last || time > windows[i].last->edge_pt->timestamp) {
-                    windows[i].last = t_edge;
-                    windows[i].elements_count++;
-                    total_elements_count++;
+    const double RESULT_THRESHOLD = 0.6;  // More sensitive to result drops
+    const double COST_THRESHOLD = 1.2;    // Tolerate less cost increase
+    const double EMA_ALPHA = 0.4;         // Slower reaction for stability
+    const double HYSTERISIS_THRESHOLD = 0.2; // Less sensitive hysteresis
+
+    const double RESULT_THRESHOLD = 0.75;
+    const double COST_THRESHOLD = 1.4;
+    const double EMA_ALPHA = 0.1;
+    const double HYSTERISIS_THRESHOLD = 0.3;
+
+
+const int TREND_WINDOW = 5;
+const double BASELINE_UPDATE_THRESHOLD = 0.6;
+
+std::vector<double> warmup_results;
+std::vector<double> warmup_costs;
+const int WARMUP_WINDOWS = 10;
+std::deque<double> recent_results;
+std::deque<double> recent_costs;
+ if (i < WARMUP_WINDOWS) {
+                        warmup_results.push_back(windows[i].window_matches);
+                        warmup_costs.push_back(windows[i].window_zscore);
+
+                        if (i == WARMUP_WINDOWS - 1) {
+                            // Compute median to reduce outlier impact
+                            R_target = median(warmup_results) * 0.8; //80% peak results
+                            C_target = median(warmup_costs) * 1.1; // 10% cost buffer
+                        }
+                        continue;
+                    }
+
+                    recent_results.push_back(windows[i].window_matches);
+                    recent_costs.push_back(windows[i].window_zscore);
+                    if (recent_results.size() > TREND_WINDOW) {
+                        recent_results.pop_front();
+                        recent_costs.pop_front();
+                    }
+
+                    double avg_results = std::accumulate(recent_results.begin(), recent_results.end(), 0.0) / TREND_WINDOW;
+                    double avg_costs = std::accumulate(recent_costs.begin(), recent_costs.end(), 0.0) / TREND_WINDOW;
+
+                    if (i % TREND_WINDOW == 0) {  // update baseline in stable state
+                        if (avg_results/R_target < BASELINE_UPDATE_THRESHOLD ||
+                            avg_costs/C_target > 1/BASELINE_UPDATE_THRESHOLD) {
+
+                            R_target = 0.2 * R_target + 0.8 * avg_results;
+                            C_target = 0.2 * C_target + 0.8 * avg_costs;
+                        }
+                    }
+
+                    double result_ratio = avg_results / R_target;
+                    double cost_ratio = avg_costs / C_target;
+
+                    double delta = 0;
+
+                    if (result_ratio < RESULT_THRESHOLD) {
+                        double deficiency = (RESULT_THRESHOLD - result_ratio)/RESULT_THRESHOLD;
+                        delta += slide * deficiency * (1 + (1 - result_ratio));
+                    }
+                    if (cost_ratio > COST_THRESHOLD) {
+                        double excess = (cost_ratio - COST_THRESHOLD)/COST_THRESHOLD;
+                        delta -= slide * excess * (1 + (cost_ratio - 1.0));
+                    }
+
+                    // EMA
+                    smoothed_delta = ((1-EMA_ALPHA) * smoothed_delta) + (EMA_ALPHA * delta);
+
+                    double dynamic_hysteresis = HYSTERISIS_THRESHOLD *
+                          (1 + std::abs(smoothed_delta)/slide);
+
+                    // Apply hysteresis to prevent micro-adjustments
+                    if (std::abs(smoothed_delta) > (slide * dynamic_hysteresis)){
+                        size = std::clamp(
+                            size + static_cast<long long>(std::round(smoothed_delta)),
+                            min_size,  // min size
+                            max_size   // max size
+                        );
+                        if (size < min_size_observed) min_size_observed = size;
+                        if (size > max_size_observed) max_size_observed = size;
+                        if (std::abs(smoothed_delta) > slide) {
+                            smoothed_delta *= 0.2;
+                        }
+                    }
+
+
+
+
+
+
+
+
+
+
+if (ADAPTIVE_WINDOW && i > 30) {
+                    double z = density_tracker.zScore(windows[i].window_zscore);
+                    long long delta = std::abs(z)*slide;
+                    if (z < -2) { // 1.9
+                        if (windows[i].window_matches < 0.5*density_tracker.medianResult()) size = std::min(max_size, size + delta);
+                    } else if (z > 1.5) { // 1.2
+                        if (windows[i].window_matches > 1.5*density_tracker.medianResult()) size = std::max(min_size, size - delta);
+                    }
                 }
-            } else if (time >= windows[i].t_close) {
-                if (windows[i].elements_count == 0) cout << "WARNING: Empty window." << endl;
-                // schedule window for eviction
-                window_offset = i + 1;
-                to_evict.push_back(i);
-                evict = true;
-            }
-        }
-
-        new_sgt->time_pos = t_edge;
-
-        /* QUERY */
-        query->pattern_matching_tc(new_sgt);
-
-        /* EVICT */
-        if (evict) {
-            // to compute window cost, we take the size of the snapshot graph of the window here, since no more elements will be added and it can be considered complete and closed
-
-            std::vector<pair<long long, long long> > candidate_for_deletion;
-            timed_edge *evict_start_point = windows[to_evict[0]].first;
-            timed_edge *evict_end_point = windows[to_evict.back() + 1].first;
-            long long to_evict_timestamp = windows[to_evict.back() + 1].t_open;
-
-            if (!evict_start_point) {
-                cerr << "ERROR: Evict start point is null." << endl;
-                exit(1);
-            }
-
-            if (evict_end_point == nullptr) {
-                evict_end_point = sg->time_list_tail;
-                cout << "WARNING: Evict end point is null, evicting whole buffer." << endl;
-            }
-
-            timed_edge *current = evict_start_point;
-
-            while (current && current != evict_end_point) {
-                auto cur_edge = current->edge_pt;
-                auto next = current->next;
-
-                // retrieve the median of the tree scores associated with the edge, delete if belongs to stale trees
-                vector<double> scores;
-                for (auto tree_id: f->getTreesRootVertex(cur_edge->s)) {
-                    scores.emplace_back(query->tree_monitor->getTreeScore(tree_id, time));
-                }
-                for (auto tree_id: f->getTreesRootVertex(cur_edge->d)) {
-                    scores.emplace_back(query->tree_monitor->getTreeScore(tree_id, time));
-                }
-                if (!scores.empty()) {
-                    // sort scores to compute median
-                    std::sort(scores.begin(), scores.end());
-                }
-
-                if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) >
-                    zscore || (scores.empty() ? false : (scores[scores.size()/2] < 30 ? true : false))) {
-
-                    if (sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) dense_edges++;
-                    if (!scores.empty() && scores[scores.size()/2] < 30) bad_tree++;
-                    // check for parent switch before final deletion
-                    candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
-                    sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
-                    sg->delete_timed_edge(current); // delete from window state store
-                } else {
-                    cur_edge->lives--;
-                    saved_edges++;
-
-                    auto z_score_s = sg->get_zscore(cur_edge->s);
-                    auto z_score_d = sg->get_zscore(cur_edge->d);
-                    auto score = z_score_d > z_score_s ? z_score_d : z_score_s;
-
-                    auto index = computeShiftedIndex(to_evict.back() + 1, last_window_index, score, -1, zscore);
-
-                    sg->shift_timed_edge(cur_edge->time_pos, windows[index].first);
-                    windows[last_window_index].elements_count++;
-                    total_elements_count++;
-                }
-                current = next;
-            }
-
-            // mark window as evicted
-            for (unsigned long i: to_evict) {
-                windows[i].evicted = true;
-                windows[i].first = nullptr;
-                windows[i].last = nullptr;
-            }
-
-            // reset time list pointers
-            sg->time_list_head = evict_end_point;
-            sg->time_list_head->prev = nullptr;
-
-            if (algorithm == 1) {
-                f->expire_timestamped(to_evict_timestamp, candidate_for_deletion);
-            } else if (algorithm == 2) {
-                cerr << "ERROR: Query handler not implemented." << endl;
-            } else if (algorithm == 3) {
-                f->expire(candidate_for_deletion);
-            }
-
-            to_evict.clear();
-            candidate_for_deletion.clear();
-            evict = false;
-
-            node_count.emplace_back(f->node_count);
-
-            double avg_window_size = static_cast<double>(total_elements_count) / windows.size();
-
-            if (avg_window_size > max_window_size * 1.05 && sg->lives > 10) sg->lives--;
-            if (avg_window_size < max_window_size * 0.95) sg->lives++;
-        }
-
-        if (edge_number >= checkpoint) {
-            checkpoint += checkpoint;
-
-            cout << "trees in forest: " << f->trees.size() << "\n";
-            printf("processed edges: %lld\n", edge_number);
-            printf("saved edges: %lld\n", saved_edges);
-            printf("avg degree: %f\n", sg->mean);
-            if (algorithm == 1) {
-                cout << "resulting paths: " << sink->getResultSetSize() << "\n\n";
-            } else if (algorithm == 3) {
-                cout << "resulting paths: " << sink->getResultSetSize() << "\n\n";
-            }
-        }
-    }
-
-    clock_t finish = clock();
-    long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
-
-    cout << "resulting paths: " << sink->getResultSetSize() << "\n";
-    printf("processed edges: %lld\n", edge_number);
-    printf("saved edges: %lld\n", saved_edges);
-    cout << "execution time: " << time_used << endl;
-    cout << "windows created: " << windows.size() << "\n";
-    cout << "dense edges: " << dense_edges << "\n";
-    cout << "bad trees: " << bad_tree << "\n";
-    // compute average window size using the number of elements for each window in elements_count
-    double avg_window_size = static_cast<double>(total_elements_count) / windows.size();
-    cout << "avg window size: " << avg_window_size << "\n";
-
-    // cleanup
-    delete sg;
-    delete f;
-    delete sink;
-    delete aut;
-    delete query;
-
-    return 0;
-}
-
-// Set up the automaton correspondant for each query
-void setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels) {
-
-    switch (query_type) {
-        case 1: // a*
-            aut->addFinalState(1);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[0]);
-            break;
-        case 5: // ab*c
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[1]);
-            aut->addTransition(1, 2, labels[2]);
-            break;
-        case 7: // abc*
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(2, 2, labels[2]);
-            break;
-        case 4: // (abc)+
-            aut->addFinalState(3);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(2, 3, labels[2]);
-            aut->addTransition(3, 1, labels[0]);
-            break;
-        case 2: // ab*
-            aut->addFinalState(1);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[1]);
-            break;
-        case 10: // (a|b)c*
-            aut->addFinalState(1);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(0, 1, labels[1]);
-            aut->addTransition(1, 1, labels[2]);
-            break;
-        case 6: // a*b*
-            aut->addFinalState(1);
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(0, 2, labels[1]);
-            aut->addTransition(2, 2, labels[1]);
-            break;
-        case 3: // ab*c*
-            aut->addFinalState(1);
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[1]);
-            aut->addTransition(1, 2, labels[2]);
-            aut->addTransition(2, 2, labels[2]);
-            break;
-        default:
-            cerr << "ERROR: Wrong query type" << endl;
-            exit(1);
-    }
-}
+                    */

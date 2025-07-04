@@ -23,7 +23,9 @@ struct resultHash {
 
 class Sink {
     std::unordered_map<long long, std::unordered_set<result, resultHash> > result_set;
+
 public:
+    int matched_paths = 0; // patterns matched
 
     // get result set size
     long long getResultSetSize() {
@@ -38,6 +40,26 @@ public:
     void addEntry(long long source, long long destination, long long timestamp) {
         result res = {destination, timestamp};
         result_set[source].insert(res);
+        matched_paths++;
+    }
+
+    void refresh_resultSet(long long timestamp) {
+        // delete all the entries with timestamp less than the given timestamp
+        for (auto it = result_set.begin(); it != result_set.end();) {
+            auto &destinations = it->second;
+            for (auto dest_it = destinations.begin(); dest_it != destinations.end();) {
+                if (dest_it->timestamp < timestamp) {
+                    dest_it = destinations.erase(dest_it);
+                } else {
+                    ++dest_it;
+                }
+            }
+            if (destinations.empty()) {
+                it = result_set.erase(it);
+            } else {
+                ++it;
+            }
+        }
     }
 
     void printResultSet() {

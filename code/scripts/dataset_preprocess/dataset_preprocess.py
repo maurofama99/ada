@@ -40,7 +40,7 @@ def transform_file(input_file, output_file, label_map, default_value, max_lines)
 
 def main():
     # File di configurazione
-    config_file = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/scripts/dataset_preprocess/config_higgs.txt"
+    config_file = "/code/scripts/dataset_preprocess/label_maps/config_higgs.txt"
     # File di input e output
     input_file = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/dataset/higgs-activity/higgs-activity_time.txt"
     output_file = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"

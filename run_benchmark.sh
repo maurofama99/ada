@@ -21,7 +21,7 @@ fi
 
 # -- Configuration Paths --
 config_dir="$script_dir/code/benchmark/config"
-output_dir="$script_dir/code/benchmark/results"
+output_dir="$script_dir/code/benchmark/logs"
 mkdir -p "$output_dir"
 
 # -- Process All Config Files --
@@ -32,8 +32,8 @@ find "$config_dir" -type f -name "*.txt" | while read -r config_file; do
     query_type=$(  grep -E "^query_type=" "$config_file" | cut -d'=' -f2)
     slide=$(       grep -E "^slide="      "$config_file" | cut -d'=' -f2)
     size=$(        grep -E "^size="       "$config_file" | cut -d'=' -f2)
-    zscore=$(      grep -E "^zscore="     "$config_file" | cut -d'=' -f2)
-    lives=$(       grep -E "^lives="      "$config_file" | cut -d'=' -f2)
+    zscore=$(      grep -E "^max_size="     "$config_file" | cut -d'=' -f2)
+    lives=$(       grep -E "^adaptive="      "$config_file" | cut -d'=' -f2)
 
     # Generate output filename
     output_file="${output_dir}/${query_type}_${slide}_${size}_${zscore}_${lives}.txt"

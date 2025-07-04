@@ -72,6 +72,16 @@ struct pair_hash_aj {
     }
 };
 
+// Custom hash function for std::pair<double, long long>
+struct pair_hash {
+    template<class T1, class T2>
+    std::size_t operator()(const std::pair<T1, T2> &p) const {
+        auto hash1 = std::hash<T1>()(p.first);
+        auto hash2 = std::hash<T2>()(p.second);
+        return hash1 ^ (hash2 << 1); // Combine the two hash values
+    }
+};
+
 
 struct replication_rank_element {
     long long from;
@@ -101,21 +111,19 @@ public:
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
 
-    int lives;
-
-    // key: pair ts open, ts close, value: adjacency list
-    std::unordered_map<std::pair<long long, long long>, unordered_map<long long, vector<pair<long long, sg_edge *> > >, pair_hash_aj > backup_aj;
+    int lives = 1;
 
     // Z-score computation
     double mean = 0;
     double m2 = 0;
-    unordered_map<long long, long long> density;
+    unordered_map<long long, double> density;
+    double zscore_threshold;
+    unordered_set<long long> high_zscore_vertices;
 
-    explicit streaming_graph(const int lives_) {
-        edge_num = 0;
+    explicit streaming_graph(double zscore_threshold_)
+        : zscore_threshold(zscore_threshold_) {
         time_list_head = nullptr;
         time_list_tail = nullptr;
-        lives = lives_;
     }
 
     ~streaming_graph() {
@@ -134,6 +142,15 @@ public:
         }
     }
 
+    void update_zscore_tracking(long long vertex) {
+        double z = get_zscore(vertex);
+        if (z > zscore_threshold) {
+            high_zscore_vertices.insert(vertex);
+        } else {
+            high_zscore_vertices.erase(vertex);
+        }
+    }
+
     void add_timed_edge(timed_edge *cur) // append an edge to the time sequence list
     {
         if (!time_list_head) {
@@ -145,36 +162,6 @@ public:
             time_list_tail = cur;
         }
     }
-
-    void add_timed_edge_inorder(timed_edge *cur) // append an edge to the time sequence list
-{
-        if (!time_list_head) {
-            time_list_head = cur;
-            time_list_tail = cur;
-        } else {
-            timed_edge *temp = time_list_head;
-            while (temp && temp->edge_pt->timestamp < cur->edge_pt->timestamp) {
-                temp = temp->next;
-            }
-            if (!temp) {
-                // Insert at the end
-                time_list_tail->next = cur;
-                cur->prev = time_list_tail;
-                time_list_tail = cur;
-            } else if (temp == time_list_head) {
-                // Insert at the beginning
-                cur->next = time_list_head;
-                time_list_head->prev = cur;
-                time_list_head = cur;
-            } else {
-                // Insert in the middle
-                cur->next = temp;
-                cur->prev = temp->prev;
-                temp->prev->next = cur;
-                temp->prev = cur;
-            }
-        }
-}
 
     void delete_timed_edge(timed_edge *cur) // delete an edge from the time sequence list
     {
@@ -216,13 +203,13 @@ public:
         // Check if the edge already exists in the adjacency list
         for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
             if (existing_edge->label == label && to_vertex == to) {
-                return nullptr;
+                if (existing_edge->expiration_time < expiration_time) existing_edge->expiration_time = expiration_time;
+                if (existing_edge->timestamp < timestamp) existing_edge->timestamp = timestamp;
+                return existing_edge;
             }
         }
 
         edge_num++;
-        edge_num++;
-        // Otherwise, create a new edge
         auto *edge = new sg_edge(edge_id, from, to, label, timestamp, lives, expiration_time);
 
         // Add the edge to the adjacency list if it doesn't exist
@@ -230,25 +217,30 @@ public:
             vertex_num++;
             adjacency_list[from] = vector<pair<long long, sg_edge *> >();
         }
-        adjacency_list[from].emplace_back(to, edge);
+        adjacency_list.at(from).emplace_back(to, edge);
+
+        density[from]++;
 
         // update z score
         if (edge_num == 1) {
-            density[from]++;
-            density[to]++;
-            mean = (density[from] + density[to]) / 2;
+            // density[to]++;
+            // mean = (density[from] + density[to]) / 2;
+            mean = density[from];
             m2 = 0;
         } else {
-            density[from]++;
             double old_mean = mean;
-            mean += (density[from] - mean) / edge_num;
+            mean += (density[from] - mean) / vertex_num;
             m2 += (density[from] - old_mean) * (density[from] - mean);
+            /*
             density[to]++;
             old_mean = mean;
-            mean += (density[to] - mean) / edge_num;
+            mean += (density[to] - mean) / vertex_num;
             m2 += (density[to] - old_mean) * (density[to] - mean);
+            */
         }
 
+        update_zscore_tracking(from);
+        // update_zscore_tracking(to);
         return edge;
     }
 
@@ -266,29 +258,31 @@ public:
             // Check if this is the edge to remove
             if (it->first == to && edge->label == label) {
 
-                // cout << "Removing edge (" << from << ", " << to << ", " << label << ")" << endl;
                 // Remove the edge from the adjacency list
                 edges.erase(it);
+                edge_num--;
+
+                if (edges.empty()) {
+                    adjacency_list.erase(from);
+                    vertex_num--;
+                }
 
                 // update z-score computation
                 double old_mean = mean;
-                mean -= (mean - density[from]) / (edge_num - 1);
+                mean -= (mean - density[from]) / (vertex_num);
                 m2 -= (density[from] - old_mean) * (density[from] - mean);
+
                 density[from]--;
 
+                /*
                 old_mean = mean;
-                mean -= (mean - density[to]) / (edge_num - 1);
+                mean -= (mean - density[to]) / (vertex_num);
                 m2 -= (density[to] - old_mean) * (density[to] - mean);
                 density[to]--;
+                */
 
-                edge_num--;
-                edge_num--;
-
-                // If the vertex has no more edges, remove it from the adjacency list
-                if (edges.empty()) {
-                    adjacency_list.erase(from);
-                }
-
+                update_zscore_tracking(from);
+                // update_zscore_tracking(to);
                 return true; // Successfully removed
             }
         }
@@ -305,45 +299,6 @@ public:
             sucs.emplace_back(s, to, edge->timestamp, edge->label, edge->expiration_time, edge->id);
         }
         return sucs;
-    }
-
-    map<long long, long long> get_src_degree(long long s) {
-        map<long long, long long> degree_map;
-        for (const auto &[_, edge]: adjacency_list[s]) {
-            degree_map[edge->label]++;
-        }
-        return degree_map;
-    }
-
-    /**
-     * Find the vertexes at distance lower than the threshold
-     * from start vertex using DFS algorithm,
-     * checking the timestamp of the edges to find a connection with a recent window.
-     **/
-    bool dfs_with_threshold(long long start, long long threshold, long long min_timestamp) {
-        std::unordered_map<long long, bool> visited;
-        return dfs_with_threshold_rec(start, 0, threshold, min_timestamp, visited);
-    }
-
-    bool dfs_with_threshold_rec(long long current_vertex, long long current_distance, long long threshold, long long min_timestamp, std::unordered_map<long long, bool> &visited) {
-        if (current_distance > threshold) {
-            return false;
-        }
-
-        visited[current_vertex] = true;
-
-        for (const auto& [neighbor, edge] : adjacency_list[current_vertex]) {
-            if (edge->timestamp > min_timestamp) {
-                return true;
-            }
-            if (!visited[neighbor]) {
-                if (dfs_with_threshold_rec(neighbor, current_distance + 1, threshold, min_timestamp, visited)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     double get_zscore(long long vertex) {
@@ -375,26 +330,5 @@ public:
 
         to_insert->edge_pt->expiration_time = target->edge_pt->expiration_time;
         to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
-    }
-
-    void deep_copy_adjacency_list(long long ts_open, long long ts_close) {
-        unordered_map<long long, vector<pair<long long, sg_edge *> > > copy;
-        for (const auto &[from, edges]: adjacency_list) {
-            vector<pair<long long, sg_edge *> > edges_copy;
-            for (const auto &[to, edge]: edges) {
-                auto *edge_copy = new sg_edge(*edge);
-                edges_copy.emplace_back(to, edge_copy);
-            }
-            copy[from] = edges_copy;
-        }
-        auto key = std::make_pair(ts_open, ts_close);
-        backup_aj[key] = copy;
-    }
-
-    void delete_expired_adj(long long ts_open, long long ts_close) {
-        auto it = backup_aj.find(std::make_pair(ts_open, ts_close));
-        if (it != backup_aj.end()) {
-            backup_aj.erase(it);
-        }
     }
 };

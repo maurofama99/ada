@@ -6,7 +6,6 @@
 #include "rpq_forest.h"
 #include "sink.h"
 #include "streaming_graph.h"
-#include "tree_monitor.h"
 
 struct tree_expansion {
     long long vb;
@@ -50,11 +49,9 @@ public:
     Forest &forest;
     streaming_graph &sg;
     Sink &sink;
-    TreeUsageMonitor *tree_monitor;
 
-    QueryHandler(FiniteStateAutomaton &fsa, Forest &forest, streaming_graph &sg, Sink &sink, double alpha=0.2, double gamma=0.8)
+    QueryHandler(FiniteStateAutomaton &fsa, Forest &forest, streaming_graph &sg, Sink &sink)
         : fsa(fsa), forest(forest), sg(sg), sink(sink) {
-        tree_monitor = new TreeUsageMonitor(alpha, gamma);
     }
 
     /*
@@ -124,10 +121,9 @@ public:
             if (sb_sd.first == 0 && !forest.hasTree(edge->s)) {
                 // if sb=0 and there is no tree with root vertex vb
                 forest.addTree(edge->id, edge->s, 0, edge->timestamp);
-                tree_monitor->registerTree(edge->s, edge->timestamp);
             }
             for (auto tree: forest.findTreesWithNode(edge->s, sb_sd.first)) {
-                tree_monitor->accessTree(tree.rootVertex, edge->timestamp);
+                if (tree.expired) continue; // skip expired trees
                 // for all Trees that contain ⟨vb,sb⟩
                 // push (⟨vb,sb⟩, <vd,sd>, edge_id) into Q
                 priority_queue<tree_expansion*, vector<tree_expansion*>, time_comparator> Q; // (⟨vb,sb⟩, <vd,sd>, edge_id, edge_timestamp) // (⟨vb,sb⟩, <vd,sd>, edge_id, edge_timestamp)
@@ -135,17 +131,37 @@ public:
                 while (!Q.empty()) {
                     auto element = Q.top();
                     Q.pop(); // (⟨vi,si⟩, <vj,sj>, edge_id)
-                    if (auto vj_sj_node = forest.findNodeInTree(tree.rootVertex, element->vd, element->sd); !vj_sj_node) {
+                    auto vj_sj_node = forest.findNodeInTree(tree.rootVertex, element->vd, element->sd);
+                    auto vb_sb_node = forest.findNodeInTree(tree.rootVertex, element->vb, element->sb);
+
+                    if (!vj_sj_node) {
                         // if tree does not contain <vj,sj>
                         // add <vj,sj> into tree with parent vi_si
-                        if (!forest.addChildToParentTimestamped(tree.rootVertex, element->vb, element->sb,  element->vd, element->sd, element->edge_timestamp)) continue;
-                    } else if (auto candidate_parent = forest.findNodeInTree(tree.rootVertex, element->vb, element->sb); candidate_parent != nullptr && vj_sj_node->timestamp < (element->s_timestamp < candidate_parent->timestamp ? element->s_timestamp : candidate_parent->timestamp)) {
+                        if (!forest.addChildToParentTimestamped(tree.rootVertex, vb_sb_node, element->vd, element->sd, element->edge_timestamp)) continue;
+                    } else if (vb_sb_node && vj_sj_node->timestamp < (element->edge_timestamp < vb_sb_node->timestamp ? element->edge_timestamp : vb_sb_node->timestamp)) {
                         // if tree already contains <vj,sj>
                         // change parent to vi_si if the timestamp is smaller
-                        if (!forest.changeParentTimestamped(vj_sj_node, candidate_parent, element->edge_timestamp)) continue;
+                        if (!forest.changeParentTimestamped(vj_sj_node, vb_sb_node, (element->edge_timestamp < vb_sb_node->timestamp ? element->edge_timestamp : vb_sb_node->timestamp), tree.rootVertex)) continue;
                     } else
                         continue;
                     // update result set
+
+                    if (vb_sb_node) {
+                        if (vb_sb_node->children.size() > sg.density.at(element->vb)) {
+                            cerr << "time: " << edge->timestamp << ", root: " << tree.rootVertex << ", parent: " << element->vb << ", fan out: " << vb_sb_node->children.size() << ", density: " << sg.density[element->vb] << endl;
+                            // print all the children of the parent
+                            for (auto child: vb_sb_node->children) {
+                                cerr << "Child: " << child->vertex << ", state: " << child->state << ", timestamp: " << child->timestamp << endl;
+                            }
+                            // print all the nodes to which the parent points in the snapshot graph
+                            for (auto successors: sg.get_all_suc(element->vb)) {
+                                cerr << "Successor: " << successors.d << ", label: " << successors.label << ", timestamp: " << successors.timestamp << endl;
+                            }
+                            cout << endl << endl;
+                            exit (1);
+                        }
+                    }
+
                     if (fsa.isFinalState(element->sd)) {
                         // cout << "Found a path from " << element->vb << " to " << element->vd << " at time " << element->edge_timestamp << endl;
                         // check if in the result set we already have a path from root to element.vd
