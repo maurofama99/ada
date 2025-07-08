@@ -216,7 +216,7 @@ int main(int argc, char *argv[]) {
     long long last_t_open = -1;
 
     // long long checkpoint = 9223372036854775807L;
-    long long checkpoint = 10000;
+    long long checkpoint = 1000000;
 
     vector<long long> node_count;
     long long saved_edges = 0;
@@ -404,9 +404,11 @@ int main(int argc, char *argv[]) {
 
             double alpha = 1; // smoothing factor for cost normalization
             double decay_rate = 0.001;
-            cost_max *= (1 - decay_rate);
             if (cost > cost_max) cost_max = (cost * alpha) + (1-alpha) * cost_max;
             if (cost < cost_min) cost_min = (cost * alpha) + (1-alpha) * cost_min;
+
+            cost_max *= (1 - decay_rate);
+            cost_min *= (1 + decay_rate);
             double cost_norm = (cost - cost_min) / (cost_max - cost_min);
 
             // mark window as evicted
@@ -427,7 +429,7 @@ int main(int argc, char *argv[]) {
             candidate_for_deletion.clear();
             evict = false;
 
-            // TODO adapt window based on the normalized cost
+            // TODO find a way to measure the variation of the cost
             if (ADAPTIVE_WINDOW) {
                 if (edge_number > 5000) {
                     if (cost < 100000) {

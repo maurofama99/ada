@@ -42,8 +42,8 @@ def main():
     # File di configurazione
     config_file = "/code/scripts/dataset_preprocess/label_maps/config_higgs.txt"
     # File di input e output
-    input_file = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/dataset/higgs-activity/higgs-activity_time.txt"
-    output_file = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"
+    input_file = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/dataset/so/so-stream_labelled_bursted.txt"
+    output_file = "/Users/maurofama/Documents/phd/frames4pgs/CbAW4DGSP/code/dataset/so/so-stream_labelled_bursted_half.txt"
 
     # Limite sul numero di righe del file di output (-1 per nessun limite)
     max_lines = 100000000000000  # Cambia questo valore come necessario

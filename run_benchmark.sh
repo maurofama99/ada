@@ -3,7 +3,7 @@
 # -- Script Setup: Ensure Path Consistency --
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$script_dir" || exit 1
-
+\
 # -- Compilation --
 echo "Compiling main.cpp..."
 g++ -std=c++17 -O3 \
@@ -20,7 +20,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # -- Configuration Paths --
-config_dir="$script_dir/code/benchmark/config"
+config_dir="$script_dir/code/benchmark/config_accuracy"
 output_dir="$script_dir/code/benchmark/logs"
 mkdir -p "$output_dir"
 

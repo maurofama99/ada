@@ -17,16 +17,16 @@ def generate_config_files(datasets, algorithms, window_slide_pairs, query_label_
                                 f"min_size={min_size}\n"
                             )
                             config_filename = f"config_a{algorithm}_S{size}_s{slide}_q{query_type}_M{max_size}_m{min_size}.txt"
-                            config_filepath = os.path.join("config/higgs", config_filename)
+                            config_filepath = os.path.join("config/so", config_filename)
                             with open(config_filepath, 'w') as config_file:
                                 config_file.write(config_content)
                             print(f"Generated {config_filepath}")
 
 def main():
-    datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
+    datasets = ["code/dataset/so/so-stream_labelled_bursted_halved.txt"]
     algorithms = [0] # 1 adaptive, 0 sliding window
-    window_slide_pairs = [(4000, 800, 0, 0)]
-    query_label_pairs =  [(1,[1]), (5,[2,1,3]), (7,[2,3,1]), (2,[2,1]), (10,[2,3,1]), (6,[2,1]), (3,[3,2,1]), (4,[2,1,3])]
+    window_slide_pairs = [(25000, 5000, 0, 0)]
+    query_label_pairs =  [(1,[1]), (5,[2,1,3]), (7,[3,2,1]), (2,[2,1]), (10,[3,2,1]), (6,[1,2]), (3,[3,1,2]), (4,[3,1,2])]
 
     # 21600, 43200, 64800, 86400, 108000, 194400, 259200, 324000, 388800, 453600, 518400, 583200, 648000, 712800, 777600, 842800, 907200, 972000, 1036800, 1108800, 1180800, 1252800, 1324800, 1396800, 1468800, 1540800, 1612800, 1684800, 1756800, 1828800, 1900800, 1972800
 
@@ -40,8 +40,13 @@ def main():
     # 3:  ab*c
 
     # higgs: [(1,[1]), (5,[2,1,3]), (7,[2,3,1]), (2,[2,1]), (10,[2,3,1]), (6,[2,1]), (3,[3,2,1]), (4,[2,1,3])]
+    # "code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"
+
     # so: [(1,[1]), (5,[2,1,3]), (7,[3,2,1]), (2,[2,1]), (10,[3,2,1]), (6,[1,2]), (3,[3,1,2]), (4,[3,1,2])]
+    # "code/dataset/so/so-stream_labelled_bursted.txt"
+
     # ldbc: [(4, [3,0,8]), (1, [0]), (5, [3,0,8]), (2, [3,0]), (10, [9,3,0]), (7, [8,9,0])]
+
 
     generate_config_files(datasets, algorithms, window_slide_pairs, query_label_pairs)
 
