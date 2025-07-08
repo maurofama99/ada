@@ -53,8 +53,22 @@ struct TreeEqual {
     }
 };
 
-// Custom hash function for std::pair<long long, long long>
+struct NodePtrHash {
+    size_t operator()(const std::pair<Node*, Node*>& p) const {
+        // Usa vertex e state di entrambi i Node* per l'hash
+        return std::hash<long long>()(p.first->vertex) ^ (std::hash<long long>()(p.first->state) << 1)
+             ^ (std::hash<long long>()(p.second->vertex) << 2) ^ (std::hash<long long>()(p.second->state) << 3);
+    }
+};
 
+struct NodePtrEqual {
+    bool operator()(const std::pair<Node*, Node*>& a, const std::pair<Node*, Node*>& b) const {
+        return a.first->vertex == b.first->vertex &&
+               a.first->state == b.first->state &&
+               a.second->vertex == b.second->vertex &&
+               a.second->state == b.second->state;
+    }
+};
 
 class Forest {
 public:
@@ -206,23 +220,21 @@ public:
                 }
                 // defer deletion to avoid use-after-free
                  for (auto tree : treesSet) {
-                     vector<pair<Node*, long long> > sub_to_delete;
-                     vector<pair<Node*, long long> > trees_to_delete;
+                     std::unordered_set<pair<Node*, Node*>, NodePtrHash, NodePtrEqual > sub_to_delete; // node, root
+                     std::unordered_set<pair<Node*, Node*>, NodePtrHash, NodePtrEqual > trees_to_delete;
                      for (auto current: searchAllNodesNoState(tree->rootNode, vertex)) {
                          if (!current->parent && !current->isRoot)
                              cerr << "WARNING: root node has null parent" << endl;
                          if (current->timestamp < eviction_time || (current->isRoot && current->timestampRoot < eviction_time)) {
                              if (!current->isRoot) {
-                                 // deleteSubTree(current, tree->rootVertex);
-                                 sub_to_delete.emplace_back(current, tree->rootVertex);
+                                 sub_to_delete.emplace(current, tree->rootNode);
                              } else { // current vertex is the root node
                                  if (current != tree->rootNode) {
                                      cerr << "ERROR: root node is not the same as the current node" << endl;
                                  }
                                  tree->expired = true;
                                  current->isValid = false;
-                                 // deleteTreeRecursive(tree->rootNode, tree->rootVertex);
-                                 trees_to_delete.emplace_back(tree->rootNode, tree->rootVertex);
+                                 trees_to_delete.emplace(tree->rootNode, tree->rootNode);
                                  treesToDelete.push_back(tree);
                                  trees_count--;
                                  node_count--;
@@ -230,33 +242,13 @@ public:
                          }
                      }
                      for (auto [node, rootVertex]: sub_to_delete) {
-                         deleteSubTree(node, rootVertex);
+                         deleteSubTreeFromRootIterative(rootVertex, node);
                      }
                      for (auto [node, rootVertex]: trees_to_delete) {
-                         deleteTreeRecursive(node, rootVertex);
+                         deleteSubTreeFromRootIterative(rootVertex, node);
                      }
                      sub_to_delete.clear();
                      trees_to_delete.clear();
-                     /*
-                    if (Node *current = searchNodeNoState(tree->rootNode, vertex)) {
-                        if (!current->parent && !current->isRoot) cerr << "WARNING: root node has null parent" << endl;
-                        if (current->timestamp < eviction_time || (current->isRoot && current->timestampRoot < eviction_time)) {
-                            if (!current->isRoot) {
-                                deleteSubTree(current, tree->rootVertex);
-                            } else { // current vertex is the root node
-                                if (current != tree->rootNode) {
-                                    cerr << "ERROR: root node is not the same as the current node" << endl;
-                                }
-                                tree->expired = true;
-                                current->isValid = false;
-                                deleteTreeRecursive(tree->rootNode, tree->rootVertex);
-                                treesToDelete.push_back(tree);
-                                trees_count--;
-                                node_count--;
-                            }
-                        }
-                    }
-                    */
                 }
             }
         }
@@ -325,6 +317,26 @@ private:
         return foundNodes;
     }
 
+    void deleteSubTreeFromRootIterative(Node *root, Node *target) {
+        if (!root || !target) return;
+        std::stack<Node*> stack;
+        stack.push(root);
+
+        while (!stack.empty()) {
+            Node* current = stack.top();
+            stack.pop();
+
+            if (current == target) {
+                deleteSubTree(current, root->vertex);
+                return;
+            }
+
+            for (Node* child : current->children) {
+                stack.push(child);
+            }
+        }
+    }
+
     void deleteSubTree(Node *node, long long rootVertex) {
         if (!node) return;
 
@@ -348,15 +360,14 @@ private:
                     break;
                 }
             }
-            deleteTreeRecursive(node, rootVertex);
         }
-
+        deleteSubTreeRecursive(node, rootVertex);
     }
 
-    void deleteTreeRecursive(Node *node, long long rootVertex) {
+    void deleteSubTreeRecursive(Node *node, long long rootVertex) {
         if (!node) return;
         for (Node *child: node->children) {
-            deleteTreeRecursive(child, rootVertex);
+            deleteSubTreeRecursive(child, rootVertex);
         }
         auto& treeSet = vertex_tree_map[node->vertex];
         for (auto it = treeSet.begin(); it != treeSet.end(); ++it) {
@@ -383,6 +394,10 @@ private:
         if (!node->isRoot) {
             node_count--;
             delete node;
+        } else {
+            // if the node is root, just mark it as invalid
+            node->isValid = false;
+            node->parent = nullptr; // detach from parent
         }
     }
 };
@@ -427,6 +442,28 @@ bool addChildToParent(long long rootVertex, long long parentVertex, long long pa
         }
         return false;
     }
+
+
+
+                    if (Node *current = searchNodeNoState(tree->rootNode, vertex)) {
+                        if (!current->parent && !current->isRoot) cerr << "WARNING: root node has null parent" << endl;
+                        if (current->timestamp < eviction_time || (current->isRoot && current->timestampRoot < eviction_time)) {
+                            if (!current->isRoot) {
+                                deleteSubTree(current, tree->rootVertex);
+                            } else { // current vertex is the root node
+                                if (current != tree->rootNode) {
+                                    cerr << "ERROR: root node is not the same as the current node" << endl;
+                                }
+                                tree->expired = true;
+                                current->isValid = false;
+                                deleteTreeRecursive(tree->rootNode, tree->rootVertex);
+                                treesToDelete.push_back(tree);
+                                trees_count--;
+                                node_count--;
+                            }
+                        }
+                    }
+
  */
 
 #endif //RPQ_FOREST_H
