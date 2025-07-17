@@ -232,26 +232,35 @@ int main(int argc, char *argv[]) {
     double cost_min = std::numeric_limits<double>::max();
     double lat_max = 0.0;
     double lat_min = std::numeric_limits<double>::max();
+    double cost_norm;
+
     int warmup = 0;
+    const int adap_rate = 10;
+    int adap_count = adap_rate;
+    double last_cost = -1;
 
     std::ofstream sizes_file("tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
     sizes_file << "window_size,timestamp,mean_degree,incremental_matches\n";
 
-    std::ofstream csv_summary("summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    std::ofstream csv_summary("summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
 
     std::ofstream csv_file("window_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
-    csv_file << "window_index,t_open,t_close,window_results,incremental_matches,latency,cost,normalized_cost\n";
+    csv_file << "index,t_open,t_close,window_results,incremental_matches,latency,window_size\n";
 
     std::ofstream cost_csv("window_cost_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
-    cost_csv << "state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency\n";
+    cost_csv << "state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency,widow_size\n";
 
     std::ofstream state_csv("state_size_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
     state_csv << "nodes_count,trees_count,trees\n";
 
+    std::ofstream tuple_latency("tuples_latency_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    tuple_latency << "tuple_latency\n";
+
     clock_t start = clock();
     long long s, d, l, t;
     while (fin >> s >> d >> l >> t) {
+        clock_t start_tuple = clock();
         edge_number++;
         if (t0 == 0) {
             t0 = t;
@@ -285,15 +294,24 @@ int main(int argc, char *argv[]) {
                 windows[last_window_index].emitted_results = sink->getResultSetSize(); // paths emitted on this window close
                 windows[last_window_index].window_matches = windows[last_window_index].emitted_results;
 
-                density_tracker.addDensity(sg->mean);
-                density_tracker.addResult(windows[last_window_index].window_matches);
+                //density_tracker.addDensity(sg->mean);
+                //density_tracker.addResult(windows[last_window_index].window_matches);
 
                 windows.emplace_back(window_open, window_close, nullptr, nullptr);
                 last_window_index++;
-                // print the current window open and close times
+
             }
             o_i += slide;
         } while (o_i < time);
+
+        // if the last-created window has closing time smaller than the active window, maintain the active window
+        if (window_close < windows[last_window_index].t_close) window_close = windows[last_window_index].t_close;
+
+        // try what happens if the next element is the next slide and the size changes
+
+        // try what happens after a couple of slides when the size changed
+
+        // cout << "window close : " << window_close << ", time: " << time << ", edge number: " << edge_number << endl;
 
         timed_edge *t_edge;
         sg_edge *new_sgt;
@@ -389,6 +407,30 @@ int main(int argc, char *argv[]) {
 
             f->expire_timestamped(to_evict_timestamp, candidate_for_deletion);
 
+            // mark window as evicted
+            for (unsigned long i: to_evict) {
+                warmup++;
+                windows[i].evicted = true;
+                windows[i].first = nullptr;
+                windows[i].last = nullptr;
+                windows[i].latency = static_cast<double>(clock() - windows[i].start_time) / CLOCKS_PER_SEC;
+                if (windows[i].latency > lat_max) lat_max = windows[i].latency;
+                if (windows[i].latency < lat_min) lat_min = windows[i].latency;
+                windows[i].normalized_latency = (windows[i].latency - lat_min) / (lat_max - lat_min);
+                // state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency
+            }
+
+            to_evict.clear();
+            candidate_for_deletion.clear();
+            evict = false;
+
+            state_csv << f->node_count << "," << f->trees_count << "," << f->trees.size() << endl;
+        }
+
+        if (ADAPTIVE_WINDOW && last_window_index >= adap_count) {
+            adap_count += adap_rate;
+
+            // max degree computation
             double max_deg = 0;
             for (size_t i = window_offset; i < windows.size(); i++) {
                 if (windows[i].max_degree > max_deg) max_deg = windows[i].max_degree;
@@ -409,38 +451,18 @@ int main(int argc, char *argv[]) {
 
             cost_max *= (1 - decay_rate);
             cost_min *= (1 + decay_rate);
-            double cost_norm = (cost - cost_min) / (cost_max - cost_min);
+            cost_norm = (cost - cost_min) / (cost_max - cost_min);
+            if (last_cost == -1) last_cost = cost_norm;
 
-            // mark window as evicted
-            for (unsigned long i: to_evict) {
-                warmup++;
-                windows[i].evicted = true;
-                windows[i].first = nullptr;
-                windows[i].last = nullptr;
-                windows[i].latency = static_cast<double>(clock() - windows[i].start_time) / CLOCKS_PER_SEC;
-                if (windows[i].latency > lat_max) lat_max = windows[i].latency;
-                if (windows[i].latency < lat_min) lat_min = windows[i].latency;
-                windows[i].normalized_latency = (windows[i].latency - lat_min) / (lat_max - lat_min);
-                // state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency
-                if (warmup>10) cost_csv << f->node_count << "," << cost << "," << cost_norm << "," << windows[i].latency << "," << windows[i].normalized_latency << endl;
-            }
+            double cost_diff = last_cost - cost_norm;
+            last_cost = cost_norm;
+            size = size + ceil((cost_diff*10) * slide);
 
-            to_evict.clear();
-            candidate_for_deletion.clear();
-            evict = false;
+            // cap to max and min size
+            size = std::max(std::min(size, max_size), min_size);
 
-            // TODO find a way to measure the variation of the cost
-            if (ADAPTIVE_WINDOW) {
-                if (edge_number > 5000) {
-                    if (cost < 100000) {
-                        size = std::min(max_size, size + slide);
-                    } else {
-                        size = std::max(min_size, size - slide);
-                    }
-                }
-            }
-
-            state_csv << f->node_count << "," << f->trees_count << "," << f->trees.size() << endl;
+            // state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency,widow_size
+            cost_csv << f->node_count << "," << cost << "," << cost_norm << "," << windows[last_window_index].latency << "," << windows[last_window_index].normalized_latency << "," << windows[last_window_index].t_close - windows[last_window_index].t_open << endl;
         }
 
         /* QUERY */
@@ -452,7 +474,11 @@ int main(int argc, char *argv[]) {
             printf("avg degree: %f\n", sg->mean);
             cout << "matched paths: " << sink->matched_paths << "\n\n";
         }
+        clock_t end_tuple = clock();
+        tuple_latency << static_cast<double>(1000* (end_tuple - start_tuple)) / CLOCKS_PER_SEC << "\n";
     }
+
+    cout << "last window index: " << last_window_index << endl;
 
     clock_t finish = clock();
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
@@ -472,7 +498,8 @@ int main(int argc, char *argv[]) {
         << windows[i].t_close << ","
         << windows[i].emitted_results << ","
         << windows[i].total_matched_results << ","
-        << windows[i].latency << "\n";
+        << windows[i].latency << ","
+        << windows[i].t_close - windows[i].t_open << "\n";
     }
 
     sizes_file.close();

@@ -20,7 +20,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # -- Configuration Paths --
-config_dir="$script_dir/code/benchmark/config_accuracy"
+config_dir="$script_dir/code/benchmark/config"
 output_dir="$script_dir/code/benchmark/logs"
 mkdir -p "$output_dir"
 

@@ -147,7 +147,7 @@ public:
                     // update result set
 
                     if (vb_sb_node) {
-                        if (vb_sb_node->children.size() > sg.density.at(element->vb)) {
+                        if (vb_sb_node->children.size() > sg.density.at(element->vb)+1) {
                             cerr << "time: " << edge->timestamp << ", root: " << tree.rootVertex << ", parent: " << element->vb << ", fan out: " << vb_sb_node->children.size() << ", density: " << sg.density[element->vb] << endl;
                             // print all the children of the parent
                             for (auto child: vb_sb_node->children) {
