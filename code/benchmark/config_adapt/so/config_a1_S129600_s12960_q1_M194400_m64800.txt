@@ -1,0 +1,8 @@
+adaptive=1
+input_data_path=code/dataset/so/so-stream_labelled_halved.txt
+size=129600
+slide=12960
+query_type=1
+labels=1
+max_size=194400
+min_size=64800
