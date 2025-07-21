@@ -9,13 +9,12 @@
 #include <sstream>
 #include <numeric>
 
-namespace fs = std::filesystem;
-
 #include "source/fsa.h"
 #include "source/rpq_forest.h"
 #include "source/streaming_graph.h"
 #include "source/query_handler.h"
 
+namespace fs = std::filesystem;
 using namespace std;
 
 typedef struct Config {
@@ -180,7 +179,10 @@ int main(int argc, char *argv[]) {
     long long query_type = config.query_type;
 
     fs::path data_path = exe_dir / config.input_data_path;
+    std::string data_folder = data_path.parent_path().filename().string();
     data_path = fs::absolute(data_path).lexically_normal();
+
+    cout << "Dataset: " << data_folder << endl;
 
     std::ifstream fin(data_path);
     if (!fin.is_open()) {
@@ -235,26 +237,26 @@ int main(int argc, char *argv[]) {
     double cost_norm;
 
     int warmup = 0;
-    const int adap_rate = 10;
-    int adap_count = adap_rate;
+    const int adap_rate = 1;
+    int adap_count = size/slide;
     double last_cost = -1;
 
-    std::ofstream sizes_file("tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    std::ofstream sizes_file(data_folder + "_tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
     sizes_file << "window_size,timestamp,mean_degree,incremental_matches\n";
 
-    std::ofstream csv_summary("summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
+    std::ofstream csv_summary(data_folder + "_summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
 
-    std::ofstream csv_file("window_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    std::ofstream csv_file(data_folder + "_window_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
     csv_file << "index,t_open,t_close,window_results,incremental_matches,latency,window_size\n";
 
-    std::ofstream cost_csv("window_cost_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    std::ofstream cost_csv(data_folder + "_window_cost_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
     cost_csv << "state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency,widow_size\n";
 
-    std::ofstream state_csv("state_size_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    std::ofstream state_csv(data_folder + "_state_size_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
     state_csv << "nodes_count,trees_count,trees\n";
 
-    std::ofstream tuple_latency("tuples_latency_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    std::ofstream tuple_latency(data_folder + "_tuples_latency_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
     tuple_latency << "tuple_latency\n";
 
     clock_t start = clock();
@@ -445,7 +447,7 @@ int main(int argc, char *argv[]) {
             // cout << "Cost: " << cost << ", EINIT count: " << EINIT_count << ", edge number: " << edge_number << ", n: " << n << ", max degree: " << max_deg << endl;
 
             double alpha = 1; // smoothing factor for cost normalization
-            double decay_rate = 0.001;
+            double decay_rate = 0;
             if (cost > cost_max) cost_max = (cost * alpha) + (1-alpha) * cost_max;
             if (cost < cost_min) cost_min = (cost * alpha) + (1-alpha) * cost_min;
 
@@ -457,6 +459,18 @@ int main(int argc, char *argv[]) {
             double cost_diff = last_cost - cost_norm;
             last_cost = cost_norm;
             size = size + ceil((cost_diff*10) * slide);
+
+            /*
+            if (cost_diff < 0) { // cost is decreasing, increase the window size
+                if (size < max_size) {
+                    size += slide;
+                }
+            } else if (cost_diff > 0) { // cost is increasing, decrease the window size
+                if (size > min_size) {
+                    size -= slide;
+                }
+            }
+            */
 
             // cap to max and min size
             size = std::max(std::min(size, max_size), min_size);
@@ -478,7 +492,7 @@ int main(int argc, char *argv[]) {
         tuple_latency << static_cast<double>(1000* (end_tuple - start_tuple)) / CLOCKS_PER_SEC << "\n";
     }
 
-    cout << "last window index: " << last_window_index << endl;
+    cout << "Created windows: " << last_window_index << endl;
 
     clock_t finish = clock();
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
@@ -506,7 +520,6 @@ int main(int argc, char *argv[]) {
     csv_file.close();
     cost_csv.close();
     state_csv.close();
-
 
     // cleanup
     delete sg;
