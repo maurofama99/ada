@@ -231,15 +231,18 @@ int main(int argc, char *argv[]) {
     double avg_size = 0;
     int EINIT_count = 0;
     double cost_max = 0.0;
-    double cost_min = std::numeric_limits<double>::max();
+    double cost_min = 922337203685470;
     double lat_max = 0.0;
-    double lat_min = std::numeric_limits<double>::max();
+    double lat_min = 922337203685470;
     double cost_norm;
 
     int warmup = 0;
     const int adap_rate = 1;
     int adap_count = size/slide;
-    double last_cost = -1;
+    double last_cost = 0.0;
+    double last_diff = 0.0;
+    int increaseStreak = 0;
+    int decreaseStreak = 0;
 
     std::ofstream sizes_file(data_folder + "_tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
     sizes_file << "window_size,timestamp,mean_degree,incremental_matches\n";
@@ -433,7 +436,7 @@ int main(int argc, char *argv[]) {
             adap_count += adap_rate;
 
             // max degree computation
-            double max_deg = 0;
+            double max_deg = 1;
             for (size_t i = window_offset; i < windows.size(); i++) {
                 if (windows[i].max_degree > max_deg) max_deg = windows[i].max_degree;
             }
@@ -446,31 +449,41 @@ int main(int argc, char *argv[]) {
             double cost = n / max_deg;
             // cout << "Cost: " << cost << ", EINIT count: " << EINIT_count << ", edge number: " << edge_number << ", n: " << n << ", max degree: " << max_deg << endl;
 
-            double alpha = 1; // smoothing factor for cost normalization
-            double decay_rate = 0;
-            if (cost > cost_max) cost_max = (cost * alpha) + (1-alpha) * cost_max;
-            if (cost < cost_min) cost_min = (cost * alpha) + (1-alpha) * cost_min;
-
-            cost_max *= (1 - decay_rate);
-            cost_min *= (1 + decay_rate);
+            if (cost > cost_max) cost_max = cost;
+            if (cost < cost_min) cost_min = cost;
             cost_norm = (cost - cost_min) / (cost_max - cost_min);
-            if (last_cost == -1) last_cost = cost_norm;
 
-            double cost_diff = last_cost - cost_norm;
+            double cost_diff = cost_norm - last_cost;
             last_cost = cost_norm;
-            size = size + ceil((cost_diff*10) * slide);
 
-            /*
-            if (cost_diff < 0) { // cost is decreasing, increase the window size
-                if (size < max_size) {
-                    size += slide;
+            double cost_diff_diff = cost_diff - last_diff;
+            last_diff = cost_diff_diff;
+
+            if (std::isnan(last_diff)) {
+                last_diff = 0;
+            }
+            if (std::isnan(cost_diff)) {
+                cost_diff = 0;
+            }
+            if (std::isnan(cost_diff_diff)) {
+                cost_diff_diff = 0;
+            }
+
+            if (cost_diff > 0) { // cost is increasing, decrease the window size
+                if (cost_diff_diff > 0) {
+                    // cost is increasing continuously, decrease faster
+                    size = size - ceil(std::abs((cost_diff*10) + (cost_diff_diff*10)) * slide);
+                } else {
+                    size = size - ceil((cost_diff*10) * slide);
                 }
-            } else if (cost_diff > 0) { // cost is increasing, decrease the window size
-                if (size > min_size) {
-                    size -= slide;
+            } else if (cost_diff <= 0) { // cost is decreasing, increase the window size
+                if (cost_diff_diff < 0) {
+                    // cost is decreasing continuously, increase faster
+                    size = size + ceil(std::abs((-cost_diff*10) + (cost_diff_diff*10)) * slide);
+                } else {
+                    size = size + ceil((-cost_diff*10) * slide);
                 }
             }
-            */
 
             // cap to max and min size
             size = std::max(std::min(size, max_size), min_size);
