@@ -144,24 +144,8 @@ public:
                         if (!forest.changeParentTimestamped(vj_sj_node, vb_sb_node, (element->edge_timestamp < vb_sb_node->timestamp ? element->edge_timestamp : vb_sb_node->timestamp), tree.rootVertex)) continue;
                     } else
                         continue;
+
                     // update result set
-
-                    if (vb_sb_node) {
-                        if (vb_sb_node->children.size() > sg.density.at(element->vb)+1) {
-                            cerr << "time: " << edge->timestamp << ", root: " << tree.rootVertex << ", parent: " << element->vb << ", fan out: " << vb_sb_node->children.size() << ", density: " << sg.density[element->vb] << endl;
-                            // print all the children of the parent
-                            for (auto child: vb_sb_node->children) {
-                                cerr << "Child: " << child->vertex << ", state: " << child->state << ", timestamp: " << child->timestamp << endl;
-                            }
-                            // print all the nodes to which the parent points in the snapshot graph
-                            for (auto successors: sg.get_all_suc(element->vb)) {
-                                cerr << "Successor: " << successors.d << ", label: " << successors.label << ", timestamp: " << successors.timestamp << endl;
-                            }
-                            cout << endl << endl;
-                            exit (1);
-                        }
-                    }
-
                     if (fsa.isFinalState(element->sd)) {
                         // cout << "Found a path from " << element->vb << " to " << element->vd << " at time " << element->edge_timestamp << endl;
                         // check if in the result set we already have a path from root to element.vd

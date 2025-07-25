@@ -241,11 +241,9 @@ int main(int argc, char *argv[]) {
     int adap_count = size/slide;
     double last_cost = 0.0;
     double last_diff = 0.0;
-    int increaseStreak = 0;
-    int decreaseStreak = 0;
 
-    std::ofstream sizes_file(data_folder + "_tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
-    sizes_file << "window_size,timestamp,mean_degree,incremental_matches\n";
+    const int overlap = size / slide;
+    std::deque<double> cost_window;
 
     std::ofstream csv_summary(data_folder + "_summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
@@ -256,16 +254,9 @@ int main(int argc, char *argv[]) {
     std::ofstream cost_csv(data_folder + "_window_cost_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
     cost_csv << "state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency,widow_size\n";
 
-    std::ofstream state_csv(data_folder + "_state_size_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
-    state_csv << "nodes_count,trees_count,trees\n";
-
-    std::ofstream tuple_latency(data_folder + "_tuples_latency_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
-    tuple_latency << "tuple_latency\n";
-
     clock_t start = clock();
     long long s, d, l, t;
     while (fin >> s >> d >> l >> t) {
-        clock_t start_tuple = clock();
         edge_number++;
         if (t0 == 0) {
             t0 = t;
@@ -311,12 +302,6 @@ int main(int argc, char *argv[]) {
 
         // if the last-created window has closing time smaller than the active window, maintain the active window
         if (window_close < windows[last_window_index].t_close) window_close = windows[last_window_index].t_close;
-
-        // try what happens if the next element is the next slide and the size changes
-
-        // try what happens after a couple of slides when the size changed
-
-        // cout << "window close : " << window_close << ", time: " << time << ", edge number: " << edge_number << endl;
 
         timed_edge *t_edge;
         sg_edge *new_sgt;
@@ -364,8 +349,6 @@ int main(int argc, char *argv[]) {
         cumulative_size += size;
         size_count++;
         avg_size = cumulative_size / size_count;
-
-        sizes_file << size << "," << timestamp+t0 << "," << sg->mean << "," << sink->matched_paths << endl;
 
         /* EVICT */
         if (evict) {
@@ -428,8 +411,6 @@ int main(int argc, char *argv[]) {
             to_evict.clear();
             candidate_for_deletion.clear();
             evict = false;
-
-            state_csv << f->node_count << "," << f->trees_count << "," << f->trees.size() << endl;
         }
 
         if (ADAPTIVE_WINDOW && last_window_index >= adap_count) {
@@ -447,11 +428,21 @@ int main(int argc, char *argv[]) {
                 n += sg->edge_num-i;
             }
             double cost = n / max_deg;
-            // cout << "Cost: " << cost << ", EINIT count: " << EINIT_count << ", edge number: " << edge_number << ", n: " << n << ", max degree: " << max_deg << endl;
 
-            if (cost > cost_max) cost_max = cost;
-            if (cost < cost_min) cost_min = cost;
+            double alpha = 1; // smoothing factor for cost normalization
+            double decay_rate = 0;
+            if (cost > cost_max) cost_max = (cost * alpha) + (1-alpha) * cost_max;
+            if (cost < cost_min) cost_min = (cost * alpha) + (1-alpha) * cost_min;
+
+            cost_max *= (1 - decay_rate);
+            cost_min *= (1 + decay_rate);
             cost_norm = (cost - cost_min) / (cost_max - cost_min);
+
+            cost_window.push_back(cost_norm);
+            if (cost_window.size() > overlap)
+                cost_window.pop_front();
+
+            cost_norm = std::accumulate(cost_window.begin(), cost_window.end(), 0.0) / cost_window.size();
 
             double cost_diff = cost_norm - last_cost;
             last_cost = cost_norm;
@@ -472,14 +463,14 @@ int main(int argc, char *argv[]) {
             if (cost_diff > 0) { // cost is increasing, decrease the window size
                 if (cost_diff_diff > 0) {
                     // cost is increasing continuously, decrease faster
-                    size = size - ceil(std::abs((cost_diff*10) + (cost_diff_diff*10)) * slide);
+                    size = size - ceil((cost_diff*10) * slide);
                 } else {
                     size = size - ceil((cost_diff*10) * slide);
                 }
-            } else if (cost_diff <= 0) { // cost is decreasing, increase the window size
+            } else if (cost_diff < 0) { // cost is decreasing, increase the window size
                 if (cost_diff_diff < 0) {
                     // cost is decreasing continuously, increase faster
-                    size = size + ceil(std::abs((-cost_diff*10) + (cost_diff_diff*10)) * slide);
+                    size = size + ceil((-cost_diff*10) * slide);
                 } else {
                     size = size + ceil((-cost_diff*10) * slide);
                 }
@@ -501,8 +492,6 @@ int main(int argc, char *argv[]) {
             printf("avg degree: %f\n", sg->mean);
             cout << "matched paths: " << sink->matched_paths << "\n\n";
         }
-        clock_t end_tuple = clock();
-        tuple_latency << static_cast<double>(1000* (end_tuple - start_tuple)) / CLOCKS_PER_SEC << "\n";
     }
 
     cout << "Created windows: " << last_window_index << endl;
@@ -529,10 +518,8 @@ int main(int argc, char *argv[]) {
         << windows[i].t_close - windows[i].t_open << "\n";
     }
 
-    sizes_file.close();
     csv_file.close();
     cost_csv.close();
-    state_csv.close();
 
     // cleanup
     delete sg;
