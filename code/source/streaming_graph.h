@@ -203,7 +203,7 @@ public:
         // Check if the edge already exists in the adjacency list
         for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
             if (existing_edge->label == label && to_vertex == to) {
-                if (existing_edge->expiration_time < expiration_time) existing_edge->expiration_time = expiration_time;
+                // if (existing_edge->expiration_time < expiration_time) existing_edge->expiration_time = expiration_time;
                 if (existing_edge->timestamp < timestamp) existing_edge->timestamp = timestamp;
                 return existing_edge;
             }

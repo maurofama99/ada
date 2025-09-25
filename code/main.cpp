@@ -209,7 +209,6 @@ int main(int argc, char *argv[]) {
     long long time;
     long long timestamp;
 
-    long long last_window_index = 0;
     long long window_offset = 0;
     windows.emplace_back(0, size, nullptr, nullptr);
 
@@ -234,25 +233,25 @@ int main(int argc, char *argv[]) {
     double cost_min = 922337203685470;
     double lat_max = 0.0;
     double lat_min = 922337203685470;
+    double cost = 0;
     double cost_norm;
 
     int warmup = 0;
-    const int adap_rate = 1;
-    int adap_count = size/slide;
     double last_cost = 0.0;
     double last_diff = 0.0;
 
     const int overlap = size / slide;
     std::deque<double> cost_window;
+    std::deque<double> normalization_window;
 
     std::ofstream csv_summary(data_folder + "_summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
 
-    std::ofstream csv_file(data_folder + "_window_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
-    csv_file << "index,t_open,t_close,window_results,incremental_matches,latency,window_size\n";
+    std::ofstream csv_windows(data_folder + "_window_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    csv_windows << "index,t_open,t_close,window_results,incremental_matches,latency,window_cardinality,window_size\n";
 
-    std::ofstream cost_csv(data_folder + "_window_cost_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
-    cost_csv << "state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency,widow_size\n";
+    std::ofstream csv_tuples(data_folder + "_tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    csv_tuples << "estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,widow_size\n";
 
     clock_t start = clock();
     long long s, d, l, t;
@@ -275,33 +274,45 @@ int main(int argc, char *argv[]) {
         long long window_close;
         double base = std::floor(static_cast<double>(time) / slide) * slide;
         double o_i  = base;
+        bool new_window = true;
         do {
             auto window_open  = static_cast<long long>(o_i);
             window_close = static_cast<long long>(o_i + size);
 
-            if (windows[last_window_index].t_close < window_close) { // new window opens
-                // update metrics for window adaptation
-                if (last_window_index >=1)
-                    windows[last_window_index].window_matches = sink->matched_paths - windows[last_window_index-1].window_matches;
-                else
-                    windows[last_window_index].window_matches = sink->matched_paths;
-
-                windows[last_window_index].total_matched_results = sink->matched_paths; // matched paths until this window
-                windows[last_window_index].emitted_results = sink->getResultSetSize(); // paths emitted on this window close
-                windows[last_window_index].window_matches = windows[last_window_index].emitted_results;
-
-                //density_tracker.addDensity(sg->mean);
-                //density_tracker.addResult(windows[last_window_index].window_matches);
-
-                windows.emplace_back(window_open, window_close, nullptr, nullptr);
-                last_window_index++;
-
+            for (size_t i = window_offset; i < windows.size(); i++) {
+                if (windows[i].t_open == window_open && windows[i].t_close == window_close) { // computed window is already present in WSS
+                    new_window = false;
+                }
             }
+
+            if (new_window) {
+                if (window_close < windows[windows.size()-1].t_close) {
+                    for (size_t j = windows.size()-1; j >= window_offset; j--) {
+                        if (windows[j].t_close > window_close) {
+                            windows[j].evicted = true;
+                            windows[j].first = nullptr;
+                            windows[j].last = nullptr;
+                            windows[j].latency = -1;
+                            windows[j].normalized_latency = -1;
+                            windows.pop_back();
+                        }
+                    }
+                }
+                if (window_close > windows[windows.size() - 1].t_close && window_open > windows[windows.size() - 1].t_open) {
+                    if (windows[windows.size() - 1].t_close < window_close) {
+                        // report results
+                        windows[windows.size() - 1].total_matched_results = sink->matched_paths;
+                        // matched paths until this window
+                        windows[windows.size() - 1].emitted_results = sink->getResultSetSize();
+                        // paths emitted on this window close
+                        windows[windows.size() - 1].window_matches = windows[windows.size() - 1].emitted_results;
+                    }
+                    windows.emplace_back(window_open, window_close, nullptr, nullptr);
+                }
+            }
+
             o_i += slide;
         } while (o_i < time);
-
-        // if the last-created window has closing time smaller than the active window, maintain the active window
-        if (window_close < windows[last_window_index].t_close) window_close = windows[last_window_index].t_close;
 
         timed_edge *t_edge;
         sg_edge *new_sgt;
@@ -381,9 +392,9 @@ int main(int argc, char *argv[]) {
                 if (cur_edge->label == first_transition) EINIT_count--;
 
                 candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // schedule for deletion from RPQ forest
-                if (time >= cur_edge->expiration_time) {
+                //if (to_evict_timestamp >= cur_edge->timestamp) {
                     sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
-                }
+                //}
                 sg->delete_timed_edge(current); // delete from time list
 
                 current = next;
@@ -411,77 +422,71 @@ int main(int argc, char *argv[]) {
             to_evict.clear();
             candidate_for_deletion.clear();
             evict = false;
+
+            if (ADAPTIVE_WINDOW) {
+                // max degree computation
+                double max_deg = 1;
+                for (size_t i = window_offset; i < windows.size(); i++) {
+                    if (windows[i].max_degree > max_deg) max_deg = windows[i].max_degree;
+                }
+
+                double n = 0;
+                if (EINIT_count > edge_number) cerr << "ERROR: more initial transitions than edges." << endl;
+                for (int i = 0; i < EINIT_count; i++) {
+                    n += sg->edge_num - i;
+                }
+                cost = n / max_deg;
+
+                if (cost > cost_max) cost_max = cost;
+                if (cost < cost_min) cost_min = cost;
+                cost_norm = (cost - cost_min) / (cost_max - cost_min);
+
+                cost_window.push_back(cost_norm);
+                if (cost_window.size() > overlap)
+                    cost_window.pop_front();
+
+                cost_norm = std::accumulate(cost_window.begin(), cost_window.end(), 0.0) / cost_window.size();
+
+                double cost_diff = cost_norm - last_cost;
+                last_cost = cost_norm;
+
+                double cost_diff_diff = cost_diff - last_diff;
+                last_diff = cost_diff_diff;
+
+                if (std::isnan(last_diff)) {
+                    last_diff = 0;
+                }
+                if (std::isnan(cost_diff)) {
+                    cost_diff = 0;
+                }
+                if (std::isnan(cost_diff_diff)) {
+                    cost_diff_diff = 0;
+                }
+
+                if (cost_diff > 0) {
+                    // cost is increasing, decrease the window size
+                    if (cost_diff_diff > 0) {
+                        // cost is increasing continuously, decrease faster
+                        size = size - ceil((cost_diff * 10) * slide);
+                    } else {
+                        size = size - ceil((cost_diff * 10) * slide);
+                    }
+                } else if (cost_diff < 0) {
+                    // cost is decreasing, increase the window size
+                    if (cost_diff_diff < 0) {
+                        // cost is decreasing continuously, increase faster
+                        size = size + ceil((-cost_diff * 10) * slide);
+                    } else {
+                        size = size + ceil((-cost_diff * 10) * slide);
+                    }
+                }
+
+                // cap to max and min size
+                size = std::max(std::min(size, max_size), min_size);
+            }
         }
 
-        if (ADAPTIVE_WINDOW && last_window_index >= adap_count) {
-            adap_count += adap_rate;
-
-            // max degree computation
-            double max_deg = 1;
-            for (size_t i = window_offset; i < windows.size(); i++) {
-                if (windows[i].max_degree > max_deg) max_deg = windows[i].max_degree;
-            }
-
-            double n = 0;
-            if (EINIT_count > edge_number) cerr << "ERROR: more initial transitions than edges." << endl;
-            for (int i = 0; i < EINIT_count; i++) {
-                n += sg->edge_num-i;
-            }
-            double cost = n / max_deg;
-
-            double alpha = 1; // smoothing factor for cost normalization
-            double decay_rate = 0;
-            if (cost > cost_max) cost_max = (cost * alpha) + (1-alpha) * cost_max;
-            if (cost < cost_min) cost_min = (cost * alpha) + (1-alpha) * cost_min;
-
-            cost_max *= (1 - decay_rate);
-            cost_min *= (1 + decay_rate);
-            cost_norm = (cost - cost_min) / (cost_max - cost_min);
-
-            cost_window.push_back(cost_norm);
-            if (cost_window.size() > overlap)
-                cost_window.pop_front();
-
-            cost_norm = std::accumulate(cost_window.begin(), cost_window.end(), 0.0) / cost_window.size();
-
-            double cost_diff = cost_norm - last_cost;
-            last_cost = cost_norm;
-
-            double cost_diff_diff = cost_diff - last_diff;
-            last_diff = cost_diff_diff;
-
-            if (std::isnan(last_diff)) {
-                last_diff = 0;
-            }
-            if (std::isnan(cost_diff)) {
-                cost_diff = 0;
-            }
-            if (std::isnan(cost_diff_diff)) {
-                cost_diff_diff = 0;
-            }
-
-            if (cost_diff > 0) { // cost is increasing, decrease the window size
-                if (cost_diff_diff > 0) {
-                    // cost is increasing continuously, decrease faster
-                    size = size - ceil((cost_diff*10) * slide);
-                } else {
-                    size = size - ceil((cost_diff*10) * slide);
-                }
-            } else if (cost_diff < 0) { // cost is decreasing, increase the window size
-                if (cost_diff_diff < 0) {
-                    // cost is decreasing continuously, increase faster
-                    size = size + ceil((-cost_diff*10) * slide);
-                } else {
-                    size = size + ceil((-cost_diff*10) * slide);
-                }
-            }
-
-            // cap to max and min size
-            size = std::max(std::min(size, max_size), min_size);
-
-            // state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency,widow_size
-            cost_csv << f->node_count << "," << cost << "," << cost_norm << "," << windows[last_window_index].latency << "," << windows[last_window_index].normalized_latency << "," << windows[last_window_index].t_close - windows[last_window_index].t_open << endl;
-        }
+        // if (ADAPTIVE_WINDOW && windows.size()-1 >= adap_count) {
 
         /* QUERY */
         query->pattern_matching_tc(new_sgt);
@@ -492,34 +497,48 @@ int main(int argc, char *argv[]) {
             printf("avg degree: %f\n", sg->mean);
             cout << "matched paths: " << sink->matched_paths << "\n\n";
         }
+
+        // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,widow_size
+        csv_tuples
+            << cost << ","
+            << cost_norm << ","
+            << windows[window_offset >= 1 ? window_offset-1 : 0].latency << ","
+            << windows[window_offset >= 1 ? window_offset-1 : 0].normalized_latency << ","
+            << windows[window_offset >= 1 ? window_offset-1 : 0].elements_count << ","
+            << windows[window_offset >= 1 ? window_offset-1 : 0].t_close - windows[window_offset >= 1 ? window_offset-1 : 0].t_open << endl;
     }
 
-    cout << "Created windows: " << last_window_index << endl;
+    cout << "Created windows: " << windows.size() << endl;
 
     clock_t finish = clock();
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
 
     double avg_window_size = static_cast<double>(total_elements_count) / windows.size();
 
-    csv_summary <<  edge_number << ",";
-    csv_summary <<  sink->matched_paths << ",";
-    csv_summary <<  time_used << ",";
-    csv_summary <<  windows.size() << ",";
-    csv_summary <<  avg_window_size << ",";
-    csv_summary <<  avg_size << "\n";
+    csv_summary
+        <<  edge_number << ","
+        <<  sink->matched_paths << ","
+        <<  time_used << ","
+        <<  windows.size() << ","
+        <<  avg_window_size << ","
+        <<  avg_size << "\n";
 
+    // index,t_open,t_close,window_results,incremental_matches,latency,window_cardinality,window_size
     for (size_t i = 0; i < windows.size(); ++i) {
-        csv_file << i << ","
+        csv_windows
+        << i << ","
         << windows[i].t_open << ","
         << windows[i].t_close << ","
         << windows[i].emitted_results << ","
         << windows[i].total_matched_results << ","
         << windows[i].latency << ","
+        << windows[i].elements_count << ","
         << windows[i].t_close - windows[i].t_open << "\n";
     }
 
-    csv_file.close();
-    cost_csv.close();
+    csv_summary.close();
+    csv_windows.close();
+    csv_tuples.close();
 
     // cleanup
     delete sg;
