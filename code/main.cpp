@@ -437,8 +437,15 @@ int main(int argc, char *argv[]) {
                 }
                 cost = n / max_deg;
 
-                if (cost > cost_max) cost_max = cost;
-                if (cost < cost_min) cost_min = cost;
+                normalization_window.push_back(cost);
+                if (normalization_window.size() > overlap*2)
+                    normalization_window.pop_front();
+
+                cost_max = *std::max_element(cost_window.begin(), cost_window.end());
+                cost_min = *std::min_element(cost_window.begin(), cost_window.end());
+
+                // if (cost > cost_max) cost_max = cost;
+                // if (cost < cost_min) cost_min = cost;
                 cost_norm = (cost - cost_min) / (cost_max - cost_min);
 
                 cost_window.push_back(cost_norm);
