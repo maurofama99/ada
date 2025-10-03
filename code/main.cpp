@@ -9,6 +9,11 @@
 #include <sstream>
 #include <numeric>
 
+#define MEMORY_PROFILER false
+
+#include "sys/types.h"
+#include "sys/sysinfo.h"
+
 #include "source/fsa.h"
 #include "source/rpq_forest.h"
 #include "source/streaming_graph.h"
@@ -16,6 +21,8 @@
 
 namespace fs = std::filesystem;
 using namespace std;
+
+struct sysinfo memInfo;
 
 typedef struct Config {
     std::string input_data_path;
@@ -179,11 +186,14 @@ int main(int argc, char *argv[]) {
     std::ofstream csv_summary(data_folder + "_summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
 
-    std::ofstream csv_windows(data_folder + "_window_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    std::ofstream csv_windows(data_folder + "_window_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_windows << "index,t_open,t_close,window_results,incremental_matches,latency,window_cardinality,window_size\n";
 
-    std::ofstream csv_tuples(data_folder + "_tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + ".csv");
+    std::ofstream csv_tuples(data_folder + "_tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_tuples << "estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,widow_size\n";
+
+    std::ofstream csv_memory(data_folder + "_memory_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
+    csv_memory << "tot_virtual,used_virtual,tot_ram,used_ram,data_mem\n";
 
     clock_t start = clock();
     long long s, d, l, t;
@@ -422,6 +432,33 @@ int main(int argc, char *argv[]) {
 
                 // cap to max and min size
                 size = std::max(std::min(size, max_size), min_size);
+            }
+
+            /*
+            * MEMORY PROFILING (https://stackoverflow.com/a/64166)
+            */
+            if (MEMORY_PROFILER) {
+                sysinfo (&memInfo);
+                long long totalVirtualMem = memInfo.totalram;
+                totalVirtualMem += memInfo.totalswap;
+                totalVirtualMem *= memInfo.mem_unit;
+
+                long long virtualMemUsed = memInfo.totalram - memInfo.freeram;
+                virtualMemUsed += memInfo.totalswap - memInfo.freeswap;
+                virtualMemUsed *= memInfo.mem_unit;
+
+                long long totalPhysMem = memInfo.totalram;
+                totalPhysMem *= memInfo.mem_unit;
+
+                long long physMemUsed = memInfo.totalram - memInfo.freeram;
+                physMemUsed *= memInfo.mem_unit;
+
+                csv_memory
+                    << totalVirtualMem << ","
+                    << virtualMemUsed << ","
+                    << totalPhysMem << ","
+                    << physMemUsed << ","
+                    << sg->getUsedMemory() + f->getUsedMemory() << endl;
             }
         }
 
