@@ -19,13 +19,13 @@ using namespace std;
 
 typedef struct Config {
     std::string input_data_path;
-    bool adaptive;
-    long long size;
-    long long slide;
-    long long query_type;
+    bool adaptive{};
+    long long size{};
+    long long slide{};
+    long long query_type{};
     std::vector<long long> labels;
-    int max_size;
-    int min_size;
+    int max_size{};
+    int min_size{};
 } config;
 
 config readConfig(const std::string &filename) {
@@ -66,73 +66,6 @@ config readConfig(const std::string &filename) {
 
     return config;
 }
-
-class DensityTracker {
-public:
-    void addDensity(double value) {
-        auto pos = std::lower_bound(sorted.begin(), sorted.end(), value);
-        sorted.insert(pos, value);
-
-        // maintain temporal order
-        order.push_back(value);
-
-        if (order.size() > maxDensitySize) {
-            double oldest = order.front();
-            order.pop_front();
-            auto it = std::lower_bound(sorted.begin(), sorted.end(), oldest);
-            if (it != sorted.end() && *it == oldest) {
-                sorted.erase(it);
-            }
-        }
-    }
-
-    void addResult(double value) {
-        results.push_back(value);
-        if (results.size() > maxResultSize) {
-            results.pop_front();
-        }
-    }
-
-    [[nodiscard]] double zScore(double x) const {
-        if (sorted.empty()) return 0.0;
-
-        double mean = std::accumulate(sorted.begin(), sorted.end(), 0.0) / sorted.size();
-
-        double sum_sq_diff = 0.0;
-        for (double val : sorted) {
-            double diff = val - mean;
-            sum_sq_diff += diff * diff;
-        }
-
-        double stddev = std::sqrt(sum_sq_diff / sorted.size());
-
-        if (stddev == 0.0) return 0.0; // Evita divisione per zero
-
-        return (x - mean) / stddev;
-    }
-
-    [[nodiscard]] double medianResult() const {
-        if (results.empty()) return 0.0;
-        std::vector<double> temp(results.begin(), results.end());
-        std::sort(temp.begin(), temp.end());
-        size_t n = temp.size();
-        if (n % 2 == 0) {
-            return (temp[n / 2 - 1] + temp[n / 2]) / 2.0;
-        }
-        return temp[n / 2];
-    }
-
-    [[nodiscard]] const std::vector<double>& getSorted() const {
-        return sorted;
-    }
-
-private:
-    static constexpr size_t maxDensitySize = 30;
-    static constexpr size_t maxResultSize = 30;
-    std::vector<double> sorted;
-    std::deque<double> order;
-    std::deque<double> results;
-};
 
 class window {
 public:
@@ -224,7 +157,6 @@ int main(int argc, char *argv[]) {
 
     std::string mode = config.adaptive ? "ad" : "sl";
     bool ADAPTIVE_WINDOW = config.adaptive > 0;
-    DensityTracker density_tracker;
     static double cumulative_size = 0.0;
     static long long size_count = 0;
     double avg_size = 0;
@@ -441,8 +373,8 @@ int main(int argc, char *argv[]) {
                 if (normalization_window.size() > overlap*2)
                     normalization_window.pop_front();
 
-                cost_max = *std::max_element(cost_window.begin(), cost_window.end());
-                cost_min = *std::min_element(cost_window.begin(), cost_window.end());
+                cost_max = *std::max_element(normalization_window.begin(), normalization_window.end());
+                cost_min = *std::min_element(normalization_window.begin(), normalization_window.end());
 
                 // if (cost > cost_max) cost_max = cost;
                 // if (cost < cost_min) cost_min = cost;
@@ -533,14 +465,14 @@ int main(int argc, char *argv[]) {
     // index,t_open,t_close,window_results,incremental_matches,latency,window_cardinality,window_size
     for (size_t i = 0; i < windows.size(); ++i) {
         csv_windows
-        << i << ","
-        << windows[i].t_open << ","
-        << windows[i].t_close << ","
-        << windows[i].emitted_results << ","
-        << windows[i].total_matched_results << ","
-        << windows[i].latency << ","
-        << windows[i].elements_count << ","
-        << windows[i].t_close - windows[i].t_open << "\n";
+            << i << ","
+            << windows[i].t_open << ","
+            << windows[i].t_close << ","
+            << windows[i].emitted_results << ","
+            << windows[i].total_matched_results << ","
+            << windows[i].latency << ","
+            << windows[i].elements_count << ","
+            << windows[i].t_close - windows[i].t_open << "\n";
     }
 
     csv_summary.close();
@@ -632,168 +564,3 @@ int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vecto
     }
     return states_count;
 }
-
-
-
-/*
- *
- *if not !newsgt
-*            auto existing_edge = sg->search_existing_edge(s, d, l);
-            if (!existing_edge) {
-                cerr << "ERROR: Existing edge not found." << endl;
-                exit(1);
-            }
-
-            // adjust window boundaries if needed
-            for (size_t i = window_offset; i < windows.size(); i++) {
-                if (windows[i].first == existing_edge->time_pos) {
-                    if (windows[i].first != windows[i].last) {
-                        // if the window has more than one element
-                        if (existing_edge->time_pos->next) windows[i].first = existing_edge->time_pos->next;
-                        else {
-                            windows[i].first = nullptr;
-                            windows[i].last = nullptr;
-                        }
-                    } else {
-                        windows[i].first = nullptr;
-                        windows[i].last = nullptr;
-                    }
-                }
-                if (windows[i].last == existing_edge->time_pos) {
-                    if (windows[i].first != windows[i].last) {
-                        // if the window has more than one element
-                        if (existing_edge->time_pos->prev) windows[i].last = existing_edge->time_pos->prev;
-                        else {
-                            windows[i].first = nullptr;
-                            windows[i].last = nullptr;
-                        }
-                    } else {
-                        windows[i].first = nullptr;
-                        windows[i].last = nullptr;
-                    }
-                }
-            }
-
-            // update edge list (erase and re-append)
-            sg->delete_timed_edge(existing_edge->time_pos);
-            new_sgt = existing_edge;
-            new_sgt->timestamp = time;
-            new_sgt->expiration_time = window_close;
- *
- *
- *
- *
- *
- *
- *
- *
- *
-
-   double R_target = 922337203685477;
-    double C_target = 0.0;
-    double smoothed_delta = 0.0;
-    /// SPIKY BURSTS
-
-    const double RESULT_THRESHOLD = 0.6;  // More sensitive to result drops
-    const double COST_THRESHOLD = 1.2;    // Tolerate less cost increase
-    const double EMA_ALPHA = 0.4;         // Slower reaction for stability
-    const double HYSTERISIS_THRESHOLD = 0.2; // Less sensitive hysteresis
-
-    const double RESULT_THRESHOLD = 0.75;
-    const double COST_THRESHOLD = 1.4;
-    const double EMA_ALPHA = 0.1;
-    const double HYSTERISIS_THRESHOLD = 0.3;
-
-
-const int TREND_WINDOW = 5;
-const double BASELINE_UPDATE_THRESHOLD = 0.6;
-
-std::vector<double> warmup_results;
-std::vector<double> warmup_costs;
-const int WARMUP_WINDOWS = 10;
-std::deque<double> recent_results;
-std::deque<double> recent_costs;
- if (i < WARMUP_WINDOWS) {
-                        warmup_results.push_back(windows[i].window_matches);
-                        warmup_costs.push_back(windows[i].window_zscore);
-
-                        if (i == WARMUP_WINDOWS - 1) {
-                            // Compute median to reduce outlier impact
-                            R_target = median(warmup_results) * 0.8; //80% peak results
-                            C_target = median(warmup_costs) * 1.1; // 10% cost buffer
-                        }
-                        continue;
-                    }
-
-                    recent_results.push_back(windows[i].window_matches);
-                    recent_costs.push_back(windows[i].window_zscore);
-                    if (recent_results.size() > TREND_WINDOW) {
-                        recent_results.pop_front();
-                        recent_costs.pop_front();
-                    }
-
-                    double avg_results = std::accumulate(recent_results.begin(), recent_results.end(), 0.0) / TREND_WINDOW;
-                    double avg_costs = std::accumulate(recent_costs.begin(), recent_costs.end(), 0.0) / TREND_WINDOW;
-
-                    if (i % TREND_WINDOW == 0) {  // update baseline in stable state
-                        if (avg_results/R_target < BASELINE_UPDATE_THRESHOLD ||
-                            avg_costs/C_target > 1/BASELINE_UPDATE_THRESHOLD) {
-
-                            R_target = 0.2 * R_target + 0.8 * avg_results;
-                            C_target = 0.2 * C_target + 0.8 * avg_costs;
-                        }
-                    }
-
-                    double result_ratio = avg_results / R_target;
-                    double cost_ratio = avg_costs / C_target;
-
-                    double delta = 0;
-
-                    if (result_ratio < RESULT_THRESHOLD) {
-                        double deficiency = (RESULT_THRESHOLD - result_ratio)/RESULT_THRESHOLD;
-                        delta += slide * deficiency * (1 + (1 - result_ratio));
-                    }
-                    if (cost_ratio > COST_THRESHOLD) {
-                        double excess = (cost_ratio - COST_THRESHOLD)/COST_THRESHOLD;
-                        delta -= slide * excess * (1 + (cost_ratio - 1.0));
-                    }
-
-                    // EMA
-                    smoothed_delta = ((1-EMA_ALPHA) * smoothed_delta) + (EMA_ALPHA * delta);
-
-                    double dynamic_hysteresis = HYSTERISIS_THRESHOLD *
-                          (1 + std::abs(smoothed_delta)/slide);
-
-                    // Apply hysteresis to prevent micro-adjustments
-                    if (std::abs(smoothed_delta) > (slide * dynamic_hysteresis)){
-                        size = std::clamp(
-                            size + static_cast<long long>(std::round(smoothed_delta)),
-                            min_size,  // min size
-                            max_size   // max size
-                        );
-                        if (size < min_size_observed) min_size_observed = size;
-                        if (size > max_size_observed) max_size_observed = size;
-                        if (std::abs(smoothed_delta) > slide) {
-                            smoothed_delta *= 0.2;
-                        }
-                    }
-
-
-
-
-
-
-
-
-
-
-if (ADAPTIVE_WINDOW && i > 30) {
-                    double z = density_tracker.zScore(windows[i].window_zscore);
-                    long long delta = std::abs(z)*slide;
-                    if (z < -2) { // 1.9
-                        if (windows[i].window_matches < 0.5*density_tracker.medianResult()) size = std::min(max_size, size + delta);
-                    } else if (z > 1.5) { // 1.2
-                        if (windows[i].window_matches > 1.5*density_tracker.medianResult()) size = std::max(min_size, size - delta);
-                    }
-                }
-                    */
