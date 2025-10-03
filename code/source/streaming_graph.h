@@ -102,6 +102,36 @@ struct replication_comparator {
     }
 };
 
+struct MemoryEstimatorAdjL {
+    static constexpr size_t ptr_size = sizeof(void*);
+    static constexpr size_t node_overhead = 2 * sizeof(void*); // approx. per unordered_map node
+
+    // size of one sg_edge object
+    static size_t size_of_sg_edge() {
+        return sizeof(sg_edge);
+    }
+
+    // estimate memory for unordered_map<long long, vector<pair<long long, sg_edge*>>>
+    static size_t estimate_adjacency_list(
+        const std::unordered_map<long long, std::vector<std::pair<long long, sg_edge*>>>& m)
+    {
+        size_t total = 0;
+        // bucket array
+        total += m.bucket_count() * ptr_size;
+
+        for (const auto& kv : m) {
+            total += sizeof(long long);               // key
+            total += sizeof(std::vector<std::pair<long long, sg_edge*>>); // vector object
+            total += node_overhead;                   // unordered_map node overhead
+
+            const auto& vec = kv.second;
+            // vector capacity (not just size!) times element size
+            total += vec.capacity() * sizeof(std::pair<long long, sg_edge*>);
+        }
+        return total;
+    }
+};
+
 class streaming_graph {
 public:
     unordered_map<long long, vector<pair<long long, sg_edge *> > > adjacency_list;
@@ -331,4 +361,9 @@ public:
         to_insert->edge_pt->expiration_time = target->edge_pt->expiration_time;
         to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
     }
+
+    [[nodiscard]] size_t getUsedMemory() const {
+        return MemoryEstimatorAdjL::estimate_adjacency_list(adjacency_list);
+    }
+
 };

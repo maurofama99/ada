@@ -9,7 +9,6 @@
 #include <stack>
 #include <algorithm>
 #include <queue>
-
 #include "streaming_graph.h"
 
 struct Node {
@@ -70,10 +69,76 @@ struct NodePtrEqual {
     }
 };
 
+struct MemoryEstimator {
+    // assume 64-bit system
+    static constexpr size_t ptr_size = sizeof(void*);
+    static constexpr size_t node_overhead = 2 * sizeof(void*); // ~next + bucket pointer
+    static constexpr size_t rb_node_overhead = 3 * sizeof(void*) + sizeof(bool); // set/map node
+
+    template <typename T>
+    static size_t estimate_unordered_map_ll_tree(
+        const std::unordered_map<long long, T>& m)
+    {
+        size_t total = 0;
+        for (const auto& kv : m) {
+            total += sizeof(long long);     // key
+            total += sizeof(T);             // value object
+            total += node_overhead;         // node overhead
+        }
+        // bucket array
+        total += m.bucket_count() * ptr_size;
+        return total;
+    }
+
+    static size_t estimate_vertex_tree_map(
+        const std::unordered_map<long long,
+                                 std::unordered_set<Tree*, TreeHash, TreeEqual>>& m)
+    {
+        size_t total = 0;
+        for (const auto& kv : m) {
+            total += sizeof(long long);               // key
+            total += sizeof(std::unordered_set<Tree*>); // set object
+            total += node_overhead;                   // outer node overhead
+
+            // now cost of inner set
+            const auto& inner = kv.second;
+            for (Tree* ptr : inner) {
+                (void)ptr;
+                total += sizeof(Tree*);  // payload
+                total += node_overhead;  // node overhead
+            }
+            total += inner.bucket_count() * ptr_size;
+        }
+        total += m.bucket_count() * ptr_size;
+        return total;
+    }
+
+    static size_t estimate_vertex_state_tree_map(
+        const std::unordered_map<std::pair<long long,long long>,
+                                 std::set<long long>,
+                                 pair_hash>& m)
+    {
+        size_t total = 0;
+        for (const auto& kv : m) {
+            total += sizeof(std::pair<long long,long long>); // key
+            total += sizeof(std::set<long long>);            // set object
+            total += node_overhead;                         // outer node overhead
+
+            const auto& inner = kv.second;
+            for (long long val : inner) {
+                (void)val;
+                total += sizeof(long long);     // payload
+                total += rb_node_overhead;      // pointers in RB-tree node
+            }
+        }
+        total += m.bucket_count() * ptr_size;
+        return total;
+    }
+};
+
 class Forest {
 public:
     std::unordered_map<long long, Tree> trees; // Key: root vertex, Value: Tree
-    // TODO merge the two maps
     std::unordered_map<long long, std::unordered_set<Tree*, TreeHash, TreeEqual> > vertex_tree_map; // Maps vertex to tree to which it belongs to
     std::unordered_map<std::pair<long long, long long>, std::set<long long>, pair_hash> vertex_state_tree_map; // Maps a pair (vertex, state) to the tree (root vertex) it belongs to
     std::unordered_map<long long, long long> tree_reference_counting; // Maps a tree (root vertex) to the number of references it has in the vertex tree map
@@ -283,6 +348,21 @@ public:
         }
     }
 
+    [[nodiscard]] size_t getUsedMemory() const {
+        size_t total = 0;
+
+        // Memory used by vertex_tree_map
+        total += MemoryEstimator::estimate_vertex_tree_map(vertex_tree_map);
+
+        // Memory used by vertex_state_tree_map
+        total += MemoryEstimator::estimate_vertex_state_tree_map(vertex_state_tree_map);
+
+        // Memory used by tree_reference_counting
+        total += MemoryEstimator::estimate_unordered_map_ll_tree(tree_reference_counting);
+
+        return total;
+    }
+
 private:
 
     Node *searchNode(Node *node, long long vertex, long long state) {
@@ -402,68 +482,5 @@ private:
     }
 };
 
-/*
-*    bool changeParent(Node *child, Node *newParent) {
-        if (!newParent->isValid) {
-            return false;
-        }
-        if (child) {
-            // Remove child from its current parent's children list
-            if (child->parent) {
-                auto &siblings = child->parent->children;
-                auto it = std::remove(siblings.begin(), siblings.end(), child);
-                if (it == siblings.end()) {
-                    throw std::runtime_error("ERROR: Child not found in parent's children list");
-                }
-                siblings.erase(it, siblings.end());
-            } else {
-                cout << "ERROR: Could not find new parent in tree" << endl;
-                exit(1);
-            }
-            // Set the new parent
-            child->parent = newParent;
-            newParent->children.push_back(child);
-        } else {
-            std::cout << "ERROR: Could not find child in tree" << std::endl;
-            exit(1);
-        }
-        return true;
-    }
-
-
-
-bool addChildToParent(long long rootVertex, long long parentVertex, long long parentState, long long childId, long long childVertex, long long childState) {
-        if (Node *parent = findNodeInTree(rootVertex, parentVertex, parentState)) {
-            parent->children.push_back(new Node(childId, childVertex, childState, parent));
-            node_count++;
-            vertex_tree_map[childVertex].insert(&trees.at(rootVertex));
-            tree_reference_counting[rootVertex]++;
-            return true;
-        }
-        return false;
-    }
-
-
-
-                    if (Node *current = searchNodeNoState(tree->rootNode, vertex)) {
-                        if (!current->parent && !current->isRoot) cerr << "WARNING: root node has null parent" << endl;
-                        if (current->timestamp < eviction_time || (current->isRoot && current->timestampRoot < eviction_time)) {
-                            if (!current->isRoot) {
-                                deleteSubTree(current, tree->rootVertex);
-                            } else { // current vertex is the root node
-                                if (current != tree->rootNode) {
-                                    cerr << "ERROR: root node is not the same as the current node" << endl;
-                                }
-                                tree->expired = true;
-                                current->isValid = false;
-                                deleteTreeRecursive(tree->rootNode, tree->rootVertex);
-                                treesToDelete.push_back(tree);
-                                trees_count--;
-                                node_count--;
-                            }
-                        }
-                    }
-
- */
 
 #endif //RPQ_FOREST_H
