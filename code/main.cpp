@@ -12,7 +12,7 @@
 #define MEMORY_PROFILER false
 
 #include "sys/types.h"
-#include "sys/sysinfo.h"
+// #include "sys/sysinfo.h"
 
 #include "source/fsa.h"
 #include "source/rpq_forest.h"
@@ -22,7 +22,7 @@
 namespace fs = std::filesystem;
 using namespace std;
 
-struct sysinfo memInfo;
+// struct sysinfo memInfo;
 
 typedef struct Config {
     std::string input_data_path;
@@ -198,7 +198,6 @@ int main(int argc, char *argv[]) {
     clock_t start = clock();
     long long s, d, l, t;
     while (fin >> s >> d >> l >> t) {
-        edge_number++;
         if (t0 == 0) {
             t0 = t;
             timestamp = 1;
@@ -210,6 +209,8 @@ int main(int argc, char *argv[]) {
         // process the edge if the label is part of the query
         if (!aut->hasLabel(l))
             continue;
+
+        edge_number++;
 
         if (l == first_transition) EINIT_count++;
 
@@ -288,6 +289,7 @@ int main(int argc, char *argv[]) {
                     windows[i].max_degree = sg->density[s];
                 }
             } else if (time >= windows[i].t_close) { // schedule window for eviction
+                cout << "window close: " << windows[i].t_close << ", time: " << time << endl;
                 window_offset = i + 1;
                 to_evict.push_back(i);
                 evict = true;
@@ -386,8 +388,8 @@ int main(int argc, char *argv[]) {
                 cost_max = *std::max_element(normalization_window.begin(), normalization_window.end());
                 cost_min = *std::min_element(normalization_window.begin(), normalization_window.end());
 
-                // if (cost > cost_max) cost_max = cost;
-                // if (cost < cost_min) cost_min = cost;
+                if (cost > cost_max) cost_max = cost;
+                if (cost < cost_min) cost_min = cost;
                 cost_norm = (cost - cost_min) / (cost_max - cost_min);
 
                 cost_window.push_back(cost_norm);
@@ -412,22 +414,10 @@ int main(int argc, char *argv[]) {
                     cost_diff_diff = 0;
                 }
 
-                if (cost_diff > 0) {
-                    // cost is increasing, decrease the window size
-                    if (cost_diff_diff > 0) {
-                        // cost is increasing continuously, decrease faster
-                        size = size - ceil((cost_diff * 10) * slide);
-                    } else {
-                        size = size - ceil((cost_diff * 10) * slide);
-                    }
-                } else if (cost_diff < 0) {
-                    // cost is decreasing, increase the window size
-                    if (cost_diff_diff < 0) {
-                        // cost is decreasing continuously, increase faster
-                        size = size + ceil((-cost_diff * 10) * slide);
-                    } else {
-                        size = size + ceil((-cost_diff * 10) * slide);
-                    }
+                if (cost_diff > 0 || cost_norm >= 0.9) {
+                    cost_diff == 0 ? size -= slide : size -= ceil(cost_diff * 10 * slide);
+                } else if (cost_diff < 0 || cost_norm <= 0.1) {
+                    cost_diff == 0 ? size += slide : size += ceil(cost_diff * 10 * slide);
                 }
 
                 // cap to max and min size
@@ -437,6 +427,7 @@ int main(int argc, char *argv[]) {
             /*
             * MEMORY PROFILING (https://stackoverflow.com/a/64166)
             */
+            /*
             if (MEMORY_PROFILER) {
                 sysinfo (&memInfo);
                 long long totalVirtualMem = memInfo.totalram;
@@ -460,6 +451,7 @@ int main(int argc, char *argv[]) {
                     << physMemUsed << ","
                     << sg->getUsedMemory() + f->getUsedMemory() << endl;
             }
+            */
         }
 
         // if (ADAPTIVE_WINDOW && windows.size()-1 >= adap_count) {
