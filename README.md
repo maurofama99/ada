@@ -123,5 +123,4 @@ Prefix: dataset folder name (`data_folder`) followed by type and parameters.
 - Timestamps should be non\-decreasing for predictable behavior.
 - Memory profiling code is supported only for Linux os, disabled by default (`MEMORY_PROFILER false` in `main.cpp`).
 
-```
 
