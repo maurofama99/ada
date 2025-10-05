@@ -115,28 +115,13 @@ Prefix: dataset folder name (`data_folder`) followed by type and parameters.
    - `used_ram`  
    - `data_mem` (sum of main data structures)  
 
-## Adaptive mode
-
-If `adaptive=1`:
-- The window size is adjusted based on a normalized cost derived from initial active transitions and max degree (`max_degree`).
-- Costs are smoothed over a sliding deque to compute `cost_norm`.
-- Size shrinks when cost grows (or `cost_norm >= 0.9`), expands when cost drops (or `cost_norm <= 0.1`).
-- Always clamped within `[min_size, max_size]`.
-
-## Exit codes
-
-Returns `0` on success. Fatal errors (missing files, invalid configuration, empty window) write to `stderr` and terminate.
 
 ## Notes
 
 - No comments supported in the config file.
 - Do not insert spaces around `=`.
 - Timestamps should be non\-decreasing for predictable behavior.
-- Memory profiling code is disabled by default (`MEMORY_PROFILER false` in `main.cpp`).
+- Memory profiling code is supported only for Linux os, disabled by default (`MEMORY_PROFILER false` in `main.cpp`).
 
-## Example
-
-```bash
-./streaming_rpq configs/exp1.txt
 ```
 
