@@ -410,19 +410,18 @@ int main(int argc, char *argv[]) {
                 if (std::isnan(cost_diff)) {
                     cost_diff = 0;
                 }
-                if (std::isnan(cost_diff_diff)) {
-                    cost_diff_diff = 0;
-                }
 
-                if (cost_diff > 0 || cost_norm >= 0.9) {
-                    cost_diff == 0 ? size -= slide : size -= ceil(cost_diff * 10 * slide);
-                } else if (cost_diff < 0 || cost_norm <= 0.1) {
-                    cost_diff == 0 ? size += slide : size += ceil(cost_diff * 10 * slide);
+                if (cost_diff > 0 || cost_norm >= 0.75) {
+                    cost_diff <= 0.1 ? size -= slide : size -= ceil(cost_diff * 10 * slide);
+                } else if (cost_diff < 0 || cost_norm <= 0.25) {
+                    cost_diff <= 0.1 ? size += slide : size += ceil(cost_diff * 10 * slide);
                 }
 
                 // cap to max and min size
                 size = std::max(std::min(size, max_size), min_size);
             }
+
+            cout << "edge number: " << edge_number << ", window size: " << size << endl;
 
             /*
             * MEMORY PROFILING (https://stackoverflow.com/a/64166)
