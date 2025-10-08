@@ -106,7 +106,7 @@ Prefix: dataset folder name (`data_folder`) followed by type and parameters.
    - `latency`  
    - `normalized_latency`  
    - `window_cardinality`  
-   - `widow_size` (note: original field name contains a typo)  
+   - `window_size` (note: original field name contains a typo)  
 
 4. `_memory_results_...csv` (only if `MEMORY_PROFILER` set to `true` at compile time)  
    - `tot_virtual`  

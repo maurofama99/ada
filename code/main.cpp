@@ -190,7 +190,7 @@ int main(int argc, char *argv[]) {
     csv_windows << "index,t_open,t_close,window_results,incremental_matches,latency,window_cardinality,window_size\n";
 
     std::ofstream csv_tuples(data_folder + "_tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
-    csv_tuples << "estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,widow_size\n";
+    csv_tuples << "estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,window_size\n";
 
     std::ofstream csv_memory(data_folder + "_memory_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_memory << "tot_virtual,used_virtual,tot_ram,used_ram,data_mem\n";
@@ -465,7 +465,7 @@ int main(int argc, char *argv[]) {
             cout << "matched paths: " << sink->matched_paths << "\n\n";
         }
 
-        // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,widow_size
+        // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,window_size
         csv_tuples
             << cost << ","
             << cost_norm << ","
