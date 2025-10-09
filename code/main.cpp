@@ -130,6 +130,12 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // if max size < min size, exit
+    if (max_size < min_size) {
+        cerr << "ERROR: max_size < min_size" << endl;
+        exit(1);
+    }
+
     auto *f = new Forest();
     auto *sg = new streaming_graph(2.5);
     auto *sink = new Sink();
@@ -382,7 +388,7 @@ int main(int argc, char *argv[]) {
                 cost = n / max_deg;
 
                 normalization_window.push_back(cost);
-                if (normalization_window.size() > overlap*2)
+                if (normalization_window.size() > overlap*922337203685470)
                     normalization_window.pop_front();
 
                 cost_max = *std::max_element(normalization_window.begin(), normalization_window.end());
@@ -411,17 +417,15 @@ int main(int argc, char *argv[]) {
                     cost_diff = 0;
                 }
 
-                if (cost_diff > 0 || cost_norm >= 0.75) {
+                if (cost_diff > 0 || cost_norm >= 0.9) {
                     cost_diff <= 0.1 ? size -= slide : size -= ceil(cost_diff * 10 * slide);
-                } else if (cost_diff < 0 || cost_norm <= 0.25) {
+                } else if (cost_diff < 0 || cost_norm <= 0.1) {
                     cost_diff <= 0.1 ? size += slide : size += ceil(cost_diff * 10 * slide);
                 }
 
                 // cap to max and min size
                 size = std::max(std::min(size, max_size), min_size);
             }
-
-            cout << "edge number: " << edge_number << ", window size: " << size << endl;
 
             /*
             * MEMORY PROFILING (https://stackoverflow.com/a/64166)
