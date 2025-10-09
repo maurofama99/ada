@@ -1,6 +1,3 @@
-//
-// Created by Mauro Famà on 12/02/2025.
-//
 
 #ifndef FSA_H
 #define FSA_H
