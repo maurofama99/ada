@@ -4,5 +4,5 @@ size=4200
 slide=420
 query_type=6
 labels=2,1
-max_size=4620
-min_size=2100
+max_size=4200
+min_size=1800
