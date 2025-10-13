@@ -23,11 +23,11 @@ def generate_config_files(datasets, algorithms, window_slide_pairs, query_label_
                             print(f"Generated {config_filepath}")
 
 def main():
-    algorithms = [1] # 1 adaptive, 0 sliding window
-    query_label_pairs = [(1,[0])]
-    datasets = ["code/dataset/ldbc/social-graph12_14v4_bursted.txt"]
-    window_slide_pairs = [(172800, 17280, 172800, 155520), (172800, 17280, 172800, 138240), (172800, 17280, 172800, 120960), (172800, 17280, 172800, 103680), (172800, 17280, 172800, 86400)]
-    output = "completeness/ldbc"
+    algorithms = [1,0] # 1 adaptive, 0 sliding window
+    query_label_pairs = [(1,[1]), (6,[2,1])]
+    datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
+    window_slide_pairs = [(5400, 540, 6480, 4320), (4200, 420, 5040, 3360), (3000, 300, 3600, 2400), (1800, 180, 2160, 1440)]
+    output = "higgs"
 
     # 21600, 43200, 64800, 86400, 108000, 194400, 259200, 324000, 388800, 453600, 518400, 583200, 648000, 712800, 777600, 842800, 907200, 972000, 1036800, 1108800, 1180800, 1252800, 1324800, 1396800, 1468800, 1540800, 1612800, 1684800, 1756800, 1828800, 1900800, 1972800
 
@@ -73,7 +73,7 @@ def main():
     # algorithms = [1] # 1 adaptive, 0 sliding window
     # query_label_pairs = [(1,[0])]
     # datasets = ["code/dataset/ldbc/social-graph12_14v4_bursted.txt"]
-    # window_slide_pairs = [(172800, 17280, 276480, 172800), (172800, 17280, 259200, 172800), (172800, 17280, 241920, 172800), (172800, 17280, 224640, 172800), (172800, 17280, 207360, 172800)]
+    # window_slide_pairs = [(172800, 17280, 172800, 155520), (172800, 17280, 172800, 138240), (172800, 17280, 172800, 120960), (172800, 17280, 172800, 103680), (172800, 17280, 172800, 86400)]
     # output = "completeness/ldbc"
 
     generate_config_files(datasets, algorithms, window_slide_pairs, query_label_pairs, output)
