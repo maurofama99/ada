@@ -295,7 +295,6 @@ int main(int argc, char *argv[]) {
                     windows[i].max_degree = sg->density[s];
                 }
             } else if (time >= windows[i].t_close) { // schedule window for eviction
-                cout << "window close: " << windows[i].t_close << ", time: " << time << endl;
                 window_offset = i + 1;
                 to_evict.push_back(i);
                 evict = true;

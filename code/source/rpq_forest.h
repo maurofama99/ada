@@ -134,6 +134,42 @@ struct MemoryEstimator {
         total += m.bucket_count() * ptr_size;
         return total;
     }
+
+    // Stima ricorsiva della memoria occupata dal sotto-albero di un Node:
+    // include:
+    //  - sizeof(Node) (contenitore + oggetti vector)
+    //  - memoria dinamica dei vector children e candidate_parents
+    //  - ricorsione sui figli
+    static size_t estimate_node_subtree(const Node* node) {
+        if (!node) return 0;
+        size_t total = 0;
+        total += sizeof(Node);
+        total += node->children.capacity() * sizeof(Node*);
+        total += node->candidate_parents.capacity() * sizeof(Node*);
+        for (const auto child : node->children) {
+            total += estimate_node_subtree(child);
+        }
+        return total;
+    }
+
+    // Stima della unordered_map<long long, Tree>:
+    // per ogni entry:
+    //  - key (long long)
+    //  - oggetto Tree
+    //  - overhead nodo hash
+    //  - intero sotto-albero a partire da rootNode
+    // + bucket array finale
+    static size_t estimate_trees(const std::unordered_map<long long, Tree>& m) {
+        size_t total = 0;
+        for (const auto& kv : m) {
+            total += sizeof(long long); // key
+            total += sizeof(Tree);      // value
+            total += node_overhead;     // nodo della hash table
+            total += estimate_node_subtree(kv.second.rootNode);
+        }
+        total += m.bucket_count() * ptr_size;
+        return total;
+    }
 };
 
 class Forest {
@@ -351,14 +387,17 @@ public:
     [[nodiscard]] size_t getUsedMemory() const {
         size_t total = 0;
 
-        // Memory used by vertex_tree_map
-        total += MemoryEstimator::estimate_vertex_tree_map(vertex_tree_map);
-
-        // Memory used by vertex_state_tree_map
-        total += MemoryEstimator::estimate_vertex_state_tree_map(vertex_state_tree_map);
-
-        // Memory used by tree_reference_counting
-        total += MemoryEstimator::estimate_unordered_map_ll_tree(tree_reference_counting);
+        // Memoria delle trees (inclusi nodi interni)
+        total += MemoryEstimator::estimate_trees(trees);
+        //
+        // // Memory used by vertex_tree_map
+        // total += MemoryEstimator::estimate_vertex_tree_map(vertex_tree_map);
+        //
+        // // Memory used by vertex_state_tree_map
+        // total += MemoryEstimator::estimate_vertex_state_tree_map(vertex_state_tree_map);
+        //
+        // // Memory used by tree_reference_counting
+        // total += MemoryEstimator::estimate_unordered_map_ll_tree(tree_reference_counting);
 
         return total;
     }

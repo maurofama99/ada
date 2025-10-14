@@ -24,28 +24,28 @@ def generate_config_files(datasets, algorithms, window_slide_pairs, query_label_
 
 def main():
     algorithms = [1] # 1 adaptive, 0 sliding window
-    query_label_pairs = [(6,[2,1])]
+    query_label_pairs = [(6, [2,1])]
     datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
-    window_slide_pairs = [(3000, 200, 3000, 3000), (3000, 200, 3000, 2800), (3000, 200, 3000, 2600), (3000, 200, 3000, 2400), (3000, 200, 3000, 2200), (3000, 200, 3000, 2000)]
-    output = "completeness/higgsv2"
+    window_slide_pairs = [(4200, 420, 5040, 3360), (3000, 300, 3600, 2400), (5400, 540, 6480, 4320)]
+    output = "memory/higgs"
 
     # 21600, 43200, 64800, 86400, 108000, 194400, 259200, 324000, 388800, 453600, 518400, 583200, 648000, 712800, 777600, 842800, 907200, 972000, 1036800, 1108800, 1180800, 1252800, 1324800, 1396800, 1468800, 1540800, 1612800, 1684800, 1756800, 1828800, 1900800, 1972800
 
-    # Query	    LDBC	HIGGS	SO
-    # 1) a*	    0	    1	    1
-    # 5) ab*c	3,0,8	2,1,3	2,1,3
-    # 7) abc*	8,9,0	2,3,1	3,2,1
-    # 2) ab*	3,0	    2,1	    2,1
+    # Query	        LDBC	HIGGS	SO
+    # 1) a*	        0	    1	    1
+    # 5) ab*c	    3,0,8	2,1,3	2,1,3
+    # 7) abc*	    8,9,0	2,3,1	3,2,1
+    # 2) ab*	    3,0	    2,1	    2,1
     # 10) (a|b)c*	9,3,0	2,3,1	3,2,1
-    # 6) a*b*	        2,1	    1,2
-    # 3) ab*c*	        3,2,1	3,1,2
+    # 6) a*b*	            2,1	    1,2
+    # 3) ab*c*	            3,2,1	3,1,2
     # 4) (abc)+	    3,0,8	2,1,3	3,1,2
 
     # higgs:
     # algorithms = [1] # 1 adaptive, 0 sliding window
     # query_label_pairs = [(1,[1]), (6,[2,1])]
     # datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
-    # window_slide_pairs = [(4200, 420, 5880, 2520), (3000, 300, 4200, 1800), (2400, 240, 3360, 1440)]
+    # window_slide_pairs = [(4200, 420, 5880, 2520), (3000, 300, 4200, 1800), (1800, 180, 3360, 1440)]
     # output = "higgs"
     # tput [(258300, 17280, 0, 0), (215100, 17280, 0, 0),  (172800, 17280, 0, 0), (129600, 17280, 0, 0), (86400, 17280, 0, 0)]  |
 
@@ -54,6 +54,7 @@ def main():
     # query_label_pairs = [(1,[1])]
     # datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
     # window_slide_pairs = [(4200, 420, 4200, 3780), (4200, 420, 4200, 3360), (4200, 420, 4200, 2940), (4200, 420, 4200, 2520), (4200, 420, 4200, 2100)]
+    # window_slide_pairs = [(3000, 200, 3000, 3000), (3000, 200, 3000, 2800), (3000, 200, 3000, 2600), (3000, 200, 3000, 2400), (3000, 200, 3000, 2200), (3000, 200, 3000, 2000)]
     # output = "completeness/higgs"
 
     # so
