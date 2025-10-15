@@ -145,7 +145,6 @@ struct MemoryEstimator {
         size_t total = 0;
         total += sizeof(Node);
         total += node->children.capacity() * sizeof(Node*);
-        total += node->candidate_parents.capacity() * sizeof(Node*);
         for (const auto child : node->children) {
             total += estimate_node_subtree(child);
         }

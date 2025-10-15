@@ -24,10 +24,10 @@ def generate_config_files(datasets, algorithms, window_slide_pairs, query_label_
 
 def main():
     algorithms = [1] # 1 adaptive, 0 sliding window
-    query_label_pairs = [(6, [2,1])]
-    datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
-    window_slide_pairs = [(4200, 420, 5040, 3360), (3000, 300, 3600, 2400), (5400, 540, 6480, 4320)]
-    output = "memory/higgs"
+    query_label_pairs = [(4, [3,0,8]), (5, [3,0,8]), (2, [3,0]), (10, [9,3,0])]
+    datasets = ["code/dataset/ldbc/social-graph12_14v4_bursted.txt"]
+    window_slide_pairs = [(17280, 17280, 259200, 86400)]
+    output = "appendix/ing_tput"
 
     # 21600, 43200, 64800, 86400, 108000, 194400, 259200, 324000, 388800, 453600, 518400, 583200, 648000, 712800, 777600, 842800, 907200, 972000, 1036800, 1108800, 1180800, 1252800, 1324800, 1396800, 1468800, 1540800, 1612800, 1684800, 1756800, 1828800, 1900800, 1972800
 
@@ -43,7 +43,7 @@ def main():
 
     # higgs:
     # algorithms = [1] # 1 adaptive, 0 sliding window
-    # query_label_pairs = [(1,[1]), (6,[2,1])]
+    # query_label_pairs =  [(1,[1]), (5,[2,1,3]), (7,[2,3,1]), (2,[2,1]), (10,[2,3,1]), (6,[2,1]), (3,[3,2,1]), (4,[2,1,3])]
     # datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
     # window_slide_pairs = [(4200, 420, 5880, 2520), (3000, 300, 4200, 1800), (1800, 180, 3360, 1440)]
     # output = "higgs"
