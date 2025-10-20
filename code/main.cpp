@@ -103,6 +103,12 @@ public:
     }
 };
 
+double normalize_shift(double shift, double min_shift, double max_shift, double alpha) {
+    if (max_shift == min_shift) return 0.0; // avoid division by zero
+    double normalized = (shift - min_shift) / (max_shift - min_shift); // [0, 1]
+    return normalized * alpha; // [0, alpha]
+}
+
 int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels);
 
 int main(int argc, char *argv[]) {
@@ -117,6 +123,8 @@ int main(int argc, char *argv[]) {
     long long max_size = config.max_size;
     long long min_size = config.min_size;
     long long query_type = config.query_type;
+    // TODO: read z-score from config
+    double zscore = 2.5;
 
     fs::path data_path = exe_dir / config.input_data_path;
     std::string data_folder = data_path.parent_path().filename().string();
@@ -335,11 +343,39 @@ int main(int argc, char *argv[]) {
 
                 if (cur_edge->label == first_transition) EINIT_count--;
 
-                candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // schedule for deletion from RPQ forest
-                //if (to_evict_timestamp >= cur_edge->timestamp) {
+                if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) { // if (cur_edge->lives == 1 || (static_cast<double>(rand()) / RAND_MAX) < 0.005)
+                    // check for parent switch before final deletion
+                    candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
                     sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
-                //}
-                sg->delete_timed_edge(current); // delete from time list
+                    sg->delete_timed_edge(current); // delete from window state store
+                } else {
+                    cur_edge->lives--;
+                    saved_edges++;
+                    /*
+                    auto shift = static_cast<double>(last_window_index) - std::ceil(sg->get_zscore(cur_edge->s));
+                    auto target_window_index = shift < (static_cast<double>(to_evict.back()) + 1) ? (static_cast<double>(to_evict.back()) + 1) : shift;
+                    target_window_index > static_cast<double>(last_window_index) ? target_window_index = static_cast<double>(last_window_index) : target_window_index;
+                    */
+                    auto z_score_s = sg->get_zscore(cur_edge->s);
+                    auto z_score_d = sg->get_zscore(cur_edge->d);
+                    auto selected_score = z_score_s > z_score_d ? z_score_s : z_score_d;
+                    double raw_shift = static_cast<double>(windows.size()-1) - std::ceil(selected_score);
+
+                    // define min and max shift bounds based on your data/logic
+                    auto propagation_start = static_cast<double>(size)/static_cast<double>(slide);
+                    propagation_start = ceil(propagation_start/2);
+                    double min_shift = static_cast<double>(to_evict.back()) + propagation_start;
+                    auto max_shift = static_cast<double>(windows.size()-1); // or an empirical upper bound
+
+                    // alpha is your desired max output shift
+                    double resized_shift = normalize_shift(raw_shift, min_shift, max_shift, size/slide);
+
+                    // finally compute the target index
+                    auto target_window_index = std::clamp(min_shift + resized_shift, min_shift, static_cast<double>(windows.size()-1));
+
+                    sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
+                    windows[target_window_index].elements_count++;
+                }
 
                 current = next;
             }
@@ -367,61 +403,6 @@ int main(int argc, char *argv[]) {
             candidate_for_deletion.clear();
             evict = false;
 
-            if (ADAPTIVE_WINDOW) {
-                // max degree computation
-                double max_deg = 1;
-                for (size_t i = window_offset; i < windows.size(); i++) {
-                    if (windows[i].max_degree > max_deg) max_deg = windows[i].max_degree;
-                }
-
-                double n = 0;
-                if (EINIT_count > edge_number) cerr << "ERROR: more initial transitions than edges." << endl;
-                for (int i = 0; i < EINIT_count; i++) {
-                    n += sg->edge_num - i;
-                }
-                cost = n / max_deg;
-
-                normalization_window.push_back(cost);
-                if (normalization_window.size() > overlap*2)
-                    normalization_window.pop_front();
-
-                cost_max = *std::max_element(normalization_window.begin(), normalization_window.end());
-                cost_min = *std::min_element(normalization_window.begin(), normalization_window.end());
-
-                if (cost > cost_max) cost_max = cost;
-                if (cost < cost_min) cost_min = cost;
-                cost_norm = (cost - cost_min) / (cost_max - cost_min);
-
-                cost_window.push_back(cost_norm);
-                if (cost_window.size() > overlap)
-                    cost_window.pop_front();
-
-                cost_norm = std::accumulate(cost_window.begin(), cost_window.end(), 0.0) / cost_window.size();
-
-                double cost_diff = cost_norm - last_cost;
-                last_cost = cost_norm;
-
-                double cost_diff_diff = cost_diff - last_diff;
-                last_diff = cost_diff_diff;
-
-                if (std::isnan(last_diff)) {
-                    last_diff = 0;
-                }
-                if (std::isnan(cost_diff)) {
-                    cost_diff = 0;
-                }
-
-                if (cost_diff > 0 || cost_norm >= 0.75) {
-                    cost_diff <= 0.1 ? size -= slide : size -= ceil(cost_diff * 10 * slide);
-                } else if (cost_diff < 0 || cost_norm <= 0.25) {
-                    cost_diff <= 0.1 ? size += slide : size += ceil(cost_diff * 10 * slide);
-                }
-
-                // cap to max and min size
-                size = std::max(std::min(size, max_size), min_size);
-            }
-
-            cout << "edge number: " << edge_number << ", window size: " << size << endl;
 
             /*
             * MEMORY PROFILING (https://stackoverflow.com/a/64166)
