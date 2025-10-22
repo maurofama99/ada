@@ -1,4 +1,4 @@
-#include <iostream>
+#include "crow.h"
 #include <vector>
 #include <string>
 #include <ctime>
@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <sstream>
 #include <numeric>
-#include <limits>
+#include "SignalHandler.h"
 
 #define MEMORY_PROFILER false
 
@@ -125,6 +125,9 @@ int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vecto
 
 int main(int argc, char *argv[])
 {
+    SignalHandler signalHandler(18080);
+    signalHandler.start();
+
     fs::path exe_path = fs::canonical(fs::absolute(argv[0]));
     fs::path exe_dir = exe_path.parent_path();
 
@@ -219,15 +222,10 @@ int main(int argc, char *argv[])
 
     clock_t start = clock();
     long long s, d, l, t;
-    std::string line;
-    while (std::getline(fin, line))
+    while (fin >> s >> d >> l >> t)
     {
-        std::istringstream iss(line);
-        if (!(iss >> s >> d >> l >> t))
-        {
-            std::cerr << "Error reading edge from line: " << line << std::endl;
-            continue;
-        }
+        signalHandler.waitForSignal();
+
         if (t0 == 0)
         {
             t0 = t;
@@ -505,9 +503,6 @@ int main(int argc, char *argv[])
             cout << "matched paths: " << sink->matched_paths << "\n\n";
         }
 
-        std::cout << "Press Enter to process the next edge";
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-
         // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,widow_size
         csv_tuples
             << cost << ","
@@ -557,6 +552,8 @@ int main(int argc, char *argv[])
     delete sink;
     delete aut;
     delete query;
+
+    signalHandler.stop();
 
     return 0;
 }
