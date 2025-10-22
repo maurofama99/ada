@@ -5,6 +5,7 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <crow/middlewares/cors.h>
 
 class SignalHandler
 {
@@ -16,7 +17,7 @@ public:
     void setResponse(std::string key, std::string value);
 
 private:
-    crow::SimpleApp app_;
+    crow::App<crow::CORSHandler> app_;
     int port_;
     std::thread crow_thread_;
     crow::json::wvalue response_;

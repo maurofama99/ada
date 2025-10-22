@@ -1,6 +1,6 @@
 export interface Edge {
-    v1: string
-    v2: string
-    ts: string
-    label: string
+    s: string
+    d: string
+    l: string
+    t: string
 }
