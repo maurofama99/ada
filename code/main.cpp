@@ -503,6 +503,11 @@ int main(int argc, char *argv[])
             cout << "matched paths: " << sink->matched_paths << "\n\n";
         }
 
+        signalHandler.setResponse("s", std::to_string(s));
+        signalHandler.setResponse("d", std::to_string(d));
+        signalHandler.setResponse("l", std::to_string(l));
+        signalHandler.setResponse("t", std::to_string(t));
+
         // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,widow_size
         csv_tuples
             << cost << ","

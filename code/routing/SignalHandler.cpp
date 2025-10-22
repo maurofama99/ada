@@ -1,13 +1,21 @@
 #include "SignalHandler.h"
 #include <iostream>
 
-SignalHandler::SignalHandler(int port) : proceed_flag_(false), port_(port)
+SignalHandler::SignalHandler(int port) : port_(port)
 {
     CROW_ROUTE(app_, "/proceed")
-        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::POST)([this]()
-                                                                {
-        this->proceed_flag_.store(true);
-        return "Proceed signal received"; });
+        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::POST)(
+            [this]()
+            {
+        std::unique_lock<std::mutex> lock(mtx_process_, std::try_to_lock);
+        
+        if (!lock.owns_lock()) {
+            // Mutex is already locked = work in progress
+            return crow::response{429, "Busy"};
+        }
+        cv_process_.notify_one();
+        cv_process_.wait(lock);
+        return crow::response{200, response_}; });
 }
 
 void SignalHandler::start()
@@ -20,11 +28,9 @@ void SignalHandler::start()
 
 void SignalHandler::waitForSignal()
 {
-    while (!proceed_flag_.load())
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-    proceed_flag_.store(false);
+    cv_process_.notify_one();
+    std::unique_lock<std::mutex> lock(mtx_process_);
+    cv_process_.wait(lock);
 }
 
 void SignalHandler::stop()
@@ -35,4 +41,9 @@ void SignalHandler::stop()
         crow_thread_.join();
         std::cout << "Crow stopped" << std::endl;
     }
+}
+
+void SignalHandler::setResponse(std::string key, std::string value)
+{
+    response_[key] = value;
 }

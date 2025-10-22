@@ -13,12 +13,15 @@ public:
     void start();
     void waitForSignal();
     void stop();
+    void setResponse(std::string key, std::string value);
 
 private:
     crow::SimpleApp app_;
-    std::atomic<bool> proceed_flag_;
     int port_;
     std::thread crow_thread_;
+    crow::json::wvalue response_;
+    std::mutex mtx_process_;
+    std::condition_variable cv_process_;
 };
 
 #endif // SIGNAL_HANDLER_H
