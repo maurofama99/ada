@@ -5,5 +5,8 @@
 streaming_rpq
 
 code/*.csv
+*.csv
 
 code/dataset/dummy.txt
+
+build/

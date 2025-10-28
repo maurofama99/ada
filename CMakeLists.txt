@@ -1,17 +1,26 @@
-cmake_minimum_required(VERSION 3.30)
-project(ada)
+cmake_minimum_required(VERSION 3.15)
+project(streaming_rpq)
 
 set(CMAKE_CXX_STANDARD 17)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -std=c++17")
+include(FetchContent)
+FetchContent_Declare(
+    crow
+    GIT_REPOSITORY https://github.com/CrowCpp/Crow.git
+    GIT_TAG master
+)
+FetchContent_MakeAvailable(crow)
 
-include_directories(code/source)
+add_executable(streaming_rpq
+    code/main.cpp
+    code/routing/SignalHandler.cpp
+)
 
-add_executable(ada
-        code/source/streaming_graph.h
-        code/main.cpp
-        code/source/rpq_forest.h
-        code/source/fsa.h
-        code/source/query_handler.h
-        code/source/sink.h
+target_include_directories(streaming_rpq PRIVATE 
+    code/source
+    code/routing
+)
+target_link_libraries(streaming_rpq PRIVATE 
+    Crow::Crow
+    pthread
 )

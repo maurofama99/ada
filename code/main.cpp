@@ -1,3 +1,4 @@
+#include "crow.h"
 #include <vector>
 #include <string>
 #include <ctime>
@@ -8,6 +9,7 @@
 #include <algorithm>
 #include <sstream>
 #include <numeric>
+#include "SignalHandler.h"
 
 #define MEMORY_PROFILER false
 
@@ -24,7 +26,8 @@ using namespace std;
 
 // struct sysinfo memInfo;
 
-typedef struct Config {
+typedef struct Config
+{
     std::string input_data_path;
     bool adaptive{};
     long long size{};
@@ -35,22 +38,26 @@ typedef struct Config {
     int min_size{};
 } config;
 
-config readConfig(const std::string &filename) {
+config readConfig(const std::string &filename)
+{
     config config;
     std::ifstream file(filename);
     std::string line;
 
-    if (!file) {
+    if (!file)
+    {
         std::cerr << "Error opening configuration file: " << filename << std::endl;
         exit(EXIT_FAILURE);
     }
 
     std::unordered_map<std::string, std::string> configMap;
 
-    while (std::getline(file, line)) {
+    while (std::getline(file, line))
+    {
         std::istringstream ss(line);
         std::string key, value;
-        if (std::getline(ss, key, '=') && std::getline(ss, value)) {
+        if (std::getline(ss, key, '=') && std::getline(ss, value))
+        {
             configMap[key] = value;
         }
     }
@@ -67,22 +74,24 @@ config readConfig(const std::string &filename) {
 
     std::istringstream extraArgsStream(configMap["labels"]);
     std::string arg;
-    while (std::getline(extraArgsStream, arg, ',')) {
+    while (std::getline(extraArgsStream, arg, ','))
+    {
         config.labels.push_back(std::stoi(arg));
     }
 
     return config;
 }
 
-class window {
+class window
+{
 public:
     long long t_open;
     long long t_close;
     timed_edge *first;
     timed_edge *last;
     bool evicted = false;
-    clock_t start_time; // start time of the window
-    double latency = 0.0; // latency of the window
+    clock_t start_time;              // start time of the window
+    double latency = 0.0;            // latency of the window
     double normalized_latency = 0.0; // normalized latency of the window
 
     double max_degree = 0.0;
@@ -94,7 +103,8 @@ public:
     int emitted_results = 0;
 
     // Constructor
-    window(long long t_open, long long t_close, timed_edge *first, timed_edge *last) {
+    window(long long t_open, long long t_close, timed_edge *first, timed_edge *last)
+    {
         this->t_open = t_open;
         this->t_close = t_close;
         this->first = first;
@@ -103,15 +113,21 @@ public:
     }
 };
 
-double normalize_shift(double shift, double min_shift, double max_shift, double alpha) {
-    if (max_shift == min_shift) return 0.0; // avoid division by zero
+double normalize_shift(double shift, double min_shift, double max_shift, double alpha)
+{
+    if (max_shift == min_shift)
+        return 0.0;                                                    // avoid division by zero
     double normalized = (shift - min_shift) / (max_shift - min_shift); // [0, 1]
-    return normalized * alpha; // [0, alpha]
+    return normalized * alpha;                                         // [0, alpha]
 }
 
 int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels);
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
+    SignalHandler signalHandler(18080);
+    signalHandler.start();
+
     fs::path exe_path = fs::canonical(fs::absolute(argv[0]));
     fs::path exe_dir = exe_path.parent_path();
 
@@ -133,7 +149,8 @@ int main(int argc, char *argv[]) {
     cout << "Dataset: " << data_folder << endl;
 
     std::ifstream fin(data_path);
-    if (!fin.is_open()) {
+    if (!fin.is_open())
+    {
         std::cerr << "Error: Failed to open " << data_path << std::endl;
         return 1;
     }
@@ -205,13 +222,25 @@ int main(int argc, char *argv[]) {
 
     clock_t start = clock();
     long long s, d, l, t;
-    while (fin >> s >> d >> l >> t) {
-        if (t0 == 0) {
+    while (fin >> s >> d >> l >> t)
+    {
+        signalHandler.waitForSignal();
+
+        signalHandler.setResponse("s", std::to_string(s));
+        signalHandler.setResponse("d", std::to_string(d));
+        signalHandler.setResponse("l", std::to_string(l));
+        signalHandler.setResponse("t", std::to_string(t));
+
+        if (t0 == 0)
+        {
             t0 = t;
             timestamp = 1;
-        } else timestamp = t - t0;
+        }
+        else
+            timestamp = t - t0;
 
-        if (timestamp < 0) continue;
+        if (timestamp < 0)
+            continue;
         time = timestamp;
 
         // process the edge if the label is part of the query
@@ -220,26 +249,34 @@ int main(int argc, char *argv[]) {
 
         edge_number++;
 
-        if (l == first_transition) EINIT_count++;
+        if (l == first_transition)
+            EINIT_count++;
 
         long long window_close;
         double base = std::floor(static_cast<double>(time) / slide) * slide;
-        double o_i  = base;
+        double o_i = base;
         bool new_window = true;
-        do {
-            auto window_open  = static_cast<long long>(o_i);
+        do
+        {
+            auto window_open = static_cast<long long>(o_i);
             window_close = static_cast<long long>(o_i + size);
 
-            for (size_t i = window_offset; i < windows.size(); i++) {
-                if (windows[i].t_open == window_open && windows[i].t_close == window_close) { // computed window is already present in WSS
+            for (size_t i = window_offset; i < windows.size(); i++)
+            {
+                if (windows[i].t_open == window_open && windows[i].t_close == window_close)
+                { // computed window is already present in WSS
                     new_window = false;
                 }
             }
 
-            if (new_window) {
-                if (window_close < windows[windows.size()-1].t_close) {
-                    for (size_t j = windows.size()-1; j >= window_offset; j--) {
-                        if (windows[j].t_close > window_close) {
+            if (new_window)
+            {
+                if (window_close < windows[windows.size() - 1].t_close)
+                {
+                    for (size_t j = windows.size() - 1; j >= window_offset; j--)
+                    {
+                        if (windows[j].t_close > window_close)
+                        {
                             windows[j].evicted = true;
                             windows[j].first = nullptr;
                             windows[j].last = nullptr;
@@ -249,8 +286,10 @@ int main(int argc, char *argv[]) {
                         }
                     }
                 }
-                if (window_close > windows[windows.size() - 1].t_close && window_open > windows[windows.size() - 1].t_open) {
-                    if (windows[windows.size() - 1].t_close < window_close) {
+                if (window_close > windows[windows.size() - 1].t_close && window_open > windows[windows.size() - 1].t_open)
+                {
+                    if (windows[windows.size() - 1].t_close < window_close)
+                    {
                         // report results
                         windows[windows.size() - 1].total_matched_results = sink->matched_paths;
                         // matched paths until this window
@@ -270,7 +309,8 @@ int main(int argc, char *argv[]) {
 
         new_sgt = sg->insert_edge(edge_number, s, d, l, time, window_close);
 
-        if (!new_sgt) {
+        if (!new_sgt)
+        {
             // search for the duplicate
             cerr << "ERROR: new sgt is null, time: " << time << endl;
             exit(1);
@@ -278,30 +318,40 @@ int main(int argc, char *argv[]) {
 
         // add edge to time list
         t_edge = new timed_edge(new_sgt); // associate the timed edge with the snapshot graph edge
-        sg->add_timed_edge(t_edge); // append the element to the time list
+        sg->add_timed_edge(t_edge);       // append the element to the time list
 
         // update window boundaries and check for window eviction
-        for (size_t i = window_offset; i < windows.size(); i++) {
-            if (windows[i].t_open <= time && time < windows[i].t_close) { // active window
-                if (!windows[i].first || time < windows[i].first->edge_pt->timestamp) {
-                    if (!windows[i].first) windows[i].last = t_edge;
+        for (size_t i = window_offset; i < windows.size(); i++)
+        {
+            if (windows[i].t_open <= time && time < windows[i].t_close)
+            { // active window
+                if (!windows[i].first || time < windows[i].first->edge_pt->timestamp)
+                {
+                    if (!windows[i].first)
+                        windows[i].last = t_edge;
                     windows[i].first = t_edge;
                     windows[i].elements_count++;
                     total_elements_count++;
-                } else if (!windows[i].last || time >= windows[i].last->edge_pt->timestamp) {
+                }
+                else if (!windows[i].last || time >= windows[i].last->edge_pt->timestamp)
+                {
                     windows[i].last = t_edge;
                     windows[i].elements_count++;
                     total_elements_count++;
                 }
-                if (sg->density[s] > windows[i].max_degree) {
+                if (sg->density[s] > windows[i].max_degree)
+                {
                     windows[i].max_degree = sg->density[s];
                 }
-            } else if (time >= windows[i].t_close) { // schedule window for eviction
+            }
+            else if (time >= windows[i].t_close)
+            { // schedule window for eviction
                 cout << "window close: " << windows[i].t_close << ", time: " << time << endl;
                 window_offset = i + 1;
                 to_evict.push_back(i);
                 evict = true;
-                if (windows[i].elements_count == 0) {
+                if (windows[i].elements_count == 0)
+                {
                     cerr << "ERROR: Empty window: " << i << endl;
                     exit(1);
                 }
@@ -314,41 +364,50 @@ int main(int argc, char *argv[]) {
         avg_size = cumulative_size / size_count;
 
         /* EVICT */
-        if (evict) {
+        if (evict)
+        {
             // to compute window cost, we take the size of the snapshot graph of the window here, since no more elements will be added and it can be considered complete and closed
-            std::vector<pair<long long, long long> > candidate_for_deletion;
+            std::vector<pair<long long, long long>> candidate_for_deletion;
             timed_edge *evict_start_point = windows[to_evict[0]].first;
             timed_edge *evict_end_point = windows[to_evict.back() + 1].first;
             long long to_evict_timestamp = windows[to_evict.back() + 1].t_open;
 
-            if (!evict_start_point) {
+            if (!evict_start_point)
+            {
                 cerr << "ERROR: Evict start point is null." << endl;
                 exit(1);
             }
 
-            if (evict_end_point == nullptr) {
+            if (evict_end_point == nullptr)
+            {
                 evict_end_point = sg->time_list_tail;
                 cout << "WARNING: Evict end point is null, evicting whole buffer." << endl;
             }
 
-            if (last_t_open != windows[to_evict[0]].t_open) sink->refresh_resultSet(windows[to_evict[0]].t_open);
+            if (last_t_open != windows[to_evict[0]].t_open)
+                sink->refresh_resultSet(windows[to_evict[0]].t_open);
             last_t_open = windows[to_evict[0]].t_open;
 
             timed_edge *current = evict_start_point;
 
-            while (current && current != evict_end_point) {
+            while (current && current != evict_end_point)
+            {
 
                 auto cur_edge = current->edge_pt;
                 auto next = current->next;
 
-                if (cur_edge->label == first_transition) EINIT_count--;
+                if (cur_edge->label == first_transition)
+                    EINIT_count--;
 
-                if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) { // if (cur_edge->lives == 1 || (static_cast<double>(rand()) / RAND_MAX) < 0.005)
+                if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore)
+                { // if (cur_edge->lives == 1 || (static_cast<double>(rand()) / RAND_MAX) < 0.005)
                     // check for parent switch before final deletion
                     candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
                     sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
-                    sg->delete_timed_edge(current); // delete from window state store
-                } else {
+                    sg->delete_timed_edge(current);                             // delete from window state store
+                }
+                else
+                {
                     cur_edge->lives--;
                     saved_edges++;
                     /*
@@ -359,19 +418,19 @@ int main(int argc, char *argv[]) {
                     auto z_score_s = sg->get_zscore(cur_edge->s);
                     auto z_score_d = sg->get_zscore(cur_edge->d);
                     auto selected_score = z_score_s > z_score_d ? z_score_s : z_score_d;
-                    double raw_shift = static_cast<double>(windows.size()-1) - std::ceil(selected_score);
+                    double raw_shift = static_cast<double>(windows.size() - 1) - std::ceil(selected_score);
 
                     // define min and max shift bounds based on your data/logic
-                    auto propagation_start = static_cast<double>(size)/static_cast<double>(slide);
-                    propagation_start = ceil(propagation_start/2);
+                    auto propagation_start = static_cast<double>(size) / static_cast<double>(slide);
+                    propagation_start = ceil(propagation_start / 2);
                     double min_shift = static_cast<double>(to_evict.back()) + propagation_start;
-                    auto max_shift = static_cast<double>(windows.size()-1); // or an empirical upper bound
+                    auto max_shift = static_cast<double>(windows.size() - 1); // or an empirical upper bound
 
                     // alpha is your desired max output shift
-                    double resized_shift = normalize_shift(raw_shift, min_shift, max_shift, size/slide);
+                    double resized_shift = normalize_shift(raw_shift, min_shift, max_shift, size / slide);
 
                     // finally compute the target index
-                    auto target_window_index = std::clamp(min_shift + resized_shift, min_shift, static_cast<double>(windows.size()-1));
+                    auto target_window_index = std::clamp(min_shift + resized_shift, min_shift, static_cast<double>(windows.size() - 1));
 
                     sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
                     windows[target_window_index].elements_count++;
@@ -387,14 +446,17 @@ int main(int argc, char *argv[]) {
             f->expire_timestamped(to_evict_timestamp, candidate_for_deletion);
 
             // mark window as evicted
-            for (unsigned long i: to_evict) {
+            for (unsigned long i : to_evict)
+            {
                 warmup++;
                 windows[i].evicted = true;
                 windows[i].first = nullptr;
                 windows[i].last = nullptr;
                 windows[i].latency = static_cast<double>(clock() - windows[i].start_time) / CLOCKS_PER_SEC;
-                if (windows[i].latency > lat_max) lat_max = windows[i].latency;
-                if (windows[i].latency < lat_min) lat_min = windows[i].latency;
+                if (windows[i].latency > lat_max)
+                    lat_max = windows[i].latency;
+                if (windows[i].latency < lat_min)
+                    lat_min = windows[i].latency;
                 windows[i].normalized_latency = (windows[i].latency - lat_min) / (lat_max - lat_min);
                 // state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency
             }
@@ -403,10 +465,9 @@ int main(int argc, char *argv[]) {
             candidate_for_deletion.clear();
             evict = false;
 
-
             /*
-            * MEMORY PROFILING (https://stackoverflow.com/a/64166)
-            */
+             * MEMORY PROFILING (https://stackoverflow.com/a/64166)
+             */
             /*
             if (MEMORY_PROFILER) {
                 sysinfo (&memInfo);
@@ -439,7 +500,8 @@ int main(int argc, char *argv[]) {
         /* QUERY */
         query->pattern_matching_tc(new_sgt);
 
-        if (edge_number % checkpoint == 0) {
+        if (edge_number % checkpoint == 0)
+        {
             printf("processed edges: %lld\n", edge_number);
             printf("saved edges: %lld\n", saved_edges);
             printf("avg degree: %f\n", sg->mean);
@@ -450,29 +512,30 @@ int main(int argc, char *argv[]) {
         csv_tuples
             << cost << ","
             << cost_norm << ","
-            << windows[window_offset >= 1 ? window_offset-1 : 0].latency << ","
-            << windows[window_offset >= 1 ? window_offset-1 : 0].normalized_latency << ","
-            << windows[window_offset >= 1 ? window_offset-1 : 0].elements_count << ","
-            << windows[window_offset >= 1 ? window_offset-1 : 0].t_close - windows[window_offset >= 1 ? window_offset-1 : 0].t_open << endl;
+            << windows[window_offset >= 1 ? window_offset - 1 : 0].latency << ","
+            << windows[window_offset >= 1 ? window_offset - 1 : 0].normalized_latency << ","
+            << windows[window_offset >= 1 ? window_offset - 1 : 0].elements_count << ","
+            << windows[window_offset >= 1 ? window_offset - 1 : 0].t_close - windows[window_offset >= 1 ? window_offset - 1 : 0].t_open << endl;
     }
 
     cout << "Created windows: " << windows.size() << endl;
 
     clock_t finish = clock();
-    long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
+    long long time_used = (double)(finish - start) / CLOCKS_PER_SEC;
 
     double avg_window_size = static_cast<double>(total_elements_count) / windows.size();
 
     csv_summary
-        <<  edge_number << ","
-        <<  sink->matched_paths << ","
-        <<  time_used << ","
-        <<  windows.size() << ","
-        <<  avg_window_size << ","
-        <<  avg_size << "\n";
+        << edge_number << ","
+        << sink->matched_paths << ","
+        << time_used << ","
+        << windows.size() << ","
+        << avg_window_size << ","
+        << avg_size << "\n";
 
     // index,t_open,t_close,window_results,incremental_matches,latency,window_cardinality,window_size
-    for (size_t i = 0; i < windows.size(); ++i) {
+    for (size_t i = 0; i < windows.size(); ++i)
+    {
         csv_windows
             << i << ","
             << windows[i].t_open << ","
@@ -495,81 +558,85 @@ int main(int argc, char *argv[]) {
     delete aut;
     delete query;
 
- return 0;
+    signalHandler.stop();
+
+    return 0;
 }
 
 // Set up the automaton correspondant for each query
-int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels) {
+int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels)
+{
     int states_count = 0;
     /*
      * 0 - initial state
      * 0 -> 1 - first transition
      * Always enumerate the states starting from 0 and incrementing by 1.
      */
-    switch (query_type) {
-        case 1: // a+
-            aut->addFinalState(1);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[0]);
-            states_count = 2;
-            break;
-        case 5: // ab*c
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[1]);
-            aut->addTransition(1, 2, labels[2]);
-            states_count = 3;
-            break;
-        case 7: // abc*
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(2, 2, labels[2]);
-            states_count = 3;
-            break;
-        case 4: // (abc)+
-            aut->addFinalState(3);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(2, 3, labels[2]);
-            aut->addTransition(3, 1, labels[0]);
-            states_count = 4;
-            break;
-        case 2: // ab*
-            aut->addFinalState(1);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[1]);
-            states_count = 2;
-            break;
-        case 10: // (a|b)c*
-            aut->addFinalState(1);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(0, 1, labels[1]);
-            aut->addTransition(1, 1, labels[2]);
-            states_count = 2;
-            break;
-        case 6: // a*b*
-            aut->addFinalState(1);
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(0, 2, labels[1]);
-            aut->addTransition(2, 2, labels[1]);
-            states_count = 3;
-            break;
-        case 3: // ab*c*
-            aut->addFinalState(1);
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[1]);
-            aut->addTransition(1, 2, labels[2]);
-            aut->addTransition(2, 2, labels[2]);
-            states_count = 3;
-            break;
-        default:
-            cerr << "ERROR: Wrong query type" << endl;
-            exit(1);
+    switch (query_type)
+    {
+    case 1: // a+
+        aut->addFinalState(1);
+        aut->addTransition(0, 1, labels[0]);
+        aut->addTransition(1, 1, labels[0]);
+        states_count = 2;
+        break;
+    case 5: // ab*c
+        aut->addFinalState(2);
+        aut->addTransition(0, 1, labels[0]);
+        aut->addTransition(1, 1, labels[1]);
+        aut->addTransition(1, 2, labels[2]);
+        states_count = 3;
+        break;
+    case 7: // abc*
+        aut->addFinalState(2);
+        aut->addTransition(0, 1, labels[0]);
+        aut->addTransition(1, 2, labels[1]);
+        aut->addTransition(2, 2, labels[2]);
+        states_count = 3;
+        break;
+    case 4: // (abc)+
+        aut->addFinalState(3);
+        aut->addTransition(0, 1, labels[0]);
+        aut->addTransition(1, 2, labels[1]);
+        aut->addTransition(2, 3, labels[2]);
+        aut->addTransition(3, 1, labels[0]);
+        states_count = 4;
+        break;
+    case 2: // ab*
+        aut->addFinalState(1);
+        aut->addTransition(0, 1, labels[0]);
+        aut->addTransition(1, 1, labels[1]);
+        states_count = 2;
+        break;
+    case 10: // (a|b)c*
+        aut->addFinalState(1);
+        aut->addTransition(0, 1, labels[0]);
+        aut->addTransition(0, 1, labels[1]);
+        aut->addTransition(1, 1, labels[2]);
+        states_count = 2;
+        break;
+    case 6: // a*b*
+        aut->addFinalState(1);
+        aut->addFinalState(2);
+        aut->addTransition(0, 1, labels[0]);
+        aut->addTransition(1, 1, labels[0]);
+        aut->addTransition(1, 2, labels[1]);
+        aut->addTransition(0, 2, labels[1]);
+        aut->addTransition(2, 2, labels[1]);
+        states_count = 3;
+        break;
+    case 3: // ab*c*
+        aut->addFinalState(1);
+        aut->addFinalState(2);
+        aut->addTransition(0, 1, labels[0]);
+        aut->addTransition(1, 1, labels[1]);
+        aut->addTransition(1, 2, labels[2]);
+        aut->addTransition(2, 2, labels[2]);
+        states_count = 3;
+        break;
+    default:
+        cerr << "ERROR: Wrong query type" << endl;
+        exit(1);
     }
     return states_count;
 }
