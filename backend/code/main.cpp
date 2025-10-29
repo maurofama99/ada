@@ -226,10 +226,10 @@ int main(int argc, char *argv[])
     {
         signalHandler.waitForSignal();
 
-        signalHandler.setResponse("s", std::to_string(s));
-        signalHandler.setResponse("d", std::to_string(d));
-        signalHandler.setResponse("l", std::to_string(l));
-        signalHandler.setResponse("t", std::to_string(t));
+        signalHandler.setNestedResponse("new_edge", "s", std::to_string(s));
+        signalHandler.setNestedResponse("new_edge", "d", std::to_string(d));
+        signalHandler.setNestedResponse("new_edge", "l", std::to_string(l));
+        signalHandler.setNestedResponse("new_edge", "t", std::to_string(t));
 
         if (t0 == 0)
         {
@@ -494,6 +494,89 @@ int main(int argc, char *argv[])
             }
             */
         }
+
+        if (window_offset != windows.size() - 1)
+        {
+            cout << "ERROR " << windows.size() - window_offset << " active windows\n";
+        }
+        else
+        {
+            signalHandler.setNestedResponse(
+                "active_window",
+                "open",
+                std::to_string(windows[windows.size() - 1].t_open));
+            signalHandler.setNestedResponse(
+                "active_window",
+                "close",
+                std::to_string(windows[windows.size() - 1].t_close));
+
+            timed_edge *curr = windows[windows.size() - 1].first;
+            std::vector<crow::json::wvalue> edges;
+
+            while (curr)
+            {
+                sg_edge *e = curr->edge_pt;
+                crow::json::wvalue edge_json;
+
+                edge_json["s"] = std::to_string(e->s);
+                edge_json["d"] = std::to_string(e->d);
+                edge_json["l"] = std::to_string(e->label);
+                edge_json["t"] = std::to_string(e->timestamp);
+
+                edges.push_back(std::move(edge_json));
+
+                curr = curr->next;
+            }
+
+            signalHandler.setNestedResponse(
+                "active_window",
+                "edges",
+                std::move(edges));
+        }
+
+        cout << "\nRemaining active windows:\n";
+        for (size_t i = window_offset; i < windows.size(); i++)
+        {
+            if (!windows[i].evicted)
+            {
+                cout << "  Window [" << i << "]: [" << windows[i].t_open << ", "
+                     << windows[i].t_close << ") - " << windows[i].elements_count
+                     << " edges\n";
+
+                // Print edges in this window
+                if (windows[i].first)
+                {
+                    cout << "    Edges:\n";
+                    timed_edge *curr = windows[i].first;
+                    int edge_count = 0;
+
+                    while (curr)
+                    {
+                        sg_edge *e = curr->edge_pt;
+                        cout << "      [" << (edge_count + 1) << "] "
+                             << e->s << " -> " << e->d
+                             << " (L:" << e->label
+                             << ", T:" << e->timestamp
+                             << ", Exp:" << e->expiration_time
+                             << ", Lives:" << e->lives << ")\n";
+
+                        // Stop at last edge or when timestamp exceeds window
+                        if (curr == windows[i].last || e->timestamp >= windows[i].t_close)
+                        {
+                            break;
+                        }
+
+                        curr = curr->next;
+                        edge_count++;
+                    }
+                }
+                else
+                {
+                    cout << "    No edges (first pointer is null)\n";
+                }
+            }
+        }
+        cout << "=======================================================\n\n";
 
         // if (ADAPTIVE_WINDOW && windows.size()-1 >= adap_count) {
 

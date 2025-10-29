@@ -16,6 +16,12 @@ public:
     void stop();
     void setResponse(std::string key, std::string value);
 
+    template <typename T>
+    void setNestedResponse(const std::string &parentKey, const std::string &childKey, T value)
+    {
+        response_[parentKey][childKey] = std::forward<T>(value);
+    }
+
 private:
     crow::App<crow::CORSHandler> app_;
     int port_;
