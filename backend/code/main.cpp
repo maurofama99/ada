@@ -170,6 +170,7 @@ int main(int argc, char *argv[])
     int total_elements_count = 0;
 
     long long t0 = 0;
+    bool first_edge = true;
     long long edge_number = 0;
     long long time;
     long long timestamp;
@@ -231,16 +232,16 @@ int main(int argc, char *argv[])
         signalHandler.setNestedResponse("new_edge", "l", std::to_string(l));
         signalHandler.setNestedResponse("new_edge", "t", std::to_string(t));
 
-        if (t0 == 0)
-        {
+        if (first_edge) {
             t0 = t;
             timestamp = 1;
+            first_edge = false;
         }
-        else
-            timestamp = t - t0;
+        else timestamp = t - t0;
 
         if (timestamp < 0)
-            continue;
+            exit(1);
+
         time = timestamp;
 
         // process the edge if the label is part of the query
