@@ -35,6 +35,7 @@ void SignalHandler::waitForSignal()
 
 void SignalHandler::stop()
 {
+    cv_process_.notify_all();
     if (crow_thread_.joinable())
     {
         app_.stop();

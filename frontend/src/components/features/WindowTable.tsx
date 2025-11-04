@@ -8,11 +8,12 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import type { Edge } from '@/types/Edge'
+import type { Window } from '@/types/Window'
 
-export function EdgeTable({ edges }: { edges: Edge[] }) {
+export function WindowTable({ window }: { window?: Window }) {
     return (
         <Table>
-            <TableCaption>Input Stream</TableCaption>
+            <TableCaption>{window ? "Window [" + window.open + ":" + window.close + ")" : "No Active Window"}</TableCaption>
             <TableHeader>
                 <TableRow>
                     <TableHead>Source</TableHead>
@@ -22,14 +23,14 @@ export function EdgeTable({ edges }: { edges: Edge[] }) {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {edges.map((row) => (
-                    <TableRow key={row.s + "_" + row.d}>
+                {window ? window.edges.map((row) => (
+                    <TableRow key={"active_" + row.s + "_" + row.d}>
                         <TableCell>{row.s}</TableCell>
                         <TableCell>{row.d}</TableCell>
                         <TableCell>{row.l}</TableCell>
                         <TableCell>{row.t}</TableCell>
                     </TableRow>
-                ))}
+                )) : null}
             </TableBody>
         </Table>
     )

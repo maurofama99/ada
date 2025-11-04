@@ -4,9 +4,8 @@
 
 streaming_rpq
 
-code/*.csv
-*.csv
+backend/**/*.csv
+backend/code/dataset/dummy.txt
+backend/build/
 
-code/dataset/dummy.txt
-
-build/
+node_modules/
