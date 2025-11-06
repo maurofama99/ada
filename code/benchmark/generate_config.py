@@ -23,11 +23,11 @@ def generate_config_files(datasets, algorithms, window_slide_pairs, query_label_
                             print(f"Generated {config_filepath}")
 
 def main():
-    algorithms = [0] # 1 adaptive, 0 sliding window
-    query_label_pairs = [(1,[1]), (5,[2,1,3]), (7,[2,3,1]), (2,[2,1]), (10,[2,3,1]), (6,[2,1]), (3,[3,2,1]), (4,[2,1,3])]
-    datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
-    window_slide_pairs = [(2100, 420, 0, 0), (2940, 420, 0, 0),  (3780, 420, 0, 0), (4620, 420, 0, 0), (5460, 420, 0, 0)]
-    output = "appendix/ing_tput/higgs"
+    algorithms = [1] # 1 adaptive, 0 sliding window
+    query_label_pairs = [(4, [3,0,8]), (1, [0]), (5, [3,0,8]), (2, [3,0]), (10, [9,3,0]), (7, [8,9,0])]
+    datasets = ["code/dataset/ldbc/social-graph12_14v4_bursted.txt"]
+    window_slide_pairs = [(172800, 17280, 172800, 155520), (172800, 17280, 172800, 138240), (172800, 17280, 172800, 120960), (172800, 17280, 172800, 103680), (172800, 17280, 172800, 86400)]
+    output = "completeness/ldbc"
 
     # 21600, 43200, 64800, 86400, 108000, 194400, 259200, 324000, 388800, 453600, 518400, 583200, 648000, 712800, 777600, 842800, 907200, 972000, 1036800, 1108800, 1180800, 1252800, 1324800, 1396800, 1468800, 1540800, 1612800, 1684800, 1756800, 1828800, 1900800, 1972800
 
@@ -49,6 +49,7 @@ def main():
     # output = "higgs"
     # [(2100, 420, 0, 0), (2940, 420, 0, 0),  (3780, 420, 0, 0), (4620, 420, 0, 0), (5460, 420, 0, 0)]
     # tput [(258300, 17280, 0, 0), (215100, 17280, 0, 0),  (172800, 17280, 0, 0), (129600, 17280, 0, 0), (86400, 17280, 0, 0)]  |
+    # window_slide_pairs = [(2100, 420, 0, 0), (2940, 420, 0, 0),  (3780, 420, 0, 0), (4620, 420, 0, 0), (5460, 420, 0, 0)]
 
     # higgs completeness
     # algorithms = [1] # 1 adaptive, 0 sliding window
