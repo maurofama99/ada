@@ -176,7 +176,6 @@ int main(int argc, char *argv[])
     long long timestamp;
 
     long long window_offset = 0;
-    windows.emplace_back(0, size, nullptr, nullptr);
 
     bool evict = false;
     vector<size_t> to_evict;
@@ -232,12 +231,14 @@ int main(int argc, char *argv[])
         signalHandler.setNestedResponse("new_edge", "l", std::to_string(l));
         signalHandler.setNestedResponse("new_edge", "t", std::to_string(t));
 
-        if (first_edge) {
+        if (first_edge)
+        {
             t0 = t;
             timestamp = 1;
             first_edge = false;
         }
-        else timestamp = t - t0;
+        else
+            timestamp = t - t0;
 
         if (timestamp < 0)
             exit(1);
@@ -272,33 +273,40 @@ int main(int argc, char *argv[])
 
             if (new_window)
             {
-                if (window_close < windows[windows.size() - 1].t_close)
+                if (windows.empty())
                 {
-                    for (size_t j = windows.size() - 1; j >= window_offset; j--)
+                    windows.emplace_back(window_open, window_close, nullptr, nullptr);
+                }
+                else
+                {
+                    if (window_close < windows[windows.size() - 1].t_close)
                     {
-                        if (windows[j].t_close > window_close)
+                        for (size_t j = windows.size() - 1; j >= window_offset; j--)
                         {
-                            windows[j].evicted = true;
-                            windows[j].first = nullptr;
-                            windows[j].last = nullptr;
-                            windows[j].latency = -1;
-                            windows[j].normalized_latency = -1;
-                            windows.pop_back();
+                            if (windows[j].t_close > window_close)
+                            {
+                                windows[j].evicted = true;
+                                windows[j].first = nullptr;
+                                windows[j].last = nullptr;
+                                windows[j].latency = -1;
+                                windows[j].normalized_latency = -1;
+                                windows.pop_back();
+                            }
                         }
                     }
-                }
-                if (window_close > windows[windows.size() - 1].t_close && window_open > windows[windows.size() - 1].t_open)
-                {
-                    if (windows[windows.size() - 1].t_close < window_close)
+                    if (window_close > windows[windows.size() - 1].t_close && window_open > windows[windows.size() - 1].t_open)
                     {
-                        // report results
-                        windows[windows.size() - 1].total_matched_results = sink->matched_paths;
-                        // matched paths until this window
-                        windows[windows.size() - 1].emitted_results = sink->getResultSetSize();
-                        // paths emitted on this window close
-                        windows[windows.size() - 1].window_matches = windows[windows.size() - 1].emitted_results;
+                        if (windows[windows.size() - 1].t_close < window_close)
+                        {
+                            // report results
+                            windows[windows.size() - 1].total_matched_results = sink->matched_paths;
+                            // matched paths until this window
+                            windows[windows.size() - 1].emitted_results = sink->getResultSetSize();
+                            // paths emitted on this window close
+                            windows[windows.size() - 1].window_matches = windows[windows.size() - 1].emitted_results;
+                        }
+                        windows.emplace_back(window_open, window_close, nullptr, nullptr);
                     }
-                    windows.emplace_back(window_open, window_close, nullptr, nullptr);
                 }
             }
 
@@ -496,39 +504,80 @@ int main(int argc, char *argv[])
             */
         }
 
-        if (window_offset != windows.size() - 1)
+        if (new_window)
         {
-            cout << "ERROR " << windows.size() - window_offset << " active windows\n";
+            if (window_offset != windows.size() - 1)
+            {
+                cout << "ERROR " << windows.size() - window_offset << " active windows\n";
+            }
+            else
+            {
+                signalHandler.setNestedResponse(
+                    "active_window",
+                    "open",
+                    std::to_string(windows[windows.size() - 1].t_open));
+                signalHandler.setNestedResponse(
+                    "active_window",
+                    "close",
+                    std::to_string(windows[windows.size() - 1].t_close));
+
+                timed_edge *curr = windows[windows.size() - 1].first;
+                std::vector<crow::json::wvalue> edges;
+
+                while (curr)
+                {
+                    sg_edge *e = curr->edge_pt;
+                    crow::json::wvalue edge_json;
+
+                    edge_json["s"] = std::to_string(e->s);
+                    edge_json["d"] = std::to_string(e->d);
+                    edge_json["l"] = std::to_string(e->label);
+                    edge_json["t"] = std::to_string(e->timestamp);
+
+                    edges.push_back(std::move(edge_json));
+
+                    curr = curr->next;
+                }
+
+                signalHandler.setNestedResponse(
+                    "active_window",
+                    "edges",
+                    std::move(edges));
+
+                // Snapshot Graph
+                // for (const auto &[vertex, edges] : sg->adjacency_list)
+                // {
+                //     std::cout << "Vertex " << vertex << " -> ";
+                //     if (edges.empty())
+                //     {
+                //         std::cout << "(no outgoing edges)";
+                //     }
+                //     else
+                //     {
+                //         for (size_t i = 0; i < edges.size(); ++i)
+                //         {
+                //             const auto &[to, edge] = edges[i];
+                //             std::cout << "(" << to << ", label:" << edge->label
+                //                       << ", t:" << edge->timestamp << ")";
+                //             if (i < edges.size() - 1)
+                //                 std::cout << ", ";
+                //         }
+                //     }
+                //     std::cout << "\n";
+                // }
+            }
         }
         else
         {
-            signalHandler.setNestedResponse(
-                "active_window",
-                "open",
-                std::to_string(windows[windows.size() - 1].t_open));
-            signalHandler.setNestedResponse(
-                "active_window",
-                "close",
-                std::to_string(windows[windows.size() - 1].t_close));
-
-            timed_edge *curr = windows[windows.size() - 1].first;
             std::vector<crow::json::wvalue> edges;
+            crow::json::wvalue edge_json;
 
-            while (curr)
-            {
-                sg_edge *e = curr->edge_pt;
-                crow::json::wvalue edge_json;
+            edge_json["s"] = std::to_string(t_edge->edge_pt->s);
+            edge_json["d"] = std::to_string(t_edge->edge_pt->d);
+            edge_json["l"] = std::to_string(t_edge->edge_pt->label);
+            edge_json["t"] = std::to_string(t_edge->edge_pt->timestamp);
 
-                edge_json["s"] = std::to_string(e->s);
-                edge_json["d"] = std::to_string(e->d);
-                edge_json["l"] = std::to_string(e->label);
-                edge_json["t"] = std::to_string(e->timestamp);
-
-                edges.push_back(std::move(edge_json));
-
-                curr = curr->next;
-            }
-
+            edges.push_back(std::move(edge_json));
             signalHandler.setNestedResponse(
                 "active_window",
                 "edges",
