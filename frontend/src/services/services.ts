@@ -16,19 +16,27 @@ export async function fetchState(): Promise<ApiResponse> {
   const raw = await response.json()
   console.log('Raw fetched data:', raw)
 
-  if (isValidEdge(raw.new_edge) === false ||
-    (raw.active_window !== undefined && normalizeWindow(raw.active_window) === undefined) ||
-    (raw.t_edge !== undefined && isValidEdge(raw.t_edge) === false) ||
-    (raw.sg_edge !== undefined && isValidEdge(raw.sg_edge) === false)
-  ) {
-    throw new Error('Invalid data received from API')
+  if (isValidEdge(raw.new_edge) === false) {
+    throw new Error('Invalid stream edge')
+  }
+
+  if (raw.active_window !== undefined && !isValidWindow(raw.active_window)) {
+    throw new Error('Invalid active window')
+  }
+
+  if (raw.t_edges !== undefined && !Array.isArray(raw.t_edges) && !raw.t_edges.every(isValidEdge)) {
+    throw new Error('Invalid t_edges')
+  }
+
+  if (raw.sg_edges !== undefined && !Array.isArray(raw.sg_edges) && !raw.sg_edges.every(isValidEdge)) {
+    throw new Error('Invalid sg_edges')
   }
 
   const cleanedResponse: ApiResponse = {
     new_edge: normalizeEdge(raw.new_edge)!,
     active_window: normalizeWindow(raw.active_window),
-    t_edge: normalizeEdge(raw.t_edge),
-    sg_edge: normalizeEdge(raw.sg_edge)
+    t_edges: raw.t_edges !== undefined ? raw.t_edges.map(normalizeEdge) : undefined,
+    sg_edges: raw.sg_edges !== undefined ? raw.sg_edges.map(normalizeEdge) : undefined
   }
 
   console.log('Cleaned data:', cleanedResponse)

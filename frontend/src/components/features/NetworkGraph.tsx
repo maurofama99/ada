@@ -2,18 +2,21 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { DataSet, Network } from 'vis-network/standalone';
 
 type NodeType = {
-    id: number;
+    id: string;
     label: string;
 };
 
 type EdgeType = {
-    id: number;
-    from: number;
-    to: number;
+    id: string;
+    from: string;
+    to: string;
+    label?: string;
 };
 
 interface NetworkHandle {
     addNode: (node: NodeType) => void;
+    addEdge: (edge: EdgeType) => void;
+    clear: () => void;
 }
 
 const NetworkGraph = forwardRef<NetworkHandle>((props, ref) => {
@@ -24,22 +27,25 @@ const NetworkGraph = forwardRef<NetworkHandle>((props, ref) => {
 
     useImperativeHandle(ref, () => ({
         addNode(node: NodeType) {
-            nodesRef.current?.add(node);
+            if (!nodesRef.current?.get(node.id)) {
+                nodesRef.current?.add(node);
+            }
+        },
+        addEdge(edge: EdgeType) {
+            if (!edgesRef.current?.get(edge.id)) {
+                edgesRef.current?.add(edge);
+            }
+        },
+        clear() {
+            nodesRef.current?.clear();
+            edgesRef.current?.clear();
         },
     }));
 
     useEffect(() => {
         if (!container.current) return;
-        nodesRef.current = new DataSet([
-            { id: 1, label: 'Node 1' },
-            { id: 2, label: 'Node 2' },
-            { id: 3, label: 'Node 3' }
-        ]);
-
-        edgesRef.current = new DataSet([
-            { id: 1, from: 1, to: 2 },
-            { id: 2, from: 1, to: 3 }
-        ]);
+        nodesRef.current = new DataSet([]);
+        edgesRef.current = new DataSet([]);
 
         const data = { nodes: nodesRef.current, edges: edgesRef.current };
         const options = {};

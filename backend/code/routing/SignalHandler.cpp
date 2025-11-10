@@ -14,32 +14,20 @@ SignalHandler::SignalHandler(int port) : port_(port)
         },
         ?"active_window": {
             "open": double,
-            "close": double,
-            "prop_t_edges": [{
-                "s": double,
-                "d": double,
-                "l": double,
-                "t": double
-                }, ...],
-            "prop_sg_edges": [{
-                "s": double,
-                "d": double,
-                "l": double,
-                "t": double
-                }, ...]
+            "close": double
         }
-        ?"t_edge": {
+        ?"t_edges": [{
             "s": double,
             "d": double,
             "l": double,
             "t": double
-        },
-        ?"sg_edge": {
+            }, ...],
+        ?"sg_edges": [{
             "s": double,
             "d": double,
             "l": double,
             "t": double
-        },
+            }, ...]
     }
     */
     CROW_ROUTE(app_, "/proceed")

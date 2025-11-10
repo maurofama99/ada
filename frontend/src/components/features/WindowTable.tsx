@@ -9,7 +9,7 @@ import {
 import type { Edge } from '@/types/Edge'
 import type { Window } from '@/types/Window'
 
-export function WindowTable({ window }: { window?: Window }) {
+export function WindowTable({ window, edges }: { window?: Window, edges?: Edge[] }) {
     return (
         <div className="h-full flex flex-col">
             <h3 className="text-lg font-semibold p-4 pb-0 flex-shrink-0">Active Window</h3>
@@ -25,7 +25,7 @@ export function WindowTable({ window }: { window?: Window }) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {window ? window.t_edges.slice().reverse().map((row) => (
+                        {edges ? edges.slice().reverse().map((row) => (
                             <TableRow key={"active_" + row.s + "_" + row.d}>
                                 <TableCell>{row.s}</TableCell>
                                 <TableCell>{row.d}</TableCell>

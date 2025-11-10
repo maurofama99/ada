@@ -4,8 +4,10 @@ import type { Edge } from '@/types/Edge'
 import type { Window } from '@/types/Window'
 
 export function useData() {
-    const [edges, setEdges] = useState<Edge[]>([])
+    const [inputEdges, setInputEdges] = useState<Edge[]>([])
     const [window, setWindow] = useState<Window>()
+    const [tEdges, setTEdges] = useState<Edge[]>([])
+    const [sgEdges, setSGEdges] = useState<Edge[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<Error | null>(null)
 
@@ -16,17 +18,17 @@ export function useData() {
 
         try {
             const result = await fetchState()
-            setEdges(prevEdges => [...prevEdges, result.new_edge!])
+            setInputEdges(prevEdges => [...prevEdges, result.new_edge!])
             if (result.active_window) {
                 setWindow(result.active_window!)
-            } else if (window !== undefined) {
-                if (result.t_edge !== undefined) {
-                    setWindow(prevWindow => {
-                        return {
-                            ...prevWindow!,
-                            t_edges: [...prevWindow!.t_edges, result.t_edge!]
-                        }
-                    })
+                setTEdges(result.t_edges || [])
+                setSGEdges(result.sg_edges || [])
+            } else {
+                if (result.t_edges !== undefined && result.t_edges.length > 0) {
+                    setTEdges(prevTEdges => [...prevTEdges, ...result.t_edges!])
+                }
+                if (result.sg_edges !== undefined && result.sg_edges.length > 0) {
+                    setSGEdges(prevSGEdges => [...prevSGEdges, ...result.sg_edges!])
                 }
             }
         } catch (err) {
@@ -37,5 +39,5 @@ export function useData() {
         }
     }
 
-    return { edges, window, isLoading, error, loadData }
+    return { inputEdges, window, tEdges, sgEdges, isLoading, error, loadData }
 }

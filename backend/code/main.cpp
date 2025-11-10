@@ -539,9 +539,8 @@ int main(int argc, char *argv[])
                     curr = curr->next;
                 }
 
-                signalHandler.setNestedResponse(
-                    "active_window",
-                    "prop_t_edges",
+                signalHandler.setResponse(
+                    "t_edges",
                     std::move(temp_t_edges));
 
                 // Snapshot Graph
@@ -564,23 +563,34 @@ int main(int argc, char *argv[])
                     }
                 }
 
-                signalHandler.setNestedResponse(
-                    "active_window",
-                    "prop_sg_edges",
+                signalHandler.setResponse(
+                    "sg_edges",
                     std::move(temp_sg_edges));
             }
         }
         else
         {
-            signalHandler.setNestedResponse("t_edge", "s", static_cast<int64_t>(t_edge->edge_pt->s));
-            signalHandler.setNestedResponse("t_edge", "d", static_cast<int64_t>(t_edge->edge_pt->d));
-            signalHandler.setNestedResponse("t_edge", "l", static_cast<int64_t>(t_edge->edge_pt->label));
-            signalHandler.setNestedResponse("t_edge", "t", static_cast<int64_t>(t_edge->edge_pt->timestamp));
+            std::vector<crow::json::wvalue> temp_t_edges;
+            crow::json::wvalue t_edge_json;
+            t_edge_json["s"] = t_edge->edge_pt->s;
+            t_edge_json["d"] = t_edge->edge_pt->d;
+            t_edge_json["l"] = t_edge->edge_pt->label;
+            t_edge_json["t"] = t_edge->edge_pt->timestamp;
+            temp_t_edges.push_back(std::move(t_edge_json));
+            signalHandler.setResponse(
+                "t_edges",
+                std::move(temp_t_edges));
 
-            signalHandler.setNestedResponse("sg_edge", "s", static_cast<int64_t>(new_sgt->s));
-            signalHandler.setNestedResponse("sg_edge", "d", static_cast<int64_t>(new_sgt->d));
-            signalHandler.setNestedResponse("sg_edge", "l", static_cast<int64_t>(new_sgt->label));
-            signalHandler.setNestedResponse("sg_edge", "t", static_cast<int64_t>(new_sgt->timestamp));
+            std::vector<crow::json::wvalue> temp_sg_edges;
+            crow::json::wvalue sg_edge_json;
+            sg_edge_json["s"] = new_sgt->s;
+            sg_edge_json["d"] = new_sgt->d;
+            sg_edge_json["l"] = new_sgt->label;
+            sg_edge_json["t"] = new_sgt->timestamp;
+            temp_sg_edges.push_back(std::move(sg_edge_json));
+            signalHandler.setResponse(
+                "sg_edges",
+                std::move(temp_sg_edges));
         }
 
         cout << "\nRemaining active windows:\n";

@@ -8,12 +8,40 @@ import { toast, Toaster } from "sonner"
 
 function App() {
   const networkRef = useRef<NetworkHandle>(null);
-  const { edges, window, isLoading, error, loadData } = useData()
+  const { inputEdges, window, tEdges, sgEdges, isLoading, error, loadData } = useData()
   useEffect(() => {
     if (error) {
       toast.error(error.message)
     }
   }, [error])
+
+  useEffect(() => {
+    networkRef.current?.clear();
+    sgEdges.forEach((edge, index) => {
+      networkRef.current?.addNode({ id: "net_" + edge.s, label: edge.s });
+      networkRef.current?.addNode({ id: "net_" + edge.d, label: edge.d });
+      networkRef.current?.addEdge({
+        id: "net_" + edge.s + "_" + edge.d,
+        from: "net_" + edge.s,
+        to: "net_" + edge.d,
+        label: edge.l
+      });
+    });
+  }, [window])
+
+  useEffect(() => {
+    const lastEdge = sgEdges.at(-1);
+    if (lastEdge) {
+      networkRef.current?.addNode({ id: "net_" + lastEdge.s, label: lastEdge.s });
+      networkRef.current?.addNode({ id: "net_" + lastEdge.d, label: lastEdge.d });
+      networkRef.current?.addEdge({
+        id: "net_" + lastEdge.s + "_" + lastEdge.d,
+        from: "net_" + lastEdge.s,
+        to: "net_" + lastEdge.d,
+        label: lastEdge.l
+      });
+    }
+  }, [sgEdges])
 
   return (
     <>
@@ -21,13 +49,13 @@ function App() {
       <div className="flex flex-1 flex-col gap-4 p-4">
         <div className="grid auto-rows-min gap-4 md:grid-cols-3">
           <div className="bg-muted/50 h-[50vh] rounded-xl overflow-hidden">
-            <EdgeTable edges={edges} />
+            <EdgeTable edges={inputEdges} />
           </div>
           <div className="bg-muted/50 h-[50vh] rounded-xl overflow-hidden">
-            <WindowTable window={window} />
+            <WindowTable window={window} edges={tEdges} />
           </div>
           <div className="bg-muted/50 aspect-video rounded-xl">
-            <NetworkGraph />
+            <NetworkGraph ref={networkRef} />
           </div>
         </div>
         <Button onClick={loadData}>Proceed</Button>
