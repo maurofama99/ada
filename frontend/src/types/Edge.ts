@@ -7,10 +7,21 @@ export interface Edge {
 
 function isValidEdge(obj: any): obj is Edge {
     return obj &&
-        typeof obj.s === 'string' &&
-        typeof obj.d === 'string' &&
-        typeof obj.l === 'string' &&
-        typeof obj.t === 'string'
+        's' in obj &&
+        'd' in obj &&
+        'l' in obj &&
+        't' in obj
 }
 
-export { isValidEdge }
+function normalizeEdge(raw: any): Edge | undefined {
+    if (!isValidEdge(raw)) return undefined
+
+    return {
+        s: String(raw.s),
+        d: String(raw.d),
+        l: String(raw.l),
+        t: String(raw.t)
+    }
+}
+
+export { isValidEdge, normalizeEdge }

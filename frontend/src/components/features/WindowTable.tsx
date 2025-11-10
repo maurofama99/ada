@@ -23,7 +23,7 @@ export function WindowTable({ window }: { window?: Window }) {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {window ? window.edges.map((row) => (
+                {window ? window.t_edges.map((row) => (
                     <TableRow key={"active_" + row.s + "_" + row.d}>
                         <TableCell>{row.s}</TableCell>
                         <TableCell>{row.d}</TableCell>

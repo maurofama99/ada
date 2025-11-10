@@ -3,6 +3,8 @@ import type { Window } from '@/types/Window'
 
 
 export interface ApiResponse {
-    new_edge?: Edge
+    new_edge: Edge
     active_window?: Window
+    t_edge?: Edge
+    sg_edge?: Edge
 }

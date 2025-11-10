@@ -16,13 +16,21 @@ export function useData() {
 
         try {
             const result = await fetchState()
-            if (result.new_edge) {
-                setEdges(prevData => [...prevData, result.new_edge!])
-            }
+            setEdges(prevEdges => [...prevEdges, result.new_edge!])
             if (result.active_window) {
                 setWindow(result.active_window!)
+            } else if (window !== undefined) {
+                if (result.t_edge !== undefined) {
+                    setWindow(prevWindow => {
+                        return {
+                            ...prevWindow!,
+                            t_edges: [...prevWindow!.t_edges, result.t_edge!]
+                        }
+                    })
+                }
             }
         } catch (err) {
+            // console.error('Error loading data:', err)
             setError(err as Error)
         } finally {
             setIsLoading(false)

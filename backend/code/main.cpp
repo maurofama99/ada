@@ -539,7 +539,8 @@ int main(int argc, char *argv[])
                     curr = curr->next;
                 }
 
-                signalHandler.setResponse(
+                signalHandler.setNestedResponse(
+                    "active_window",
                     "prop_t_edges",
                     std::move(temp_t_edges));
 
@@ -563,7 +564,8 @@ int main(int argc, char *argv[])
                     }
                 }
 
-                signalHandler.setResponse(
+                signalHandler.setNestedResponse(
+                    "active_window",
                     "prop_sg_edges",
                     std::move(temp_sg_edges));
             }
@@ -581,48 +583,48 @@ int main(int argc, char *argv[])
             signalHandler.setNestedResponse("sg_edge", "t", static_cast<int64_t>(new_sgt->timestamp));
         }
 
-        // cout << "\nRemaining active windows:\n";
-        // for (size_t i = window_offset; i < windows.size(); i++)
-        // {
-        //     if (!windows[i].evicted)
-        //     {
-        //         cout << "  Window [" << i << "]: [" << windows[i].t_open << ", "
-        //              << windows[i].t_close << ") - " << windows[i].elements_count
-        //              << " edges\n";
+        cout << "\nRemaining active windows:\n";
+        for (size_t i = window_offset; i < windows.size(); i++)
+        {
+            if (!windows[i].evicted)
+            {
+                cout << "  Window [" << i << "]: [" << windows[i].t_open << ", "
+                     << windows[i].t_close << ") - " << windows[i].elements_count
+                     << " edges\n";
 
-        //         // Print edges in this window
-        //         if (windows[i].first)
-        //         {
-        //             cout << "    Edges:\n";
-        //             timed_edge *curr = windows[i].first;
-        //             int edge_count = 0;
+                // Print edges in this window
+                if (windows[i].first)
+                {
+                    cout << "    Edges:\n";
+                    timed_edge *curr = windows[i].first;
+                    int edge_count = 0;
 
-        //             while (curr)
-        //             {
-        //                 sg_edge *e = curr->edge_pt;
-        //                 cout << "      [" << (edge_count + 1) << "] "
-        //                      << e->s << " -> " << e->d
-        //                      << " (L:" << e->label
-        //                      << ", T:" << e->timestamp
-        //                      << ", Exp:" << e->expiration_time
-        //                      << ", Lives:" << e->lives << ")\n";
+                    while (curr)
+                    {
+                        sg_edge *e = curr->edge_pt;
+                        cout << "      [" << (edge_count + 1) << "] "
+                             << e->s << " -> " << e->d
+                             << " (L:" << e->label
+                             << ", T:" << e->timestamp
+                             << ", Exp:" << e->expiration_time
+                             << ", Lives:" << e->lives << ")\n";
 
-        //                 // Stop at last edge or when timestamp exceeds window
-        //                 if (curr == windows[i].last || e->timestamp >= windows[i].t_close)
-        //                 {
-        //                     break;
-        //                 }
+                        // Stop at last edge or when timestamp exceeds window
+                        if (curr == windows[i].last || e->timestamp >= windows[i].t_close)
+                        {
+                            break;
+                        }
 
-        //                 curr = curr->next;
-        //                 edge_count++;
-        //             }
-        //         }
-        //         else
-        //         {
-        //             cout << "    No edges (first pointer is null)\n";
-        //         }
-        //     }
-        // }
+                        curr = curr->next;
+                        edge_count++;
+                    }
+                }
+                else
+                {
+                    cout << "    No edges (first pointer is null)\n";
+                }
+            }
+        }
         cout << "=======================================================\n\n";
 
         // if (ADAPTIVE_WINDOW && windows.size()-1 >= adap_count) {
