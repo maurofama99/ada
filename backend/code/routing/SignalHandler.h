@@ -14,13 +14,8 @@ public:
     void start();
     void waitForSignal();
     void stop();
-    void setResponse(std::string key, std::string value);
-
-    template <typename T>
-    void setNestedResponse(const std::string &parentKey, const std::string &childKey, T value)
-    {
-        response_[parentKey][childKey] = std::forward<T>(value);
-    }
+    void setResponse(const std::string &key, crow::json::wvalue value);
+    void setNestedResponse(const std::string &parentKey, const std::string &childKey, crow::json::wvalue value);
 
 private:
     crow::App<crow::CORSHandler> app_;

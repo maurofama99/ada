@@ -3,6 +3,45 @@
 
 SignalHandler::SignalHandler(int port) : port_(port)
 {
+    /*
+    Response of the form:
+    {
+        "new_edge": {
+            "s": double,
+            "d": double,
+            "l": double,
+            "t": double
+        },
+        ?"active_window": {
+            "open": double,
+            "close": double,
+            "prop_t_edges": [{
+                "s": double,
+                "d": double,
+                "l": double,
+                "t": double
+                }, ...],
+            "prop_sg_edges": [{
+                "s": double,
+                "d": double,
+                "l": double,
+                "t": double
+                }, ...]
+        }
+        ?"t_edge": {
+            "s": double,
+            "d": double,
+            "l": double,
+            "t": double
+        },
+        ?"sg_edge": {
+            "s": double,
+            "d": double,
+            "l": double,
+            "t": double
+        },
+    }
+    */
     CROW_ROUTE(app_, "/proceed")
         .methods(crow::HTTPMethod::GET, crow::HTTPMethod::POST)(
             [this]()
@@ -15,7 +54,9 @@ SignalHandler::SignalHandler(int port) : port_(port)
         }
         cv_process_.notify_one();
         cv_process_.wait(lock);
-        return crow::response{200, response_}; });
+        crow::response resp{200, response_};
+        response_.clear();
+        return resp; });
 }
 
 void SignalHandler::start()
@@ -44,7 +85,12 @@ void SignalHandler::stop()
     }
 }
 
-void SignalHandler::setResponse(std::string key, std::string value)
+void SignalHandler::setResponse(const std::string &key, crow::json::wvalue value)
 {
-    response_[key] = value;
+    response_[key] = std::move(value);
+}
+
+void SignalHandler::setNestedResponse(const std::string &parentKey, const std::string &childKey, crow::json::wvalue value)
+{
+    response_[parentKey][childKey] = std::move(value);
 }
