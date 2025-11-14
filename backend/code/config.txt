@@ -1,7 +1,7 @@
 adaptive=0
 input_data_path=../code/dataset/dummy.txt
-size=4830
-slide=4830
+size=6000
+slide=2000
 query_type=2
 labels=2,1
 max_size=5460
