@@ -422,7 +422,6 @@ int main(int argc, char *argv[])
 
             timed_edge *current = evict_start_point;
 
-            std::vector<crow::json::wvalue> temp_e_edges;
             while (current && current != evict_end_point)
             {
 
@@ -438,14 +437,6 @@ int main(int argc, char *argv[])
                     candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
                     sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
                     sg->delete_timed_edge(current);                             // delete from window state store
-                    crow::json::wvalue edge_json;
-
-                    edge_json["s"] = cur_edge->s;
-                    edge_json["d"] = cur_edge->d;
-                    edge_json["l"] = cur_edge->label;
-                    edge_json["t"] = cur_edge->timestamp;
-
-                    temp_e_edges.push_back(std::move(edge_json));
                 }
                 else
                 {
@@ -506,9 +497,6 @@ int main(int argc, char *argv[])
             candidate_for_deletion.clear();
             evict = false;
 
-            signalHandler.setResponse(
-                "e_edges",
-                std::move(temp_e_edges));
             // SOMEBODY GOT EVICTED
             signalHandler.setNestedResponse(
                 "active_window",
@@ -518,6 +506,52 @@ int main(int argc, char *argv[])
                 "active_window",
                 "close",
                 static_cast<int64_t>(windows[window_offset].t_close));
+
+            timed_edge *curr = windows[window_offset].first;
+            std::vector<crow::json::wvalue> temp_t_edges;
+
+            while (curr)
+            {
+                sg_edge *e = curr->edge_pt;
+                crow::json::wvalue edge_json;
+
+                edge_json["s"] = e->s;
+                edge_json["d"] = e->d;
+                edge_json["l"] = e->label;
+                edge_json["t"] = e->timestamp;
+
+                temp_t_edges.push_back(std::move(edge_json));
+
+                curr = curr->next;
+            }
+
+            signalHandler.setResponse(
+                "t_edges",
+                std::move(temp_t_edges));
+
+            // Snapshot Graph
+            std::vector<crow::json::wvalue> temp_sg_edges;
+            for (const auto &[vertex, edges] : sg->adjacency_list)
+            {
+                for (size_t i = 0; i < edges.size(); ++i)
+                {
+                    const auto &[to, edge] = edges[i];
+                    crow::json::wvalue edge_json;
+
+                    edge_json["from"] = vertex;
+                    edge_json["to"] = to;
+                    edge_json["s"] = edge->s;
+                    edge_json["d"] = edge->d;
+                    edge_json["l"] = edge->label;
+                    edge_json["t"] = edge->timestamp;
+
+                    temp_sg_edges.push_back(std::move(edge_json));
+                }
+            }
+
+            signalHandler.setResponse(
+                "sg_edges",
+                std::move(temp_sg_edges));
 
             /*
              * MEMORY PROFILING (https://stackoverflow.com/a/64166)

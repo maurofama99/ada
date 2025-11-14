@@ -27,12 +27,6 @@ SignalHandler::SignalHandler(int port) : port_(port)
             "d": double,
             "l": double,
             "t": double
-            }, ...],
-        ?"e_edges": [{
-            "s": double,
-            "d": double,
-            "l": double,
-            "t": double
             }, ...]
     }
     */
