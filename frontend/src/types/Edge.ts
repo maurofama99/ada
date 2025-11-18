@@ -3,6 +3,7 @@ export interface Edge {
     d: string
     l: string
     t: string
+    lives?: number
 }
 
 function isValidEdge(obj: any): obj is Edge {
@@ -10,7 +11,8 @@ function isValidEdge(obj: any): obj is Edge {
         's' in obj &&
         'd' in obj &&
         'l' in obj &&
-        't' in obj
+        't' in obj &&
+        (!('lives' in obj) || typeof obj.lives === 'number')
 }
 
 function normalizeEdge(raw: any): Edge | undefined {
@@ -20,7 +22,8 @@ function normalizeEdge(raw: any): Edge | undefined {
         s: String(raw.s),
         d: String(raw.d),
         l: String(raw.l),
-        t: String(raw.t)
+        t: String(raw.t),
+        lives: raw.lives !== undefined ? Number(raw.lives) : undefined
     }
 }
 

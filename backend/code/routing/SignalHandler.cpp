@@ -20,19 +20,23 @@ SignalHandler::SignalHandler(int port) : port_(port)
             "s": double,
             "d": double,
             "l": double,
-            "t": double
+            "t": double,
+            "lives": int
             }, ...],
         ?"sg_edges": [{
             "s": double,
             "d": double,
             "l": double,
-            "t": double
+            "t": double,
+            "lives": int
             }, ...],
         ?"results": [{
             "s": double,
             "d": double,
             "t": double
-            }, ...]
+            }, ...],
+        ?"tot_res": int
+
     }
     */
     CROW_ROUTE(app_, "/proceed")

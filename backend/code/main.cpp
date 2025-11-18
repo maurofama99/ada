@@ -344,6 +344,7 @@ int main(int argc, char *argv[])
         t_edge_json["d"] = t_edge->edge_pt->d;
         t_edge_json["l"] = t_edge->edge_pt->label;
         t_edge_json["t"] = t_edge->edge_pt->timestamp;
+        t_edge_json["lives"] = t_edge->edge_pt->lives;
         temp_t_edges.push_back(std::move(t_edge_json));
         signalHandler.setResponse(
             "t_edges",
@@ -355,6 +356,7 @@ int main(int argc, char *argv[])
         sg_edge_json["d"] = new_sgt->d;
         sg_edge_json["l"] = new_sgt->label;
         sg_edge_json["t"] = new_sgt->timestamp;
+        sg_edge_json["lives"] = new_sgt->lives;
         temp_sg_edges.push_back(std::move(sg_edge_json));
         signalHandler.setResponse(
             "sg_edges",
@@ -517,7 +519,6 @@ int main(int argc, char *argv[])
 
             timed_edge *curr = windows[window_offset].first;
             std::vector<crow::json::wvalue> temp_t_edges;
-
             while (curr)
             {
                 sg_edge *e = curr->edge_pt;
@@ -527,12 +528,12 @@ int main(int argc, char *argv[])
                 edge_json["d"] = e->d;
                 edge_json["l"] = e->label;
                 edge_json["t"] = e->timestamp;
+                edge_json["lives"] = e->lives;
 
                 temp_t_edges.push_back(std::move(edge_json));
 
                 curr = curr->next;
             }
-
             signalHandler.setResponse(
                 "t_edges",
                 std::move(temp_t_edges));
@@ -546,17 +547,15 @@ int main(int argc, char *argv[])
                     const auto &[to, edge] = edges[i];
                     crow::json::wvalue edge_json;
 
-                    edge_json["from"] = vertex;
-                    edge_json["to"] = to;
                     edge_json["s"] = edge->s;
                     edge_json["d"] = edge->d;
                     edge_json["l"] = edge->label;
                     edge_json["t"] = edge->timestamp;
+                    edge_json["lives"] = edge->lives;
 
                     temp_sg_edges.push_back(std::move(edge_json));
                 }
             }
-
             signalHandler.setResponse(
                 "sg_edges",
                 std::move(temp_sg_edges));

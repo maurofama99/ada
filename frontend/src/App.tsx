@@ -21,13 +21,7 @@ function App() {
     sgEdges.forEach((edge, index) => {
       networkRef.current?.addNode({ id: "net_" + edge.s, label: edge.s });
       networkRef.current?.addNode({ id: "net_" + edge.d, label: edge.d });
-      networkRef.current?.addEdge({
-        id: "net_" + edge.s + "_" + edge.d,
-        from: "net_" + edge.s,
-        to: "net_" + edge.d,
-        label: edge.l,
-        arrows: "to"
-      });
+      networkRef.current?.addEdge(edge);
     });
   }, [window])
 
@@ -36,13 +30,7 @@ function App() {
     if (lastEdge) {
       networkRef.current?.addNode({ id: "net_" + lastEdge.s, label: lastEdge.s });
       networkRef.current?.addNode({ id: "net_" + lastEdge.d, label: lastEdge.d });
-      networkRef.current?.addEdge({
-        id: "net_" + lastEdge.s + "_" + lastEdge.d,
-        from: "net_" + lastEdge.s,
-        to: "net_" + lastEdge.d,
-        label: lastEdge.l,
-        arrows: "to"
-      });
+      networkRef.current?.addEdge(lastEdge);
     }
   }, [sgEdges])
 
