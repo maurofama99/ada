@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
         {
             t0 = t;
             timestamp = 1;
-            // first_edge = false;
+            first_edge = false;
         }
         else
             timestamp = t - t0;
@@ -276,6 +276,14 @@ int main(int argc, char *argv[])
                 if (windows.empty())
                 {
                     windows.emplace_back(window_open, window_close, nullptr, nullptr);
+                    signalHandler.setNestedResponse(
+                        "active_window",
+                        "open",
+                        static_cast<int64_t>(windows[0].t_open));
+                    signalHandler.setNestedResponse(
+                        "active_window",
+                        "close",
+                        static_cast<int64_t>(windows[0].t_close));
                 }
                 else
                 {
@@ -583,19 +591,6 @@ int main(int argc, char *argv[])
             */
         }
 
-        if (first_edge)
-        {
-            signalHandler.setNestedResponse(
-                "active_window",
-                "open",
-                static_cast<int64_t>(windows[0].t_open));
-            signalHandler.setNestedResponse(
-                "active_window",
-                "close",
-                static_cast<int64_t>(windows[0].t_close));
-            first_edge = false;
-        }
-
         cout << "\nRemaining active windows:\n";
         for (size_t i = window_offset; i < windows.size(); i++)
         {
@@ -673,10 +668,9 @@ int main(int argc, char *argv[])
         signalHandler.setResponse(
             "results",
             std::move(temp_results));
-
         signalHandler.setResponse(
-            "result_count",
-            static_cast<int64_t>(sink->getResultSetSize()));
+            "tot_res",
+            static_cast<int64_t>(sink->matched_paths));
 
         // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,widow_size
         csv_tuples

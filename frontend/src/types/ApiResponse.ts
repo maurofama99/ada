@@ -9,4 +9,5 @@ export interface ApiResponse {
     t_edges?: Edge[]
     sg_edges?: Edge[]
     results?: Result[]
+    tot_res?: number
 }

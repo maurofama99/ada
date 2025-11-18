@@ -37,12 +37,17 @@ export async function fetchState(): Promise<ApiResponse> {
     throw new Error('Invalid results')
   }
 
+  if (raw.tot_res !== undefined && typeof raw.tot_res !== 'number') {
+    throw new Error('Invalid result count')
+  }
+
   const cleanedResponse: ApiResponse = {
     new_edge: normalizeEdge(raw.new_edge)!,
     active_window: normalizeWindow(raw.active_window),
     t_edges: raw.t_edges !== undefined ? raw.t_edges.map(normalizeEdge) : undefined,
     sg_edges: raw.sg_edges !== undefined ? raw.sg_edges.map(normalizeEdge) : undefined,
-    results: raw.results !== undefined ? raw.results.map(normalizeResult) : undefined
+    results: raw.results !== undefined ? raw.results.map(normalizeResult) : undefined,
+    tot_res: raw.tot_res
   }
 
   console.log('Cleaned data:', cleanedResponse)

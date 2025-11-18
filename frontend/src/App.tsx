@@ -9,7 +9,7 @@ import { toast, Toaster } from "sonner"
 
 function App() {
   const networkRef = useRef<NetworkHandle>(null);
-  const { inputEdges, window, tEdges, sgEdges, results, isLoading, error, loadData } = useData()
+  const { inputEdges, window, tEdges, sgEdges, results, totRes, isLoading, error, loadData } = useData()
   useEffect(() => {
     if (error) {
       toast.error(error.message)
@@ -25,7 +25,8 @@ function App() {
         id: "net_" + edge.s + "_" + edge.d,
         from: "net_" + edge.s,
         to: "net_" + edge.d,
-        label: edge.l
+        label: edge.l,
+        arrows: "to"
       });
     });
   }, [window])
@@ -39,7 +40,8 @@ function App() {
         id: "net_" + lastEdge.s + "_" + lastEdge.d,
         from: "net_" + lastEdge.s,
         to: "net_" + lastEdge.d,
-        label: lastEdge.l
+        label: lastEdge.l,
+        arrows: "to"
       });
     }
   }, [sgEdges])
@@ -56,7 +58,7 @@ function App() {
             <WindowTable window={window} edges={tEdges} />
           </div>
           <div className="bg-muted/50 h-[50vh] rounded-xl overflow-hidden">
-            <ResultTable results={results} />
+            <ResultTable results={results} totRes={totRes} />
           </div>
           <div className="bg-muted/50 aspect-video rounded-xl">
             <NetworkGraph ref={networkRef} />
