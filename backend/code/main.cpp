@@ -417,7 +417,7 @@ int main(int argc, char *argv[])
             }
 
             if (last_t_open != windows[to_evict[0]].t_open)
-                sink->refresh_resultSet(windows[to_evict[0]].t_open);
+                sink->refresh_resultSet(to_evict_timestamp);
             last_t_open = windows[to_evict[0]].t_open;
 
             timed_edge *current = evict_start_point;
@@ -645,13 +645,38 @@ int main(int argc, char *argv[])
         /* QUERY */
         query->pattern_matching_tc(new_sgt);
 
-        if (edge_number % checkpoint == 0)
+        // if (edge_number % checkpoint == 0)
+        if (true)
         {
             printf("processed edges: %lld\n", edge_number);
             printf("saved edges: %lld\n", saved_edges);
             printf("avg degree: %f\n", sg->mean);
             cout << "matched paths: " << sink->matched_paths << "\n\n";
         }
+
+        sink->printResultSet();
+
+        std::vector<crow::json::wvalue> temp_results;
+        for (const auto &[source, destinations] : sink->result_set)
+        {
+            for (const auto &destination : destinations)
+            {
+                crow::json::wvalue result_json;
+                result_json["s"] = source;
+                result_json["d"] = destination.destination;
+                result_json["t"] = destination.timestamp;
+
+                temp_results.push_back(std::move(result_json));
+            }
+        }
+
+        signalHandler.setResponse(
+            "results",
+            std::move(temp_results));
+
+        signalHandler.setResponse(
+            "result_count",
+            static_cast<int64_t>(sink->getResultSetSize()));
 
         // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,widow_size
         csv_tuples

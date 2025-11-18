@@ -22,9 +22,8 @@ struct resultHash {
 };
 
 class Sink {
-    std::unordered_map<long long, std::unordered_set<result, resultHash> > result_set;
-
 public:
+    std::unordered_map<long long, std::unordered_set<result, resultHash>> result_set;
     int matched_paths = 0; // patterns matched
 
     // get result set size

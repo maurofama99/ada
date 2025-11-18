@@ -1,6 +1,7 @@
 import { useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { EdgeTable } from "@/components/features/EdgeTable"
+import { ResultTable } from "@/components/features/ResultTable"
 import { useData } from "./hooks/useData"
 import { WindowTable } from "@/components/features/WindowTable"
 import { NetworkGraph, type NetworkHandle } from "@/components/features/NetworkGraph"
@@ -8,7 +9,7 @@ import { toast, Toaster } from "sonner"
 
 function App() {
   const networkRef = useRef<NetworkHandle>(null);
-  const { inputEdges, window, tEdges, sgEdges, isLoading, error, loadData } = useData()
+  const { inputEdges, window, tEdges, sgEdges, results, isLoading, error, loadData } = useData()
   useEffect(() => {
     if (error) {
       toast.error(error.message)
@@ -47,12 +48,15 @@ function App() {
     <>
       <Toaster position="bottom-left" />
       <div className="flex flex-1 flex-col gap-4 p-4">
-        <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+        <div className="grid auto-rows-min gap-4 md:grid-cols-4">
           <div className="bg-muted/50 h-[50vh] rounded-xl overflow-hidden">
             <EdgeTable edges={inputEdges} />
           </div>
           <div className="bg-muted/50 h-[50vh] rounded-xl overflow-hidden">
             <WindowTable window={window} edges={tEdges} />
+          </div>
+          <div className="bg-muted/50 h-[50vh] rounded-xl overflow-hidden">
+            <ResultTable results={results} />
           </div>
           <div className="bg-muted/50 aspect-video rounded-xl">
             <NetworkGraph ref={networkRef} />

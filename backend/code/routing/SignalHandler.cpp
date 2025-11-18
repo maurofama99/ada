@@ -27,6 +27,11 @@ SignalHandler::SignalHandler(int port) : port_(port)
             "d": double,
             "l": double,
             "t": double
+            }, ...],
+        ?"results": [{
+            "s": double,
+            "d": double,
+            "t": double
             }, ...]
     }
     */

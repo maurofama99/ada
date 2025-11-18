@@ -1,5 +1,6 @@
 import type { ApiResponse } from '@/types/ApiResponse'
 import { isValidEdge, normalizeEdge, type Edge } from '@/types/Edge'
+import { isValidResult, normalizeResult } from '@/types/Result'
 import { isValidWindow, normalizeWindow, type Window } from '@/types/Window'
 
 
@@ -32,11 +33,16 @@ export async function fetchState(): Promise<ApiResponse> {
     throw new Error('Invalid sg_edges')
   }
 
+  if (raw.results !== undefined && !Array.isArray(raw.results) && !raw.results.every(isValidResult)) {
+    throw new Error('Invalid results')
+  }
+
   const cleanedResponse: ApiResponse = {
     new_edge: normalizeEdge(raw.new_edge)!,
     active_window: normalizeWindow(raw.active_window),
     t_edges: raw.t_edges !== undefined ? raw.t_edges.map(normalizeEdge) : undefined,
-    sg_edges: raw.sg_edges !== undefined ? raw.sg_edges.map(normalizeEdge) : undefined
+    sg_edges: raw.sg_edges !== undefined ? raw.sg_edges.map(normalizeEdge) : undefined,
+    results: raw.results !== undefined ? raw.results.map(normalizeResult) : undefined
   }
 
   console.log('Cleaned data:', cleanedResponse)
