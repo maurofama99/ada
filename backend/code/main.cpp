@@ -441,11 +441,11 @@ int main(int argc, char *argv[])
                 if (cur_edge->label == first_transition)
                     EINIT_count--;
 
-                if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore)
-                { // if (cur_edge->lives == 1 || (static_cast<double>(rand()) / RAND_MAX) < 0.005)
-                    // check for parent switch before final deletion
-                    candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
-                    sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
+                if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) {
+                    if (cur_edge->timestamp <= to_evict_timestamp) { // check for duplicates
+                        candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // delete from RPQ Forest
+                        sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
+                    }
                     sg->delete_timed_edge(current);                             // delete from window state store
                 }
                 else
