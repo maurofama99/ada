@@ -24,7 +24,7 @@ export function EdgeTable({ edges }: { edges: Edge[] }) {
                     </TableHeader>
                     <TableBody>
                         {edges.slice().reverse().map((row) => (
-                            <TableRow key={"input_" + row.s + "_" + row.d}>
+                            <TableRow key={"input_" + row.s + "_" + row.d + "_" + row.l + "_" + row.t}>
                                 <TableCell>{row.s}</TableCell>
                                 <TableCell>{row.d}</TableCell>
                                 <TableCell>{row.l}</TableCell>

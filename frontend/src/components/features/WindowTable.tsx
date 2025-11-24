@@ -26,7 +26,7 @@ export function WindowTable({ window, edges }: { window?: Window, edges?: Edge[]
                     </TableHeader>
                     <TableBody>
                         {edges ? edges.slice().reverse().map((row) => (
-                            <TableRow key={"active_" + row.s + "_" + row.d} className={row.lives !== undefined && row.lives > 0 ? "" : "text-red-600"}>
+                            <TableRow key={"active_" + row.s + "_" + row.d + "_" + row.l + "_" + row.t} className={row.lives !== undefined && row.lives > 0 ? "" : "text-red-600"}>
                                 <TableCell>{row.s}</TableCell>
                                 <TableCell>{row.d}</TableCell>
                                 <TableCell>{row.l}</TableCell>

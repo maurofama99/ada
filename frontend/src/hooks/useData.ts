@@ -23,10 +23,13 @@ export function useData() {
             const result = await fetchState()
             setInputEdges(prevEdges => [...prevEdges, result.new_edge!])
             if (result.active_window) { //refresh full data on new window
+                console.log("New active window received, refreshing data" + result.sg_edges?.length)
                 setWindow(result.active_window!)
                 setTEdges(result.t_edges || [])
                 setSGEdges(result.sg_edges || [])
+                console.log("buh length: " + sgEdges.length)
             } else { //incremental update on edges
+                console.log("Else")
                 if (result.t_edges !== undefined && result.t_edges.length > 0) {
                     setTEdges(prevTEdges => [...prevTEdges, ...result.t_edges!])
                 }

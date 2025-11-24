@@ -224,26 +224,27 @@ int main(int argc, char *argv[])
     long long s, d, l, t;
     while (fin >> s >> d >> l >> t)
     {
+        cout << "Waiting";
         signalHandler.waitForSignal();
-
-        signalHandler.setNestedResponse("new_edge", "s", static_cast<int64_t>(s));
-        signalHandler.setNestedResponse("new_edge", "d", static_cast<int64_t>(d));
-        signalHandler.setNestedResponse("new_edge", "l", static_cast<int64_t>(l));
-        signalHandler.setNestedResponse("new_edge", "t", static_cast<int64_t>(t));
+        cout << "Triggered";
 
         if (first_edge)
         {
             t0 = t;
-            timestamp = 1;
             first_edge = false;
         }
-        else
-            timestamp = t - t0;
+
+        timestamp = t - t0;
 
         if (timestamp < 0)
             exit(1);
 
         time = timestamp;
+
+        signalHandler.setNestedResponse("new_edge", "s", static_cast<int64_t>(s));
+        signalHandler.setNestedResponse("new_edge", "d", static_cast<int64_t>(d));
+        signalHandler.setNestedResponse("new_edge", "l", static_cast<int64_t>(l));
+        signalHandler.setNestedResponse("new_edge", "t", static_cast<int64_t>(timestamp));
 
         // process the edge if the label is part of the query
         if (!aut->hasLabel(l))
@@ -408,6 +409,7 @@ int main(int argc, char *argv[])
         /* EVICT */
         if (evict)
         {
+            cout << "[DEBUG] Entering eviction block" << endl;
             // to compute window cost, we take the size of the snapshot graph of the window here, since no more elements will be added and it can be considered complete and closed
             std::vector<pair<long long, long long>> candidate_for_deletion;
             timed_edge *evict_start_point = windows[to_evict[0]].first;
@@ -441,15 +443,23 @@ int main(int argc, char *argv[])
                 if (cur_edge->label == first_transition)
                     EINIT_count--;
 
-                if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) {
-                    if (cur_edge->timestamp <= to_evict_timestamp) { // check for duplicates
+                auto z_score_s = sg->get_zscore(cur_edge->s);
+                auto z_score_d = sg->get_zscore(cur_edge->d);
+                auto selected_score = std::max(z_score_s, z_score_d);
+
+                if (selected_score > zscore || cur_edge->lives <= 1)
+                {
+                    cout << "[DEBUG] hot or dying: " << cur_edge->s << "_" << cur_edge->d;
+                    if (cur_edge->timestamp <= to_evict_timestamp)
+                    {                                                                  // check for duplicates
                         candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // delete from RPQ Forest
-                        sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
+                        sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label);    // delete from adjacency list
                     }
-                    sg->delete_timed_edge(current);                             // delete from window state store
+                    sg->delete_timed_edge(current); // delete from window state store
                 }
                 else
                 {
+                    cout << "[DEBUG] not hot" << cur_edge->s << "_" << cur_edge->d;
                     cur_edge->lives--;
                     saved_edges++;
                     /*
@@ -457,25 +467,23 @@ int main(int argc, char *argv[])
                     auto target_window_index = shift < (static_cast<double>(to_evict.back()) + 1) ? (static_cast<double>(to_evict.back()) + 1) : shift;
                     target_window_index > static_cast<double>(last_window_index) ? target_window_index = static_cast<double>(last_window_index) : target_window_index;
                     */
-                    auto z_score_s = sg->get_zscore(cur_edge->s);
-                    auto z_score_d = sg->get_zscore(cur_edge->d);
-                    auto selected_score = z_score_s > z_score_d ? z_score_s : z_score_d;
-                    double raw_shift = static_cast<double>(windows.size() - 1) - std::ceil(selected_score);
 
-                    // define min and max shift bounds based on your data/logic
-                    auto propagation_start = static_cast<double>(size) / static_cast<double>(slide);
-                    propagation_start = ceil(propagation_start / 2);
-                    double min_shift = static_cast<double>(to_evict.back()) + propagation_start;
-                    auto max_shift = static_cast<double>(windows.size() - 1); // or an empirical upper bound
+                    // Target the next window after the eviction point
+                    size_t next_window_index = to_evict.back() + 1;
 
-                    // alpha is your desired max output shift
-                    double resized_shift = normalize_shift(raw_shift, min_shift, max_shift, size / slide);
-
-                    // finally compute the target index
-                    auto target_window_index = std::clamp(min_shift + resized_shift, min_shift, static_cast<double>(windows.size() - 1));
-
-                    sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
-                    windows[target_window_index].elements_count++;
+                    // Bounds check to ensure target window exists
+                    if (next_window_index < windows.size())
+                    {
+                        sg->shift_timed_edge(cur_edge->time_pos, windows[next_window_index].first);
+                        windows[next_window_index].elements_count++;
+                    }
+                    else
+                    {
+                        // No next window available, delete the edge
+                        candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
+                        sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label);
+                        sg->delete_timed_edge(current);
+                    }
                 }
 
                 current = next;
