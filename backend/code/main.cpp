@@ -327,7 +327,9 @@ int main(int argc, char *argv[])
         // insert edge into snapshot graph
         new_sgt = sg->insert_edge(edge_number, s, d, l, time, window_close);
 
-        if (new_sgt->time_pos != nullptr) cout << "duplicate" << endl;
+        if (new_sgt->time_pos != nullptr) {
+            sg->delete_timed_edge(new_sgt->time_pos);
+        }
 
         if (!new_sgt)
         {
