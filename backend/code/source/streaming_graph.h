@@ -17,6 +17,7 @@ struct timed_edge
     timed_edge *next;
     timed_edge *prev; // the two pointers to maintain the double linked list;
     sg_edge *edge_pt; // pointer to the sg edge;
+    bool duplicate = false; // whether this edge is a duplicate edge;
     explicit timed_edge(sg_edge *edge) {
         edge_pt = edge;
         next = nullptr;

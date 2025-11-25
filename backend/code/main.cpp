@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
         new_sgt = sg->insert_edge(edge_number, s, d, l, time, window_close);
 
         if (new_sgt->time_pos != nullptr) {
-            sg->delete_timed_edge(new_sgt->time_pos);
+            new_sgt->time_pos->duplicate = true;
         }
 
         if (!new_sgt)
@@ -445,42 +445,22 @@ int main(int argc, char *argv[])
                 if (cur_edge->label == first_transition)
                     EINIT_count--;
 
-                if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) {
-                    if (cur_edge->timestamp <= to_evict_timestamp) { // check for duplicates
+                if (current->duplicate) sg->delete_timed_edge(current);
+                else {
+                    if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) {
+                        //if (cur_edge->timestamp <= to_evict_timestamp) { // check for duplicates
                         candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // delete from RPQ Forest
                         sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
+                        //}
+                        sg->delete_timed_edge(current);                             // delete from window state store
                     }
-                    sg->delete_timed_edge(current);                             // delete from window state store
-                }
-                else
-                {
-                    cur_edge->lives--;
-                    saved_edges++;
-                    /*
-                    auto shift = static_cast<double>(last_window_index) - std::ceil(sg->get_zscore(cur_edge->s));
-                    auto target_window_index = shift < (static_cast<double>(to_evict.back()) + 1) ? (static_cast<double>(to_evict.back()) + 1) : shift;
-                    target_window_index > static_cast<double>(last_window_index) ? target_window_index = static_cast<double>(last_window_index) : target_window_index;
-
-                    auto z_score_s = sg->get_zscore(cur_edge->s);
-                    auto z_score_d = sg->get_zscore(cur_edge->d);
-                    auto selected_score = z_score_s > z_score_d ? z_score_s : z_score_d;
-                    double raw_shift = static_cast<double>(windows.size() - 1) - std::ceil(selected_score);
-
-                    // define min and max shift bounds based on your data/logic
-                    auto propagation_start = static_cast<double>(size) / static_cast<double>(slide);
-                    propagation_start = ceil(propagation_start / 2);
-                    double min_shift = static_cast<double>(to_evict.back()) + propagation_start;
-                    auto max_shift = static_cast<double>(windows.size() - 1); // or an empirical upper bound
-
-                    // alpha is your desired max output shift
-                    double resized_shift = normalize_shift(raw_shift, min_shift, max_shift, size / slide);
-
-                    // finally compute the target index
-                    auto target_window_index = std::clamp(min_shift + resized_shift, min_shift, static_cast<double>(windows.size() - 1));
-                    */
-
-                    sg->shift_timed_edge(cur_edge->time_pos, windows[windows.size()-1].first);
-                    windows[windows.size()-1].elements_count++;
+                    else
+                    {
+                        cur_edge->lives--;
+                        saved_edges++;
+                        sg->shift_timed_edge(cur_edge->time_pos, windows[windows.size() - 1].first);
+                        windows[windows.size() - 1].elements_count++;
+                    }
                 }
 
                 current = next;
