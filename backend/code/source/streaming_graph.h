@@ -15,8 +15,9 @@ struct timed_edge
 // this is the structure to maintain the time sequence list. It stores the tuples in the stream with time order, each tuple is an edge;
 {
     timed_edge *next;
-    timed_edge *prev; // the two pointers to maintain the double linked list;
-    sg_edge *edge_pt; // pointer to the sg edge;
+    timed_edge *prev;       // the two pointers to maintain the double linked list;
+    sg_edge *edge_pt;       // pointer to the sg edge;
+    bool duplicate = false; // whether this edge is a duplicate edge;
     explicit timed_edge(sg_edge *edge)
     {
         edge_pt = edge;
@@ -273,6 +274,7 @@ public:
                 // if (existing_edge->expiration_time < expiration_time) existing_edge->expiration_time = expiration_time;
                 if (existing_edge->timestamp < timestamp)
                     existing_edge->timestamp = timestamp;
+                existing_edge->lives = 2;
                 return existing_edge;
             }
         }

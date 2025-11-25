@@ -325,8 +325,12 @@ int main(int argc, char *argv[])
         timed_edge *t_edge;
         sg_edge *new_sgt;
 
-        // insert edge into snapshot graph
+        // insert edge into snapshot graph, returns the edge (with updated timestamp)
         new_sgt = sg->insert_edge(edge_number, s, d, l, time, window_close);
+        if (new_sgt->time_pos != nullptr)
+        {
+            new_sgt->time_pos->duplicate = true;
+        }
 
         if (!new_sgt)
         {
@@ -335,7 +339,7 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
-        // add edge to time list
+        // create a new timed edge using the sg_edge
         t_edge = new timed_edge(new_sgt); // associate the timed edge with the snapshot graph edge
         sg->add_timed_edge(t_edge);       // append the element to the time list
 
@@ -443,46 +447,26 @@ int main(int argc, char *argv[])
                 if (cur_edge->label == first_transition)
                     EINIT_count--;
 
-                auto z_score_s = sg->get_zscore(cur_edge->s);
-                auto z_score_d = sg->get_zscore(cur_edge->d);
-                auto selected_score = std::max(z_score_s, z_score_d);
-
-                if (selected_score > zscore || cur_edge->lives <= 1)
-                {
-                    cout << "[DEBUG] hot or dying: " << cur_edge->s << "_" << cur_edge->d;
-                    if (cur_edge->timestamp <= to_evict_timestamp)
-                    {                                                                  // check for duplicates
-                        candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // delete from RPQ Forest
-                        sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label);    // delete from adjacency list
-                    }
-                    sg->delete_timed_edge(current); // delete from window state store
-                }
+                if (current->duplicate)
+                    sg->delete_timed_edge(current);
                 else
                 {
-                    cout << "[DEBUG] not hot" << cur_edge->s << "_" << cur_edge->d;
-                    cur_edge->lives--;
-                    saved_edges++;
-                    /*
-                    auto shift = static_cast<double>(last_window_index) - std::ceil(sg->get_zscore(cur_edge->s));
-                    auto target_window_index = shift < (static_cast<double>(to_evict.back()) + 1) ? (static_cast<double>(to_evict.back()) + 1) : shift;
-                    target_window_index > static_cast<double>(last_window_index) ? target_window_index = static_cast<double>(last_window_index) : target_window_index;
-                    */
-
-                    // Target the next window after the eviction point
-                    size_t next_window_index = to_evict.back() + 1;
-
-                    // Bounds check to ensure target window exists
-                    if (next_window_index < windows.size())
+                    auto z_score_s = sg->get_zscore(cur_edge->s);
+                    auto z_score_d = sg->get_zscore(cur_edge->d);
+                    if (std::max(z_score_s, z_score_d) > zscore || cur_edge->lives <= 1)
                     {
-                        sg->shift_timed_edge(cur_edge->time_pos, windows[next_window_index].first);
-                        windows[next_window_index].elements_count++;
+                        cout << "[DEBUG] hot or dying: " << cur_edge->s << "_" << cur_edge->d << endl;
+                        candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // delete from RPQ Forest
+                        sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label);    // delete from adjacency list
+                        sg->delete_timed_edge(current);                                // delete from window state store
                     }
                     else
                     {
-                        // No next window available, delete the edge
-                        candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
-                        sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label);
-                        sg->delete_timed_edge(current);
+                        cout << "[DEBUG] not hot" << cur_edge->s << "_" << cur_edge->d << endl;
+                        cur_edge->lives--;
+                        saved_edges++;
+                        sg->shift_timed_edge(cur_edge->time_pos, windows[to_evict.back() + 1].first);
+                        windows[to_evict.back() + 1].elements_count++;
                     }
                 }
 
