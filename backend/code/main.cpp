@@ -327,6 +327,8 @@ int main(int argc, char *argv[])
         // insert edge into snapshot graph
         new_sgt = sg->insert_edge(edge_number, s, d, l, time, window_close);
 
+        if (new_sgt->time_pos != nullptr) cout << "duplicate" << endl;
+
         if (!new_sgt)
         {
             // search for the duplicate
@@ -456,7 +458,7 @@ int main(int argc, char *argv[])
                     auto shift = static_cast<double>(last_window_index) - std::ceil(sg->get_zscore(cur_edge->s));
                     auto target_window_index = shift < (static_cast<double>(to_evict.back()) + 1) ? (static_cast<double>(to_evict.back()) + 1) : shift;
                     target_window_index > static_cast<double>(last_window_index) ? target_window_index = static_cast<double>(last_window_index) : target_window_index;
-                    */
+
                     auto z_score_s = sg->get_zscore(cur_edge->s);
                     auto z_score_d = sg->get_zscore(cur_edge->d);
                     auto selected_score = z_score_s > z_score_d ? z_score_s : z_score_d;
@@ -473,9 +475,10 @@ int main(int argc, char *argv[])
 
                     // finally compute the target index
                     auto target_window_index = std::clamp(min_shift + resized_shift, min_shift, static_cast<double>(windows.size() - 1));
+                    */
 
-                    sg->shift_timed_edge(cur_edge->time_pos, windows[target_window_index].first);
-                    windows[target_window_index].elements_count++;
+                    sg->shift_timed_edge(cur_edge->time_pos, windows[windows.size()-1].first);
+                    windows[windows.size()-1].elements_count++;
                 }
 
                 current = next;
