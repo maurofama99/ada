@@ -23,11 +23,11 @@ def generate_config_files(datasets, algorithms, window_slide_pairs, query_label_
                             print(f"Generated {config_filepath}")
 
 def main():
-    algorithms = [0] # 1 adaptive, 0 sliding window
+    algorithms = [1] # 1 adaptive, 0 sliding window
     query_label_pairs = [(4, [3,0,8]), (1, [0]), (5, [3,0,8]), (2, [3,0]), (10, [9,3,0]), (7, [8,9,0])]
     datasets = ["code/dataset/ldbc/social-graph12_14v4_bursted.txt"]
-    window_slide_pairs = [(345600, 21600, 0, 0)]
-    output = "appendix/completeness/ldbc"
+    window_slide_pairs = [(518400, 28800, 518400, 489600), (518400, 28800, 518400, 460800), (518400, 28800, 518400, 432000), (518400, 28800, 518400, 403200), (518400, 28800, 518400, 374400)]
+    output = "appendix/completeness/ldbc_v2"
 
     # 21600, 43200, 64800, 86400, 108000, 194400, 259200, 324000, 388800, 453600, 518400, 583200, 648000, 712800, 777600, 842800, 907200, 972000, 1036800, 1108800, 1180800, 1252800, 1324800, 1396800, 1468800, 1540800, 1612800, 1684800, 1756800, 1828800, 1900800, 1972800
 
