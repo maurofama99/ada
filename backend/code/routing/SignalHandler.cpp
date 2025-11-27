@@ -12,25 +12,25 @@ SignalHandler::SignalHandler(int port) : port_(port)
             "l": double,
             "t": double
         },
-        ?"active_window": {
+        ?"active_window": {     on first edge and eviction
             "open": double,
             "close": double
         }
-        ?"t_edges": [{
+        ?"t_edges": [{          batch on eviction, incremental
             "s": double,
             "d": double,
             "l": double,
             "t": double,
             "lives": int
             }, ...],
-        ?"sg_edges": [{
+        ?"sg_edges": [{         batch on eviction, incremental
             "s": double,
             "d": double,
             "l": double,
             "t": double,
             "lives": int
             }, ...],
-        ?"results": [{
+        ?"results": [{          batch
             "s": double,
             "d": double,
             "t": double

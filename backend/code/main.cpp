@@ -453,7 +453,7 @@ int main(int argc, char *argv[])
                 {
                     auto z_score_s = sg->get_zscore(cur_edge->s);
                     auto z_score_d = sg->get_zscore(cur_edge->d);
-                    if (std::max(z_score_s, z_score_d) > zscore || cur_edge->lives <= 1)
+                    if (std::max(z_score_s, z_score_d) > zscore || cur_edge->lives <= 1 || cur_edge->timestamp < windows[to_evict.back() + 1].t_open - slide)
                     {
                         cout << "[DEBUG] hot or dying: " << cur_edge->s << "_" << cur_edge->d << endl;
                         candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // delete from RPQ Forest
