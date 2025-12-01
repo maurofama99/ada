@@ -27,4 +27,18 @@ function normalizeEdge(raw: any): Edge | undefined {
     }
 }
 
-export { isValidEdge, normalizeEdge }
+function getNodeEdgeIds(edges: Edge[]) {
+    const setNodes = new Set<string>()
+    const setEdges = new Set<string>()
+    edges.forEach(edge => {
+        setNodes.add("net_" + edge.s)
+        setNodes.add("net_" + edge.d)
+        setEdges.add("net_" + edge.s + "_" + edge.d + "_" + edge.l)
+    })
+    return {
+        nodeIds: [...setNodes],
+        edgeIds: [...setEdges]
+    }
+}
+
+export { isValidEdge, normalizeEdge, getNodeEdgeIds }

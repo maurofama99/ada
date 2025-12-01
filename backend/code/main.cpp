@@ -224,26 +224,27 @@ int main(int argc, char *argv[])
     long long s, d, l, t;
     while (fin >> s >> d >> l >> t)
     {
+        cout << "Waiting";
         signalHandler.waitForSignal();
-
-        signalHandler.setNestedResponse("new_edge", "s", static_cast<int64_t>(s));
-        signalHandler.setNestedResponse("new_edge", "d", static_cast<int64_t>(d));
-        signalHandler.setNestedResponse("new_edge", "l", static_cast<int64_t>(l));
-        signalHandler.setNestedResponse("new_edge", "t", static_cast<int64_t>(t));
+        cout << "Triggered";
 
         if (first_edge)
         {
             t0 = t;
-            timestamp = 1;
             first_edge = false;
         }
-        else
-            timestamp = t - t0;
+
+        timestamp = t - t0;
 
         if (timestamp < 0)
             exit(1);
 
         time = timestamp;
+
+        signalHandler.setNestedResponse("new_edge", "s", static_cast<int64_t>(s));
+        signalHandler.setNestedResponse("new_edge", "d", static_cast<int64_t>(d));
+        signalHandler.setNestedResponse("new_edge", "l", static_cast<int64_t>(l));
+        signalHandler.setNestedResponse("new_edge", "t", static_cast<int64_t>(timestamp));
 
         // process the edge if the label is part of the query
         if (!aut->hasLabel(l))
@@ -324,10 +325,10 @@ int main(int argc, char *argv[])
         timed_edge *t_edge;
         sg_edge *new_sgt;
 
-        // insert edge into snapshot graph
+        // insert edge into snapshot graph, returns the edge (with updated timestamp)
         new_sgt = sg->insert_edge(edge_number, s, d, l, time, window_close);
-
-        if (new_sgt->time_pos != nullptr) {
+        if (new_sgt->time_pos != nullptr)
+        {
             new_sgt->time_pos->duplicate = true;
         }
 
@@ -338,7 +339,7 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
-        // add edge to time list
+        // create a new timed edge using the sg_edge
         t_edge = new timed_edge(new_sgt); // associate the timed edge with the snapshot graph edge
         sg->add_timed_edge(t_edge);       // append the element to the time list
 
@@ -412,6 +413,7 @@ int main(int argc, char *argv[])
         /* EVICT */
         if (evict)
         {
+            cout << "[DEBUG] Entering eviction block" << endl;
             // to compute window cost, we take the size of the snapshot graph of the window here, since no more elements will be added and it can be considered complete and closed
             std::vector<pair<long long, long long>> candidate_for_deletion;
             timed_edge *evict_start_point = windows[to_evict[0]].first;
@@ -445,21 +447,26 @@ int main(int argc, char *argv[])
                 if (cur_edge->label == first_transition)
                     EINIT_count--;
 
-                if (current->duplicate) sg->delete_timed_edge(current);
-                else {
-                    if (cur_edge->lives == 1 || sg->get_zscore(cur_edge->s) > zscore || sg->get_zscore(cur_edge->d) > zscore) {
-                        //if (cur_edge->timestamp <= to_evict_timestamp) { // check for duplicates
+                if (current->duplicate)
+                    sg->delete_timed_edge(current);
+                else
+                {
+                    auto z_score_s = sg->get_zscore(cur_edge->s);
+                    auto z_score_d = sg->get_zscore(cur_edge->d);
+                    if (std::max(z_score_s, z_score_d) > zscore || cur_edge->lives <= 1 || cur_edge->timestamp < windows[to_evict.back() + 1].t_open - slide)
+                    {
+                        cout << "[DEBUG] hot or dying: " << cur_edge->s << "_" << cur_edge->d << endl;
                         candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // delete from RPQ Forest
-                        sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
-                        //}
-                        sg->delete_timed_edge(current);                             // delete from window state store
+                        sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label);    // delete from adjacency list
+                        sg->delete_timed_edge(current);                                // delete from window state store
                     }
                     else
                     {
+                        cout << "[DEBUG] not hot" << cur_edge->s << "_" << cur_edge->d << endl;
                         cur_edge->lives--;
                         saved_edges++;
-                        sg->shift_timed_edge(cur_edge->time_pos, windows[windows.size() - 1].first);
-                        windows[windows.size() - 1].elements_count++;
+                        sg->shift_timed_edge(cur_edge->time_pos, windows[to_evict.back() + 1].first);
+                        windows[to_evict.back() + 1].elements_count++;
                     }
                 }
 

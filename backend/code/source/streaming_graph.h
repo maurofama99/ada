@@ -12,13 +12,14 @@ using namespace std;
 class sg_edge;
 
 struct timed_edge
-        // this is the structure to maintain the time sequence list. It stores the tuples in the stream with time order, each tuple is an edge;
+// this is the structure to maintain the time sequence list. It stores the tuples in the stream with time order, each tuple is an edge;
 {
     timed_edge *next;
-    timed_edge *prev; // the two pointers to maintain the double linked list;
-    sg_edge *edge_pt; // pointer to the sg edge;
+    timed_edge *prev;       // the two pointers to maintain the double linked list;
+    sg_edge *edge_pt;       // pointer to the sg edge;
     bool duplicate = false; // whether this edge is a duplicate edge;
-    explicit timed_edge(sg_edge *edge) {
+    explicit timed_edge(sg_edge *edge)
+    {
         edge_pt = edge;
         next = nullptr;
         prev = nullptr;
@@ -32,7 +33,8 @@ struct edge_info // the structure as query result, include all the information o
     long long timestamp;
     long long expiration_time;
     long long id;
-    edge_info(long long src,  long long dst, long long time, long long label_, long long expiration_time_, long long id_) {
+    edge_info(long long src, long long dst, long long time, long long label_, long long expiration_time_, long long id_)
+    {
         s = src;
         d = dst;
         timestamp = time;
@@ -42,7 +44,8 @@ struct edge_info // the structure as query result, include all the information o
     }
 };
 
-class sg_edge {
+class sg_edge
+{
 public:
     long long label;
     long long timestamp;
@@ -52,7 +55,8 @@ public:
     long long id;
     int lives;
 
-    sg_edge(const long long id_, const long long src, const long long dst, const long long label_, const long long time, int lives_, const long long expiration_time_) {
+    sg_edge(const long long id_, const long long src, const long long dst, const long long label_, const long long time, int lives_, const long long expiration_time_)
+    {
         id = id_;
         s = src;
         d = dst;
@@ -64,9 +68,11 @@ public:
     }
 };
 
-struct pair_hash_aj {
+struct pair_hash_aj
+{
     template <class T1, class T2>
-    std::size_t operator()(const std::pair<T1, T2>& p) const {
+    std::size_t operator()(const std::pair<T1, T2> &p) const
+    {
         auto hash1 = std::hash<T1>()(p.first);
         auto hash2 = std::hash<T2>()(p.second);
         return hash1 ^ (hash2 << 1); // Combine the two hash values
@@ -74,75 +80,84 @@ struct pair_hash_aj {
 };
 
 // Custom hash function for std::pair<double, long long>
-struct pair_hash {
-    template<class T1, class T2>
-    std::size_t operator()(const std::pair<T1, T2> &p) const {
+struct pair_hash
+{
+    template <class T1, class T2>
+    std::size_t operator()(const std::pair<T1, T2> &p) const
+    {
         auto hash1 = std::hash<T1>()(p.first);
         auto hash2 = std::hash<T2>()(p.second);
         return hash1 ^ (hash2 << 1); // Combine the two hash values
     }
 };
 
-
-struct replication_rank_element {
+struct replication_rank_element
+{
     long long from;
     long long to;
     long long replication = 0;
     long long timestamp;
 
-    replication_rank_element(long long f, long long t, long long r, long long timestamp) : from(f), to (t), replication(r), timestamp(timestamp) {}
+    replication_rank_element(long long f, long long t, long long r, long long timestamp) : from(f), to(t), replication(r), timestamp(timestamp) {}
 
-    bool operator==(const replication_rank_element &other) const {
+    bool operator==(const replication_rank_element &other) const
+    {
         return from == other.from && to == other.to;
     }
 };
 
-struct replication_comparator {
-    bool operator() (replication_rank_element const &t1, replication_rank_element const &t2) const {
-        return t1.replication>t2.replication;
+struct replication_comparator
+{
+    bool operator()(replication_rank_element const &t1, replication_rank_element const &t2) const
+    {
+        return t1.replication > t2.replication;
     }
 };
 
-struct MemoryEstimatorAdjL {
-    static constexpr size_t ptr_size = sizeof(void*);
-    static constexpr size_t node_overhead = 2 * sizeof(void*); // approx. per unordered_map node
+struct MemoryEstimatorAdjL
+{
+    static constexpr size_t ptr_size = sizeof(void *);
+    static constexpr size_t node_overhead = 2 * sizeof(void *); // approx. per unordered_map node
 
     // size of one sg_edge object
-    static size_t size_of_sg_edge() {
+    static size_t size_of_sg_edge()
+    {
         return sizeof(sg_edge);
     }
 
     // estimate memory for unordered_map<long long, vector<pair<long long, sg_edge*>>>
     static size_t estimate_adjacency_list(
-        const std::unordered_map<long long, std::vector<std::pair<long long, sg_edge*>>>& m)
+        const std::unordered_map<long long, std::vector<std::pair<long long, sg_edge *>>> &m)
     {
         size_t total = 0;
         // bucket array
         total += m.bucket_count() * ptr_size;
 
-        for (const auto& kv : m) {
-            total += sizeof(long long);               // key
-            total += sizeof(std::vector<std::pair<long long, sg_edge*>>); // vector object
-            total += node_overhead;                   // unordered_map node overhead
+        for (const auto &kv : m)
+        {
+            total += sizeof(long long);                                    // key
+            total += sizeof(std::vector<std::pair<long long, sg_edge *>>); // vector object
+            total += node_overhead;                                        // unordered_map node overhead
 
-            const auto& vec = kv.second;
+            const auto &vec = kv.second;
             // vector capacity (not just size!) times element size
-            total += vec.capacity() * sizeof(std::pair<long long, sg_edge*>);
+            total += vec.capacity() * sizeof(std::pair<long long, sg_edge *>);
         }
         return total;
     }
 };
 
-class streaming_graph {
+class streaming_graph
+{
 public:
-    unordered_map<long long, vector<pair<long long, sg_edge *> > > adjacency_list;
+    unordered_map<long long, vector<pair<long long, sg_edge *>>> adjacency_list;
 
-    double edge_num=0; // number of edges in the window
-    long long vertex_num=0; // number of vertices in the window
+    double edge_num = 0;        // number of edges in the window
+    long long vertex_num = 0;   // number of vertices in the window
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
 
-    int lives = 1;
+    int lives = 2;
 
     // Z-score computation
     double mean = 0;
@@ -152,42 +167,54 @@ public:
     unordered_set<long long> high_zscore_vertices;
 
     explicit streaming_graph(double zscore_threshold_)
-        : zscore_threshold(zscore_threshold_) {
+        : zscore_threshold(zscore_threshold_)
+    {
         time_list_head = nullptr;
         time_list_tail = nullptr;
     }
 
-    ~streaming_graph() {
+    ~streaming_graph()
+    {
         // Free memory for all edges in the adjacency list
-        for (auto& [_, edges] : adjacency_list) {
-            for (auto& [_, edge] : edges) {
+        for (auto &[_, edges] : adjacency_list)
+        {
+            for (auto &[_, edge] : edges)
+            {
                 delete edge;
             }
         }
 
         // Free memory for the timed edges list
-        while (time_list_head) {
-            timed_edge* temp = time_list_head;
+        while (time_list_head)
+        {
+            timed_edge *temp = time_list_head;
             time_list_head = time_list_head->next;
             delete temp;
         }
     }
 
-    void update_zscore_tracking(long long vertex) {
+    void update_zscore_tracking(long long vertex)
+    {
         double z = get_zscore(vertex);
-        if (z > zscore_threshold) {
+        if (z > zscore_threshold)
+        {
             high_zscore_vertices.insert(vertex);
-        } else {
+        }
+        else
+        {
             high_zscore_vertices.erase(vertex);
         }
     }
 
     void add_timed_edge(timed_edge *cur) // append an edge to the time sequence list
     {
-        if (!time_list_head) {
+        if (!time_list_head)
+        {
             time_list_head = cur;
             time_list_tail = cur;
-        } else {
+        }
+        else
+        {
             time_list_tail->next = cur;
             cur->prev = time_list_tail;
             time_list_tail = cur;
@@ -199,28 +226,35 @@ public:
         if (!cur)
             return;
 
-        if (cur == time_list_head) {
+        if (cur == time_list_head)
+        {
             time_list_head = cur->next;
             if (time_list_head)
                 time_list_head->prev = nullptr;
         }
 
-        if (cur == time_list_tail) {
+        if (cur == time_list_tail)
+        {
             time_list_tail = cur->prev;
             if (time_list_tail)
                 time_list_tail->next = nullptr;
         }
 
-        if (cur->prev) cur->prev->next = cur->next;
-        if (cur->next) cur->next->prev = cur->prev;
+        if (cur->prev)
+            cur->prev->next = cur->next;
+        if (cur->next)
+            cur->next->prev = cur->prev;
 
         delete cur;
     }
 
-    sg_edge * search_existing_edge(long long from, long long to, long long label) {
+    sg_edge *search_existing_edge(long long from, long long to, long long label)
+    {
 
-        for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
-            if (existing_edge->label == label && to_vertex == to) {
+        for (auto &[to_vertex, existing_edge] : adjacency_list[from])
+        {
+            if (existing_edge->label == label && to_vertex == to)
+            {
                 return existing_edge;
             }
         }
@@ -228,14 +262,19 @@ public:
         return nullptr;
     }
 
-    sg_edge* insert_edge(const long long edge_id, const long long from,  long long to, const long long label, const long long timestamp,
-                         const long long expiration_time) {
+    sg_edge *insert_edge(const long long edge_id, const long long from, long long to, const long long label, const long long timestamp,
+                         const long long expiration_time)
+    {
 
         // Check if the edge already exists in the adjacency list
-        for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
-            if (existing_edge->label == label && to_vertex == to) {
+        for (auto &[to_vertex, existing_edge] : adjacency_list[from])
+        {
+            if (existing_edge->label == label && to_vertex == to)
+            {
                 // if (existing_edge->expiration_time < expiration_time) existing_edge->expiration_time = expiration_time;
-                if (existing_edge->timestamp < timestamp) existing_edge->timestamp = timestamp;
+                if (existing_edge->timestamp < timestamp)
+                    existing_edge->timestamp = timestamp;
+                existing_edge->lives = 2;
                 return existing_edge;
             }
         }
@@ -244,21 +283,25 @@ public:
         auto *edge = new sg_edge(edge_id, from, to, label, timestamp, lives, expiration_time);
 
         // Add the edge to the adjacency list if it doesn't exist
-        if (adjacency_list[from].empty()) {
+        if (adjacency_list[from].empty())
+        {
             vertex_num++;
-            adjacency_list[from] = vector<pair<long long, sg_edge *> >();
+            adjacency_list[from] = vector<pair<long long, sg_edge *>>();
         }
         adjacency_list.at(from).emplace_back(to, edge);
 
         density[from]++;
 
         // update z score
-        if (edge_num == 1) {
+        if (edge_num == 1)
+        {
             // density[to]++;
             // mean = (density[from] + density[to]) / 2;
             mean = density[from];
             m2 = 0;
-        } else {
+        }
+        else
+        {
             double old_mean = mean;
             mean += (density[from] - mean) / vertex_num;
             m2 += (density[from] - old_mean) * (density[from] - mean);
@@ -275,25 +318,30 @@ public:
         return edge;
     }
 
-    bool remove_edge(long long from, long long to, long long label) { // delete an edge from the snapshot graph
+    bool remove_edge(long long from, long long to, long long label)
+    { // delete an edge from the snapshot graph
 
         // Check if the vertex exists in the adjacency list
-        if (adjacency_list[from].empty()) {
+        if (adjacency_list[from].empty())
+        {
             return false; // Edge doesn't exist
         }
 
         auto &edges = adjacency_list[from];
-        for (auto it = edges.begin(); it != edges.end(); ++it) {
+        for (auto it = edges.begin(); it != edges.end(); ++it)
+        {
             sg_edge *edge = it->second;
 
             // Check if this is the edge to remove
-            if (it->first == to && edge->label == label) {
+            if (it->first == to && edge->label == label)
+            {
 
                 // Remove the edge from the adjacency list
                 edges.erase(it);
                 edge_num--;
 
-                if (edges.empty()) {
+                if (edges.empty())
+                {
                     adjacency_list.erase(from);
                     vertex_num--;
                 }
@@ -320,51 +368,64 @@ public:
         return false; // Edge not found
     }
 
-    std::vector<edge_info> get_all_suc(long long s) {
+    std::vector<edge_info> get_all_suc(long long s)
+    {
         std::vector<edge_info> sucs;
-        if (adjacency_list[s].empty()) {
+        if (adjacency_list[s].empty())
+        {
             return sucs; // No outgoing edges for vertex s
         }
 
-        for (const auto &[to, edge]: adjacency_list[s]) {
+        for (const auto &[to, edge] : adjacency_list[s])
+        {
             sucs.emplace_back(s, to, edge->timestamp, edge->label, edge->expiration_time, edge->id);
         }
         return sucs;
     }
 
-    double get_zscore(long long vertex) {
+    double get_zscore(long long vertex)
+    {
         double variance = m2 / edge_num;
         double std_dev = std::sqrt(variance);
 
-        if (std_dev == 0) return 0;
+        if (std_dev == 0)
+            return 0;
 
         return (density[vertex] - mean) / std_dev;
     }
 
-    void shift_timed_edge(timed_edge *to_insert, timed_edge *target) {
-        if (!to_insert || !target) return;
+    void shift_timed_edge(timed_edge *to_insert, timed_edge *target)
+    {
+        if (!to_insert || !target)
+            return;
 
         // Remove to_insert from its current position
-        if (to_insert->prev) to_insert->prev->next = to_insert->next;
-        if (to_insert->next) to_insert->next->prev = to_insert->prev;
-        if (to_insert == time_list_head) time_list_head = to_insert->next;
-        if (to_insert == time_list_tail) time_list_tail = to_insert->prev;
+        if (to_insert->prev)
+            to_insert->prev->next = to_insert->next;
+        if (to_insert->next)
+            to_insert->next->prev = to_insert->prev;
+        if (to_insert == time_list_head)
+            time_list_head = to_insert->next;
+        if (to_insert == time_list_tail)
+            time_list_tail = to_insert->prev;
 
         // Insert to_insert right after target
         to_insert->next = target->next;
         to_insert->prev = target;
-        if (target->next) target->next->prev = to_insert;
+        if (target->next)
+            target->next->prev = to_insert;
         target->next = to_insert;
 
         // Update tail if necessary
-        if (target == time_list_tail) time_list_tail = to_insert;
+        if (target == time_list_tail)
+            time_list_tail = to_insert;
 
         to_insert->edge_pt->expiration_time = target->edge_pt->expiration_time;
         to_insert->edge_pt->timestamp = target->edge_pt->timestamp;
     }
 
-    [[nodiscard]] size_t getUsedMemory() const {
+    [[nodiscard]] size_t getUsedMemory() const
+    {
         return MemoryEstimatorAdjL::estimate_adjacency_list(adjacency_list);
     }
-
 };

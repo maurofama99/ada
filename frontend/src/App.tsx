@@ -17,7 +17,8 @@ function App() {
   }, [error])
 
   useEffect(() => {
-    networkRef.current?.clear();
+    networkRef.current?.refresh(sgEdges);
+    console.log(sgEdges);
     sgEdges.forEach((edge, index) => {
       networkRef.current?.addNode({ id: "net_" + edge.s, label: edge.s });
       networkRef.current?.addNode({ id: "net_" + edge.d, label: edge.d });
