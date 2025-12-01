@@ -36,6 +36,7 @@ typedef struct Config
     std::vector<long long> labels;
     int max_size{};
     int min_size{};
+    int lives{};
 } config;
 
 config readConfig(const std::string &filename)
@@ -71,6 +72,7 @@ config readConfig(const std::string &filename)
     config.max_size = std::stoi(configMap["max_size"]);
     config.min_size = std::stoi(configMap["min_size"]);
     config.query_type = std::stoi(configMap["query_type"]);
+    config.lives = std::stoi(configMap["lives"]);
 
     std::istringstream extraArgsStream(configMap["labels"]);
     std::string arg;
@@ -139,6 +141,7 @@ int main(int argc, char *argv[])
     long long max_size = config.max_size;
     long long min_size = config.min_size;
     long long query_type = config.query_type;
+    int lives = config.lives;
     // TODO: read z-score from config
     double zscore = 2.5;
 
@@ -156,7 +159,7 @@ int main(int argc, char *argv[])
     }
 
     auto *f = new Forest();
-    auto *sg = new streaming_graph(2.5);
+    auto *sg = new streaming_graph(2.5, lives);
     auto *sink = new Sink();
     auto *aut = new FiniteStateAutomaton();
 

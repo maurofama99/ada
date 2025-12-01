@@ -157,7 +157,7 @@ public:
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
 
-    int lives = 2;
+    int lives;
 
     // Z-score computation
     double mean = 0;
@@ -166,8 +166,7 @@ public:
     double zscore_threshold;
     unordered_set<long long> high_zscore_vertices;
 
-    explicit streaming_graph(double zscore_threshold_)
-        : zscore_threshold(zscore_threshold_)
+    explicit streaming_graph(const double zscore_threshold_, const int lives_) : lives(lives_), zscore_threshold(zscore_threshold_)
     {
         time_list_head = nullptr;
         time_list_tail = nullptr;
