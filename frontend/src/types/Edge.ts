@@ -2,8 +2,9 @@ export interface Edge {
     s: string
     d: string
     l: string
-    t: string
+    t: number
     lives?: number
+    t_new?: number
 }
 
 function isValidEdge(obj: any): obj is Edge {
@@ -12,6 +13,7 @@ function isValidEdge(obj: any): obj is Edge {
         'd' in obj &&
         'l' in obj &&
         't' in obj &&
+        typeof obj.t === 'number' &&
         (!('lives' in obj) || typeof obj.lives === 'number')
 }
 
@@ -22,23 +24,9 @@ function normalizeEdge(raw: any): Edge | undefined {
         s: String(raw.s),
         d: String(raw.d),
         l: String(raw.l),
-        t: String(raw.t),
+        t: Number(raw.t),
         lives: raw.lives !== undefined ? Number(raw.lives) : undefined
     }
 }
 
-function getNodeEdgeIds(edges: Edge[]) {
-    const setNodes = new Set<string>()
-    const setEdges = new Set<string>()
-    edges.forEach(edge => {
-        setNodes.add("net_" + edge.s)
-        setNodes.add("net_" + edge.d)
-        setEdges.add("net_" + edge.s + "_" + edge.d + "_" + edge.l)
-    })
-    return {
-        nodeIds: [...setNodes],
-        edgeIds: [...setEdges]
-    }
-}
-
-export { isValidEdge, normalizeEdge, getNodeEdgeIds }
+export { isValidEdge, normalizeEdge }

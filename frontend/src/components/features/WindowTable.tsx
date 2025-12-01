@@ -30,7 +30,7 @@ export function WindowTable({ window, edges }: { window?: Window, edges?: Edge[]
                                 <TableCell>{row.s}</TableCell>
                                 <TableCell>{row.d}</TableCell>
                                 <TableCell>{row.l}</TableCell>
-                                <TableCell>{row.t}</TableCell>
+                                <TableCell>{row.t + (row.t_new ? " -> " + row.t_new : "")}</TableCell>
                             </TableRow>
                         )) : null}
                     </TableBody>

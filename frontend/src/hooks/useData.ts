@@ -25,9 +25,23 @@ export function useData() {
             if (result.active_window) { //refresh full data on new window
                 console.log("New active window received, refreshing data" + result.sg_edges?.length)
                 setWindow(result.active_window!)
-                setTEdges(result.t_edges || [])
                 setSGEdges(result.sg_edges || [])
-                console.log("buh length: " + sgEdges.length)
+
+                const oldMap = new Map();
+                for (const old of tEdges || []) {
+                    oldMap.set(`${old.s}|${old.d}|${old.l}`, old);
+                }
+                for (const e of result.t_edges || []) {
+                    if (e.lives === 1) {
+                        const match = oldMap.get(`${e.s}|${e.d}|${e.l}`)
+                        if (match) {
+                            e.t_new = e.t;
+                            e.t = match?.t;
+                        }
+                    }
+                }
+                result.t_edges?.sort((a, b) => a.t - b.t)
+                setTEdges(result.t_edges || [])
             } else { //incremental update on edges
                 console.log("Else")
                 if (result.t_edges !== undefined && result.t_edges.length > 0) {

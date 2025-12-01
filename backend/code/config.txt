@@ -6,3 +6,4 @@ query_type=2
 labels=2,1
 max_size=5460
 min_size=2100
+lives=2

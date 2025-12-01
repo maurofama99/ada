@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
                     signalHandler.setNestedResponse(
                         "active_window",
                         "open",
-                        static_cast<int64_t>(windows[0].t_open));
+                        static_cast<int64_t>(std::max(windows[0].t_open - ((lives - 1) * slide), 0LL)));
                     signalHandler.setNestedResponse(
                         "active_window",
                         "close",
@@ -506,7 +506,7 @@ int main(int argc, char *argv[])
             signalHandler.setNestedResponse(
                 "active_window",
                 "open",
-                static_cast<int64_t>(windows[window_offset].t_open));
+                static_cast<int64_t>(std::max(windows[window_offset].t_open - ((lives - 1) * slide), 0LL)));
             signalHandler.setNestedResponse(
                 "active_window",
                 "close",
