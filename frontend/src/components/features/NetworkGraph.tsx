@@ -94,7 +94,7 @@ const NetworkGraph = forwardRef<NetworkHandle>((props, ref) => {
         };
     }, []);
 
-    return <div ref={container} style={{ height: '400px' }} />;
+    return <div ref={container} style={{ height: '100%' }} />;
 });
 
 export { NetworkGraph };
