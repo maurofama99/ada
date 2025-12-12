@@ -1,5 +1,6 @@
 import type { ApiResponse } from '@/types/ApiResponse'
 import { isValidEdge, normalizeEdge, type Edge } from '@/types/Edge'
+import { isValidQueryPattern, normalizeQueryPattern } from '@/types/QueryPattern'
 import { isValidResult, normalizeResult } from '@/types/Result'
 import { isValidWindow, normalizeWindow, type Window } from '@/types/Window'
 
@@ -25,6 +26,10 @@ export async function fetchState(): Promise<ApiResponse> {
     throw new Error('Invalid active window')
   }
 
+  if (raw.query_pattern !== undefined && !isValidQueryPattern(raw.query_pattern)) {
+    throw new Error('Invalid query pattern')
+  }
+
   if (raw.t_edges !== undefined && !Array.isArray(raw.t_edges) && !raw.t_edges.every(isValidEdge)) {
     throw new Error('Invalid t_edges')
   }
@@ -44,6 +49,7 @@ export async function fetchState(): Promise<ApiResponse> {
   const cleanedResponse: ApiResponse = {
     new_edge: normalizeEdge(raw.new_edge)!,
     active_window: normalizeWindow(raw.active_window),
+    query_pattern: normalizeQueryPattern(raw.query_pattern),
     t_edges: raw.t_edges !== undefined ? raw.t_edges.map(normalizeEdge) : undefined,
     sg_edges: raw.sg_edges !== undefined ? raw.sg_edges.map(normalizeEdge) : undefined,
     results: raw.results !== undefined ? raw.results.map(normalizeResult) : undefined,

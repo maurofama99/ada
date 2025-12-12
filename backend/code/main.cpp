@@ -277,9 +277,55 @@ int main(int argc, char *argv[])
 
             if (new_window)
             {
-                if (windows.empty())
+                if (windows.empty()) // Very first window, init signals
                 {
                     windows.emplace_back(window_open, window_close, nullptr, nullptr);
+
+                    crow::json::wvalue query_pattern;
+                    std::string pattern_notation;
+                    switch (query_type)
+                    {
+                    case 1:
+                        pattern_notation = "a+";
+                        break;
+                    case 2:
+                        pattern_notation = "ab*";
+                        break;
+                    case 3:
+                        pattern_notation = "ab*c*";
+                        break;
+                    case 4:
+                        pattern_notation = "(abc)+";
+                        break;
+                    case 5:
+                        pattern_notation = "ab*c";
+                        break;
+                    case 6:
+                        pattern_notation = "a*b*";
+                        break;
+                    case 7:
+                        pattern_notation = "abc*";
+                        break;
+                    case 10:
+                        pattern_notation = "(a|b)c*";
+                        break;
+                    default:
+                        pattern_notation = "unknown";
+                        break;
+                    }
+                    query_pattern["pattern"] = pattern_notation;
+                    std::string mapping;
+                    const std::vector<char> symbols = {'a', 'b', 'c'};
+                    for (size_t i = 0; i < config.labels.size() && i < symbols.size(); i++)
+                    {
+                        if (i > 0)
+                            mapping += ", ";
+                        mapping += symbols[i];
+                        mapping += "=";
+                        mapping += std::to_string(config.labels[i]);
+                    }
+                    query_pattern["mapping"] = mapping;
+                    signalHandler.setResponse("query_pattern", std::move(query_pattern));
                     signalHandler.setNestedResponse(
                         "active_window",
                         "open",

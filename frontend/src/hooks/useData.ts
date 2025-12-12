@@ -3,10 +3,12 @@ import { fetchState } from '@/services/services'
 import type { Edge } from '@/types/Edge'
 import type { Window } from '@/types/Window'
 import type { Result } from '@/types/Result'
+import type { QueryPattern } from '@/types/QueryPattern'
 
 export function useData() {
     const [inputEdges, setInputEdges] = useState<Edge[]>([])
     const [window, setWindow] = useState<Window>()
+    const [queryPattern, setQueryPattern] = useState<QueryPattern>()
     const [tEdges, setTEdges] = useState<Edge[]>([])
     const [sgEdges, setSGEdges] = useState<Edge[]>([])
     const [results, setResults] = useState<Result[]>([])
@@ -51,6 +53,9 @@ export function useData() {
                     setSGEdges(prevSGEdges => [...prevSGEdges, ...result.sg_edges!])
                 }
             }
+            if (result.query_pattern !== undefined) {
+                setQueryPattern(result.query_pattern)
+            }
             if (result.tot_res !== undefined) {
                 setTotRes(result.tot_res)
             }
@@ -65,5 +70,5 @@ export function useData() {
         }
     }
 
-    return { inputEdges, window, tEdges, sgEdges, results, totRes, isLoading, error, loadData }
+    return { inputEdges, window, queryPattern, tEdges, sgEdges, results, totRes, isLoading, error, loadData }
 }

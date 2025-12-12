@@ -15,7 +15,11 @@ SignalHandler::SignalHandler(int port) : port_(port)
         ?"active_window": {     on first edge and eviction
             "open": double,
             "close": double
-        }
+        },
+        ?"query_pattern": {     on first edge
+            "pattern": string,
+            "mapping": string
+        },
         ?"t_edges": [{          batch on eviction, incremental
             "s": double,
             "d": double,

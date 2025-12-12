@@ -9,7 +9,7 @@ import { toast, Toaster } from "sonner"
 
 function App() {
   const networkRef = useRef<NetworkHandle>(null);
-  const { inputEdges, window, tEdges, sgEdges, results, totRes, isLoading, error, loadData } = useData()
+  const { inputEdges, window, queryPattern, tEdges, sgEdges, results, totRes, isLoading, error, loadData } = useData()
   useEffect(() => {
     if (error) {
       toast.error(error.message)
@@ -42,7 +42,7 @@ function App() {
         <div className="bg-muted/50 min-h-min rounded-xl p-4 flex items-center justify-between overflow-hidden">
           <div className="flex flex-col w-max">
             <div className="">Approximate RPQ Demo</div>
-            <div className="text-sm opacity-50">Query pattern: TODO</div>
+            <div className="text-sm opacity-50">Query pattern: ({queryPattern?.pattern} : {queryPattern?.mapping})</div>
           </div>
           <div className="flex gap-2">
             <Button className="font-bold" onClick={loadData}>Step</Button>
