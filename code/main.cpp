@@ -386,13 +386,6 @@ int main(int argc, char *argv[]) {
                 }
                 cost = n / max_deg;
 
-                normalization_window.push_back(cost);
-                if (normalization_window.size() > overlap*922337203685470)
-                    normalization_window.pop_front();
-
-                cost_max = *std::max_element(normalization_window.begin(), normalization_window.end());
-                cost_min = *std::min_element(normalization_window.begin(), normalization_window.end());
-
                 if (cost > cost_max) cost_max = cost;
                 if (cost < cost_min) cost_min = cost;
                 cost_norm = (cost - cost_min) / (cost_max - cost_min);
@@ -467,6 +460,12 @@ int main(int argc, char *argv[]) {
             printf("avg degree: %f\n", sg->mean);
             cout << "matched paths: " << sink->matched_paths << "\n\n";
         }
+
+        // sg->printGraph();
+
+        // f->printForest();
+
+        // cout << "============================" << endl;
 
         // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,window_size
         csv_tuples

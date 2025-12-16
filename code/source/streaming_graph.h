@@ -366,4 +366,35 @@ public:
         return MemoryEstimatorAdjL::estimate_adjacency_list(adjacency_list);
     }
 
+void printGraph() const {
+    if (adjacency_list.empty()) {
+        std::cout << "╔════════════════╗\n";
+        std::cout << "║ Empty Graph    ║\n";
+        std::cout << "╚════════════════╝\n";
+        return;
+    }
+
+    std::cout << "╔════════════════════════════════════════╗\n";
+    std::cout << "║ Graph Statistics                       ║\n";
+    std::cout << "╠════════════════════════════════════════╣\n";
+    std::cout << "║ Vertices: " << vertex_num << std::string(29 - std::to_string(vertex_num).length(), ' ') << "║\n";
+    std::cout << "║ Edges: " << static_cast<long long>(edge_num) << std::string(32 - std::to_string(static_cast<long long>(edge_num)).length(), ' ') << "║\n";
+    std::cout << "╚════════════════════════════════════════╝\n\n";
+
+    for (const auto& [from, edges] : adjacency_list) {
+        std::cout << "Vertex " << from;
+
+        for (size_t i = 0; i < edges.size(); ++i) {
+            const auto& [to, edge] = edges[i];
+            bool isLast = (i == edges.size() - 1);
+
+            std::cout << (isLast ? "└──" : "├──") << "→ " << to;
+            std::cout << " [label:" << edge->label
+                      << " ts:" << edge->timestamp << "]\n";
+        }
+        std::cout << "\n";
+    }
+}
+
+
 };

@@ -362,26 +362,49 @@ public:
         treesToDelete.clear();
     }
 
-    void printTree(Node *node, long long depth = 0) const {
+    void printTree(Node *node, const std::string& prefix = "", bool isLast = true) const {
         if (!node) return;
-        for (long long i = 0; i < depth; ++i) std::cout << "  ";
-        std::cout << "Node (id: " << node->id << ", vertex: " << node->vertex << ", state: " << node->state << ")\n";
-        for (Node *child: node->children) {
-            printTree(child, depth + 1);
+
+        std::cout << prefix;
+        std::cout << (isLast ? "└── " : "├── ");
+        std::cout << "v:" << node->vertex << ", s:" << node->state << ", ts: " << !node->isRoot ? 0: node->timestamp;
+        if (node->isRoot) std::cout << " ROOT";
+        if (!node->isValid) std::cout << " INVALID";
+        std::cout << ")\n";
+
+        std::string childPrefix = prefix + (isLast ? "    " : "│   ");
+
+        for (size_t i = 0; i < node->children.size(); ++i) {
+            bool lastChild = (i == node->children.size() - 1);
+            printTree(node->children[i], childPrefix, lastChild);
         }
     }
 
     void printForest() const {
         if (trees.empty()) {
-            std::cout << "Empty forest\n";
+            std::cout << "╔════════════════╗\n";
+            std::cout << "║ Empty Forest   ║\n";
+            std::cout << "╚════════════════╝\n";
             return;
         }
+
+        std::cout << "╔════════════════════════════════════════╗\n";
+        std::cout << "║ Forest Statistics                      ║\n";
+        std::cout << "╠════════════════════════════════════════╣\n";
+        std::cout << "║ Trees: " << trees_count << std::string(32 - std::to_string(trees_count).length(), ' ') << "║\n";
+        std::cout << "║ Nodes: " << node_count << std::string(32 - std::to_string(node_count).length(), ' ') << "║\n";
+        std::cout << "╚════════════════════════════════════════╝\n\n";
+
+        size_t treeIndex = 0;
         for (const auto &pair: trees) {
-            std::cout << "Tree with root vertex: " << pair.first << "\n";
+            std::cout << "Tree #" << ++treeIndex << " [Root Vertex: " << pair.first << "]";
+            if (pair.second.expired) std::cout << " (EXPIRED)";
+            std::cout << "\n";
             printTree(pair.second.rootNode);
-            std::cout << std::endl;
+            std::cout << "\n";
         }
     }
+
 
     [[nodiscard]] size_t getUsedMemory() const {
         size_t total = 0;
