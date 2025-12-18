@@ -29,8 +29,8 @@
 List::List(int _M):M(_M)
 {
   // post: initializes the list to be empty.  
-  head = NULL;
-  tail = NULL;
+  head = nullptr;
+  tail = nullptr;
   count = 0;
   addToHead();  
 }
@@ -39,7 +39,7 @@ List::List(int _M):M(_M)
 
 List::~List()
 {
-  while (head != NULL) removeFromHead();  
+  while (head != nullptr) removeFromHead();
 }
 
 ////////////////////////////////////////////////////////////////////////////////  

@@ -1,5 +1,5 @@
 adaptive=0
-input_data_path=code/dataset/dummy.txt
+input_data_path=code/dataset/higgs-activity/higgs-activity_time_postprocess.txt
 size=10
 slide=10
 query_type=2

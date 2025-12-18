@@ -367,7 +367,7 @@ public:
 
         std::cout << prefix;
         std::cout << (isLast ? "└── " : "├── ");
-        std::cout << "v:" << node->vertex << ", s:" << node->state << ", ts: " << !node->isRoot ? 0: node->timestamp;
+        std::cout << "v:" << node->vertex << ", s:" << node->state << ", ts: " << (node->isRoot ? node->timestamp : 0);
         if (node->isRoot) std::cout << " ROOT";
         if (!node->isValid) std::cout << " INVALID";
         std::cout << ")\n";

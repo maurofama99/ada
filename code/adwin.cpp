@@ -4,8 +4,6 @@
 #include <cstdlib>
 #include <fstream>
 #include <filesystem>
-#include <cmath>
-#include <algorithm>
 #include <sstream>
 #include <numeric>
 
@@ -75,6 +73,35 @@ config readConfig(const std::string &filename) {
     return config;
 }
 
+class window {
+public:
+    long long t_open;
+    long long t_close;
+    timed_edge *first;
+    timed_edge *last;
+    bool evicted = false;
+    clock_t start_time; // start time of the window
+    double latency = 0.0; // latency of the window
+    double normalized_latency = 0.0; // normalized latency of the window
+
+    double max_degree = 0.0;
+
+    long long elements_count = 0;
+    int window_matches = 0;
+
+    int total_matched_results = 0;
+    int emitted_results = 0;
+
+    // Constructor
+    window(long long t_open, long long t_close, timed_edge *first, timed_edge *last) {
+        this->t_open = t_open;
+        this->t_close = t_close;
+        this->first = first;
+        this->last = last;
+        this->start_time = clock();
+    }
+};
+
 int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels);
 
 int main(int argc, char *argv[]) {
@@ -119,8 +146,6 @@ int main(int argc, char *argv[]) {
 
     auto query = new QueryHandler(*aut, *f, *sg, *sink); // Density-based Retention
 
-    int total_elements_count = 0;
-
     long long t0 = 0;
     long long edge_number = 0;
     long long time;
@@ -130,14 +155,18 @@ int main(int argc, char *argv[]) {
     long long checkpoint = 1000000;
 
     vector<long long> node_count;
+    vector<window> windows;
+    windows.emplace_back(0, 0, nullptr, nullptr);
 
     std::string mode = config.adaptive ? "ad" : "sl";
     bool ADAPTIVE_WINDOW = config.adaptive > 0;
-    double avg_size = 0;
     int EINIT_count = 0;
     double cost = 0;
     int window_cardinality = 0;
     double max_deg = 1;
+    double cost_max = 0.0;
+    double cost_min = 922337203685470;
+    double cost_norm;
 
     std::ofstream csv_summary(data_folder + "_summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
@@ -153,8 +182,10 @@ int main(int argc, char *argv[]) {
 
     int maxBuckets = 5;
     Adwin adwin(maxBuckets);
+    int resizings = 0;
 
     clock_t start = clock();
+    windows[0].start_time = clock();
     long long s, d, l, t;
     while (fin >> s >> d >> l >> t) {
         if (t0 == 0) {
@@ -171,6 +202,7 @@ int main(int argc, char *argv[]) {
         edge_number++;
         if (l == first_transition) EINIT_count++;
         window_cardinality++;
+        windows[resizings].elements_count++;
 
         timed_edge *t_edge;
         sg_edge *new_sgt;
@@ -196,8 +228,20 @@ int main(int argc, char *argv[]) {
             n += sg->edge_num - i;
         }
         cost = n / max_deg;
+        if (cost > cost_max) cost_max = cost;
+        if (cost < cost_min) cost_min = cost;
+        cost_norm = (cost - cost_min) / (cost_max - cost_min);
 
         if (adwin.update(cost)) { // drift detected
+            cout << "\n>>> DRIFT DETECTED "<< endl;
+            cout << "    Current estimation: " << adwin.getEstimation() << endl;
+            cout << "    Window length: " << adwin.length() << endl;
+            windows[resizings].t_close = time;
+            windows[resizings].latency = static_cast<double>(clock() - windows[resizings].start_time) / CLOCKS_PER_SEC;
+            windows[resizings].total_matched_results = sink->matched_paths;
+            windows[resizings].emitted_results = sink->getResultSetSize();
+            resizings++;
+            windows.emplace_back(time, time, nullptr, nullptr);
             timed_edge *current = sg->time_list_head;
             std::vector<pair<long long, long long> > candidate_for_deletion;
 
@@ -230,6 +274,7 @@ int main(int argc, char *argv[]) {
                 current = next;
             }
 
+            sink->refresh_resultSet(sg->time_list_head->edge_pt->timestamp);
             f->expire_timestamped(sg->time_list_head->edge_pt->timestamp, candidate_for_deletion);
             candidate_for_deletion.clear();
         }
@@ -251,21 +296,25 @@ int main(int argc, char *argv[]) {
 
         // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,window_size
         csv_tuples
-            << cost << endl;
+            << cost << ","
+            << cost_norm << ","
+            << windows[resizings].latency << ","
+            << 0 << ","
+            << windows[resizings].elements_count << ","
+            << windows[resizings].t_close - windows[resizings].t_open << endl;
     }
 
     clock_t finish = clock();
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
 
-    double avg_window_size =
+    double avg_window_size = static_cast<double>(edge_number) / windows.size();
 
     csv_summary
         <<  edge_number << ","
         <<  sink->matched_paths << ","
         <<  time_used << ","
         <<  windows.size() << ","
-        <<  avg_window_size << ","
-        <<  avg_size << "\n";
+        <<  avg_window_size << "\n";
 
     // index,t_open,t_close,window_results,incremental_matches,latency,window_cardinality,window_size
     for (size_t i = 0; i < windows.size(); ++i) {

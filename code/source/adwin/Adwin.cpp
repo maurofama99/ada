@@ -32,7 +32,7 @@ static int bucketSize(int Row)
    
 ////////////////////////////////////////////////////////////////////////////////
 
-Adwin::Adwin(int M):MINTCLOCK(1),MINLENGTHWINDOW(100),DELTA(.01),MAXBUCKETS(M),bucketList(MAXBUCKETS)
+Adwin::Adwin(int M):MINTCLOCK(1),MINLENGTHWINDOW(1000),DELTA(.01),MAXBUCKETS(M),bucketList(MAXBUCKETS)
 {
   mintTime=0;
   mintClock=MINTCLOCK;
