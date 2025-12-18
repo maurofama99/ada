@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
     long long min_size = config.min_size;
     long long query_type = config.query_type;
 
-    fs::path data_path = exe_dir / config.input_data_path;
+    fs::path data_path = fs::current_path() / config.input_data_path;
     std::string data_folder = data_path.parent_path().filename().string();
     data_path = fs::absolute(data_path).lexically_normal();
 
@@ -152,7 +152,7 @@ int main(int argc, char *argv[]) {
     long long timestamp;
 
     // long long checkpoint = 9223372036854775807L;
-    long long checkpoint = 1000000;
+    long long checkpoint = 1000;
 
     vector<long long> node_count;
     vector<window> windows;
@@ -168,19 +168,19 @@ int main(int argc, char *argv[]) {
     double cost_min = 922337203685470;
     double cost_norm;
 
-    std::ofstream csv_summary(data_folder + "_summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
+    std::ofstream csv_summary(data_folder + "_summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + "3" + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
 
-    std::ofstream csv_windows(data_folder + "_window_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
+    std::ofstream csv_windows(data_folder + "_window_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + "3" + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_windows << "index,t_open,t_close,window_results,incremental_matches,latency,window_cardinality,window_size\n";
 
-    std::ofstream csv_tuples(data_folder + "_tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
+    std::ofstream csv_tuples(data_folder + "_tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + "3" + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_tuples << "estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,window_size\n";
 
-    std::ofstream csv_memory(data_folder + "_memory_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
+    std::ofstream csv_memory(data_folder + "_memory_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + "3" + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_memory << "tot_virtual,used_virtual,tot_ram,used_ram,data_mem\n";
 
-    int maxBuckets = 5;
+    int maxBuckets = 2;
     Adwin adwin(maxBuckets);
     int resizings = 0;
 
@@ -232,7 +232,8 @@ int main(int argc, char *argv[]) {
         if (cost < cost_min) cost_min = cost;
         cost_norm = (cost - cost_min) / (cost_max - cost_min);
 
-        if (adwin.update(cost)) { // drift detected
+        // if (adwin.update(cost)) { // drift detected
+        if (adwin.update(sg->density[new_sgt->s])) {
             cout << "\n>>> DRIFT DETECTED "<< endl;
             cout << "    Current estimation: " << adwin.getEstimation() << endl;
             cout << "    Window length: " << adwin.length() << endl;

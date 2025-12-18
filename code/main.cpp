@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
     long long min_size = config.min_size;
     long long query_type = config.query_type;
 
-    fs::path data_path = exe_dir / config.input_data_path;
+    fs::path data_path = fs::current_path() / config.input_data_path;
     std::string data_folder = data_path.parent_path().filename().string();
     data_path = fs::absolute(data_path).lexically_normal();
 
@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
     long long last_t_open = -1;
 
     // long long checkpoint = 9223372036854775807L;
-    long long checkpoint = 1000000;
+    long long checkpoint = 100;
 
     vector<long long> node_count;
     long long saved_edges = 0;

@@ -25,6 +25,8 @@
 #include <math.h>
 #include "Adwin.h"
 
+#include <iostream>
+
 static int bucketSize(int Row)
 {
   return (int) pow(2,Row);
@@ -32,7 +34,12 @@ static int bucketSize(int Row)
    
 ////////////////////////////////////////////////////////////////////////////////
 
-Adwin::Adwin(int M):MINTCLOCK(1),MINLENGTHWINDOW(1000),DELTA(.01),MAXBUCKETS(M),bucketList(MAXBUCKETS)
+Adwin:: Adwin(int M)
+  : MINTCLOCK(1),
+   MINLENGTHWINDOW(10000),
+   DELTA(0.3),
+   MAXBUCKETS(M),
+   bucketList(MAXBUCKETS)
 {
   mintTime=0;
   mintClock=MINTCLOCK;
