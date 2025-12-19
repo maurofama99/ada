@@ -179,9 +179,9 @@ int main(int argc, char *argv[]) {
 
     std::ofstream csv_memory(data_folder + "_memory_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" + std::to_string(slide) + "_" + "3" + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_memory << "tot_virtual,used_virtual,tot_ram,used_ram,data_mem\n";
-
     int maxBuckets = 2;
     Adwin adwin(maxBuckets);
+
     int resizings = 0;
 
     clock_t start = clock();
