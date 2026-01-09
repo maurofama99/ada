@@ -1,4 +1,4 @@
-#include "crow.h"
+// #include "crow.h"
 #include <vector>
 #include <string>
 #include <ctime>
@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <sstream>
 #include <numeric>
-#include "SignalHandler.h"
+// #include "SignalHandler.h"
 
 #define MEMORY_PROFILER false
 
@@ -127,8 +127,8 @@ int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vecto
 
 int main(int argc, char *argv[])
 {
-    SignalHandler signalHandler(18080);
-    signalHandler.start();
+    // SignalHandler signalHandler(18080);
+    // signalHandler.start();
 
     fs::path exe_path = fs::canonical(fs::absolute(argv[0]));
     fs::path exe_dir = exe_path.parent_path();
@@ -227,9 +227,9 @@ int main(int argc, char *argv[])
     long long s, d, l, t;
     while (fin >> s >> d >> l >> t)
     {
-        cout << "Waiting";
-        signalHandler.waitForSignal();
-        cout << "Triggered";
+        // cout << "Waiting";
+        // signalHandler.waitForSignal();
+        // cout << "Triggered";
 
         if (first_edge)
         {
@@ -244,10 +244,10 @@ int main(int argc, char *argv[])
 
         time = timestamp;
 
-        signalHandler.setNestedResponse("new_edge", "s", static_cast<int64_t>(s));
-        signalHandler.setNestedResponse("new_edge", "d", static_cast<int64_t>(d));
-        signalHandler.setNestedResponse("new_edge", "l", static_cast<int64_t>(l));
-        signalHandler.setNestedResponse("new_edge", "t", static_cast<int64_t>(timestamp));
+        // signalHandler.setNestedResponse("new_edge", "s", static_cast<int64_t>(s));
+        // signalHandler.setNestedResponse("new_edge", "d", static_cast<int64_t>(d));
+        // signalHandler.setNestedResponse("new_edge", "l", static_cast<int64_t>(l));
+        // signalHandler.setNestedResponse("new_edge", "t", static_cast<int64_t>(timestamp));
 
         // process the edge if the label is part of the query
         if (!aut->hasLabel(l))
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
                 {
                     windows.emplace_back(window_open, window_close, nullptr, nullptr);
 
-                    crow::json::wvalue query_pattern;
+                    // crow::json::wvalue query_pattern;
                     std::string pattern_notation;
                     switch (query_type)
                     {
@@ -313,27 +313,27 @@ int main(int argc, char *argv[])
                         pattern_notation = "unknown";
                         break;
                     }
-                    query_pattern["pattern"] = pattern_notation;
-                    std::string mapping;
-                    const std::vector<char> symbols = {'a', 'b', 'c'};
-                    for (size_t i = 0; i < config.labels.size() && i < symbols.size(); i++)
-                    {
-                        if (i > 0)
-                            mapping += ", ";
-                        mapping += symbols[i];
-                        mapping += "=";
-                        mapping += std::to_string(config.labels[i]);
-                    }
-                    query_pattern["mapping"] = mapping;
-                    signalHandler.setResponse("query_pattern", std::move(query_pattern));
-                    signalHandler.setNestedResponse(
-                        "active_window",
-                        "open",
-                        static_cast<int64_t>(std::max(windows[0].t_open - ((lives - 1) * slide), 0LL)));
-                    signalHandler.setNestedResponse(
-                        "active_window",
-                        "close",
-                        static_cast<int64_t>(windows[0].t_close));
+                    // query_pattern["pattern"] = pattern_notation;
+                    // std::string mapping;
+                    // const std::vector<char> symbols = {'a', 'b', 'c'};
+                    // for (size_t i = 0; i < config.labels.size() && i < symbols.size(); i++)
+                    // {
+                    //     if (i > 0)
+                    //         mapping += ", ";
+                    //     mapping += symbols[i];
+                    //     mapping += "=";
+                    //     mapping += std::to_string(config.labels[i]);
+                    // }
+                    // query_pattern["mapping"] = mapping;
+                    // signalHandler.setResponse("query_pattern", std::move(query_pattern));
+                    // signalHandler.setNestedResponse(
+                    //     "active_window",
+                    //     "open",
+                    //     static_cast<int64_t>(std::max(windows[0].t_open - ((lives - 1) * slide), 0LL)));
+                    // signalHandler.setNestedResponse(
+                    //     "active_window",
+                    //     "close",
+                    //     static_cast<int64_t>(windows[0].t_close));
                 }
                 else
                 {
@@ -392,29 +392,29 @@ int main(int argc, char *argv[])
         t_edge = new timed_edge(new_sgt); // associate the timed edge with the snapshot graph edge
         sg->add_timed_edge(t_edge);       // append the element to the time list
 
-        std::vector<crow::json::wvalue> temp_t_edges;
-        crow::json::wvalue t_edge_json;
-        t_edge_json["s"] = t_edge->edge_pt->s;
-        t_edge_json["d"] = t_edge->edge_pt->d;
-        t_edge_json["l"] = t_edge->edge_pt->label;
-        t_edge_json["t"] = t_edge->edge_pt->timestamp;
-        t_edge_json["lives"] = t_edge->edge_pt->lives;
-        temp_t_edges.push_back(std::move(t_edge_json));
-        signalHandler.setResponse(
-            "t_edges",
-            std::move(temp_t_edges));
+        // std::vector<crow::json::wvalue> temp_t_edges;
+        // crow::json::wvalue t_edge_json;
+        // t_edge_json["s"] = t_edge->edge_pt->s;
+        // t_edge_json["d"] = t_edge->edge_pt->d;
+        // t_edge_json["l"] = t_edge->edge_pt->label;
+        // t_edge_json["t"] = t_edge->edge_pt->timestamp;
+        // t_edge_json["lives"] = t_edge->edge_pt->lives;
+        // temp_t_edges.push_back(std::move(t_edge_json));
+        // signalHandler.setResponse(
+        //     "t_edges",
+        //     std::move(temp_t_edges));
 
-        std::vector<crow::json::wvalue> temp_sg_edges;
-        crow::json::wvalue sg_edge_json;
-        sg_edge_json["s"] = new_sgt->s;
-        sg_edge_json["d"] = new_sgt->d;
-        sg_edge_json["l"] = new_sgt->label;
-        sg_edge_json["t"] = new_sgt->timestamp;
-        sg_edge_json["lives"] = new_sgt->lives;
-        temp_sg_edges.push_back(std::move(sg_edge_json));
-        signalHandler.setResponse(
-            "sg_edges",
-            std::move(temp_sg_edges));
+        // std::vector<crow::json::wvalue> temp_sg_edges;
+        // crow::json::wvalue sg_edge_json;
+        // sg_edge_json["s"] = new_sgt->s;
+        // sg_edge_json["d"] = new_sgt->d;
+        // sg_edge_json["l"] = new_sgt->label;
+        // sg_edge_json["t"] = new_sgt->timestamp;
+        // sg_edge_json["lives"] = new_sgt->lives;
+        // temp_sg_edges.push_back(std::move(sg_edge_json));
+        // signalHandler.setResponse(
+        //     "sg_edges",
+        //     std::move(temp_sg_edges));
 
         // update window boundaries and check for window eviction
         for (size_t i = window_offset; i < windows.size(); i++)
@@ -549,57 +549,57 @@ int main(int argc, char *argv[])
             evict = false;
 
             // SOMEBODY GOT EVICTED
-            signalHandler.setNestedResponse(
-                "active_window",
-                "open",
-                static_cast<int64_t>(std::max(windows[window_offset].t_open - ((lives - 1) * slide), 0LL)));
-            signalHandler.setNestedResponse(
-                "active_window",
-                "close",
-                static_cast<int64_t>(windows[window_offset].t_close));
+            // signalHandler.setNestedResponse(
+            //     "active_window",
+            //     "open",
+            //     static_cast<int64_t>(std::max(windows[window_offset].t_open - ((lives - 1) * slide), 0LL)));
+            // signalHandler.setNestedResponse(
+            //     "active_window",
+            //     "close",
+            //     static_cast<int64_t>(windows[window_offset].t_close));
 
-            timed_edge *curr = windows[window_offset].first;
-            std::vector<crow::json::wvalue> temp_t_edges;
-            while (curr)
-            {
-                sg_edge *e = curr->edge_pt;
-                crow::json::wvalue edge_json;
+            // timed_edge *curr = windows[window_offset].first;
+            // std::vector<crow::json::wvalue> temp_t_edges;
+            // while (curr)
+            // {
+            //     sg_edge *e = curr->edge_pt;
+            //     crow::json::wvalue edge_json;
 
-                edge_json["s"] = e->s;
-                edge_json["d"] = e->d;
-                edge_json["l"] = e->label;
-                edge_json["t"] = e->timestamp;
-                edge_json["lives"] = e->lives;
+            //     edge_json["s"] = e->s;
+            //     edge_json["d"] = e->d;
+            //     edge_json["l"] = e->label;
+            //     edge_json["t"] = e->timestamp;
+            //     edge_json["lives"] = e->lives;
 
-                temp_t_edges.push_back(std::move(edge_json));
+            //     temp_t_edges.push_back(std::move(edge_json));
 
-                curr = curr->next;
-            }
-            signalHandler.setResponse(
-                "t_edges",
-                std::move(temp_t_edges));
+            //     curr = curr->next;
+            // }
+            // signalHandler.setResponse(
+            //     "t_edges",
+            //     std::move(temp_t_edges));
 
             // Snapshot Graph
-            std::vector<crow::json::wvalue> temp_sg_edges;
-            for (const auto &[vertex, edges] : sg->adjacency_list)
-            {
-                for (size_t i = 0; i < edges.size(); ++i)
-                {
-                    const auto &[to, edge] = edges[i];
-                    crow::json::wvalue edge_json;
+            // std::vector<crow::json::wvalue> temp_sg_edges;
+            // for (const auto &[vertex, edges] : sg->adjacency_list)
+            // {
+            //     for (size_t i = 0; i < edges.size(); ++i)
+            //     {
+            //         const auto &[to, edge] = edges[i];
+            //         crow::json::wvalue edge_json;
 
-                    edge_json["s"] = edge->s;
-                    edge_json["d"] = edge->d;
-                    edge_json["l"] = edge->label;
-                    edge_json["t"] = edge->timestamp;
-                    edge_json["lives"] = edge->lives;
+            //         edge_json["s"] = edge->s;
+            //         edge_json["d"] = edge->d;
+            //         edge_json["l"] = edge->label;
+            //         edge_json["t"] = edge->timestamp;
+            //         edge_json["lives"] = edge->lives;
 
-                    temp_sg_edges.push_back(std::move(edge_json));
-                }
-            }
-            signalHandler.setResponse(
-                "sg_edges",
-                std::move(temp_sg_edges));
+            //         temp_sg_edges.push_back(std::move(edge_json));
+            //     }
+            // }
+            // signalHandler.setResponse(
+            //     "sg_edges",
+            //     std::move(temp_sg_edges));
 
             /*
              * MEMORY PROFILING (https://stackoverflow.com/a/64166)
@@ -631,49 +631,49 @@ int main(int argc, char *argv[])
             */
         }
 
-        cout << "\nRemaining active windows:\n";
-        for (size_t i = window_offset; i < windows.size(); i++)
-        {
-            if (!windows[i].evicted)
-            {
-                cout << "  Window [" << i << "]: [" << windows[i].t_open << ", "
-                     << windows[i].t_close << ") - " << windows[i].elements_count
-                     << " edges\n";
+        // cout << "\nRemaining active windows:\n";
+        // for (size_t i = window_offset; i < windows.size(); i++)
+        // {
+        //     if (!windows[i].evicted)
+        //     {
+        //         cout << "  Window [" << i << "]: [" << windows[i].t_open << ", "
+        //              << windows[i].t_close << ") - " << windows[i].elements_count
+        //              << " edges\n";
 
-                // Print edges in this window
-                if (windows[i].first)
-                {
-                    cout << "    Edges:\n";
-                    timed_edge *curr = windows[i].first;
-                    int edge_count = 0;
+        //         // Print edges in this window
+        //         if (windows[i].first)
+        //         {
+        //             cout << "    Edges:\n";
+        //             timed_edge *curr = windows[i].first;
+        //             int edge_count = 0;
 
-                    while (curr)
-                    {
-                        sg_edge *e = curr->edge_pt;
-                        cout << "      [" << (edge_count + 1) << "] "
-                             << e->s << " -> " << e->d
-                             << " (L:" << e->label
-                             << ", T:" << e->timestamp
-                             << ", Exp:" << e->expiration_time
-                             << ", Lives:" << e->lives << ")\n";
+        //             while (curr)
+        //             {
+        //                 sg_edge *e = curr->edge_pt;
+        //                 cout << "      [" << (edge_count + 1) << "] "
+        //                      << e->s << " -> " << e->d
+        //                      << " (L:" << e->label
+        //                      << ", T:" << e->timestamp
+        //                      << ", Exp:" << e->expiration_time
+        //                      << ", Lives:" << e->lives << ")\n";
 
-                        // Stop at last edge or when timestamp exceeds window
-                        if (curr == windows[i].last || e->timestamp >= windows[i].t_close)
-                        {
-                            break;
-                        }
+        //                 // Stop at last edge or when timestamp exceeds window
+        //                 if (curr == windows[i].last || e->timestamp >= windows[i].t_close)
+        //                 {
+        //                     break;
+        //                 }
 
-                        curr = curr->next;
-                        edge_count++;
-                    }
-                }
-                else
-                {
-                    cout << "    No edges (first pointer is null)\n";
-                }
-            }
-        }
-        cout << "=======================================================\n\n";
+        //                 curr = curr->next;
+        //                 edge_count++;
+        //             }
+        //         }
+        //         else
+        //         {
+        //             cout << "    No edges (first pointer is null)\n";
+        //         }
+        //     }
+        // }
+        // cout << "=======================================================\n\n";
 
         // if (ADAPTIVE_WINDOW && windows.size()-1 >= adap_count) {
 
@@ -691,26 +691,26 @@ int main(int argc, char *argv[])
 
         sink->printResultSet();
 
-        std::vector<crow::json::wvalue> temp_results;
-        for (const auto &[source, destinations] : sink->result_set)
-        {
-            for (const auto &destination : destinations)
-            {
-                crow::json::wvalue result_json;
-                result_json["s"] = source;
-                result_json["d"] = destination.destination;
-                result_json["t"] = destination.timestamp;
+        // std::vector<crow::json::wvalue> temp_results;
+        // for (const auto &[source, destinations] : sink->result_set)
+        // {
+        //     for (const auto &destination : destinations)
+        //     {
+        //         crow::json::wvalue result_json;
+        //         result_json["s"] = source;
+        //         result_json["d"] = destination.destination;
+        //         result_json["t"] = destination.timestamp;
 
-                temp_results.push_back(std::move(result_json));
-            }
-        }
+        //         temp_results.push_back(std::move(result_json));
+        //     }
+        // }
 
-        signalHandler.setResponse(
-            "results",
-            std::move(temp_results));
-        signalHandler.setResponse(
-            "tot_res",
-            static_cast<int64_t>(sink->matched_paths));
+        // signalHandler.setResponse(
+        //     "results",
+        //     std::move(temp_results));
+        // signalHandler.setResponse(
+        //     "tot_res",
+        //     static_cast<int64_t>(sink->matched_paths));
 
         // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,widow_size
         csv_tuples
@@ -762,7 +762,7 @@ int main(int argc, char *argv[])
     delete aut;
     delete query;
 
-    signalHandler.stop();
+    // signalHandler.stop();
 
     return 0;
 }

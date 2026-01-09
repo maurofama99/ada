@@ -1,29 +1,29 @@
-#ifndef SIGNAL_HANDLER_H
-#define SIGNAL_HANDLER_H
+// #ifndef SIGNAL_HANDLER_H
+// #define SIGNAL_HANDLER_H
 
-#include "crow.h"
-#include <atomic>
-#include <thread>
-#include <chrono>
-#include <crow/middlewares/cors.h>
+// #include "crow.h"
+// #include <atomic>
+// #include <thread>
+// #include <chrono>
+// #include <crow/middlewares/cors.h>
 
-class SignalHandler
-{
-public:
-    SignalHandler(int port);
-    void start();
-    void waitForSignal();
-    void stop();
-    void setResponse(const std::string &key, crow::json::wvalue value);
-    void setNestedResponse(const std::string &parentKey, const std::string &childKey, crow::json::wvalue value);
+// class SignalHandler
+// {
+// public:
+//     SignalHandler(int port);
+//     void start();
+//     void waitForSignal();
+//     void stop();
+//     void setResponse(const std::string &key, crow::json::wvalue value);
+//     void setNestedResponse(const std::string &parentKey, const std::string &childKey, crow::json::wvalue value);
 
-private:
-    crow::App<crow::CORSHandler> app_;
-    int port_;
-    std::thread crow_thread_;
-    crow::json::wvalue response_;
-    std::mutex mtx_process_;
-    std::condition_variable cv_process_;
-};
+// private:
+//     crow::App<crow::CORSHandler> app_;
+//     int port_;
+//     std::thread crow_thread_;
+//     crow::json::wvalue response_;
+//     std::mutex mtx_process_;
+//     std::condition_variable cv_process_;
+// };
 
-#endif // SIGNAL_HANDLER_H
+// #endif // SIGNAL_HANDLER_H
