@@ -21,7 +21,7 @@ SignalHandler::SignalHandler(int port) : port_(port)
             "mapping": string
         },
         ?"prune_criteria": string,
-        ?"hot_edges": int,    on eviction
+        ?"pruned_count": int,    on eviction
         ?"t_edges": [{          batch on eviction, incremental -> batch every time
             "s": double,
             "d": double,
