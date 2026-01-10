@@ -26,7 +26,7 @@ function App() {
     });
   }, [window])
 
-  useEffect(() => {
+  useEffect(() => { // Single edge added to window
     const lastEdge = sgEdges.at(-1);
     if (lastEdge) {
       networkRef.current?.addNode({ id: "net_" + lastEdge.s, label: lastEdge.s });
@@ -41,7 +41,7 @@ function App() {
       <div className="flex flex-col gap-4 p-4 md:h-screen">
         <div className="bg-muted/50 min-h-min rounded-xl p-4 flex items-center justify-between overflow-hidden">
           <div className="flex flex-col w-max">
-            <div className="">Approximate RPQ Demo</div>
+            <div className="text-lg font-semibold">Approximate RPQ Demo</div>
             <div className="text-sm opacity-50">Query pattern: ({queryPattern?.pattern} : {queryPattern?.mapping})</div>
           </div>
           <div className="flex gap-2">

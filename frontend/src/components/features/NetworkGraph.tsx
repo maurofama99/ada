@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { DataSet, Network } from 'vis-network/standalone';
-import { type Edge } from '@/types/Edge';
+import { type Edge, type SGEdge } from '@/types/Edge';
 
 type NodeType = {
     id: string,
@@ -18,7 +18,7 @@ type EdgeType = {
 
 interface NetworkHandle {
     addNode: (node: NodeType) => void;
-    addEdge: (edge: Edge) => void;
+    addEdge: (edge: SGEdge) => void;
     refresh: (edges: Edge[]) => void;
     clear: () => void;
 };
@@ -47,7 +47,7 @@ const NetworkGraph = forwardRef<NetworkHandle>((props, ref) => {
         addNode(node: NodeType) {
             nodesRef.current?.update(node);
         },
-        addEdge(edge: Edge) {
+        addEdge(edge: SGEdge) {
             const edgeId = "net_" + edge.s + "_" + edge.d + "_" + edge.l;
             edgesRef.current?.update({
                 id: edgeId,
@@ -58,7 +58,7 @@ const NetworkGraph = forwardRef<NetworkHandle>((props, ref) => {
                 color: edge.lives !== undefined && edge.lives > 1 ? 'slategray' : "red"
             });
         },
-        refresh(edges: Edge[]) {
+        refresh(edges: Edge[]) { // removes nodes and edges not in the current edges list
             const { nodeIds, edgeIds } = getNodeEdgeIds(edges)
             edgesRef.current?.getIds().forEach(id => {
                 if (!edgeIds.includes(id.toString())) {

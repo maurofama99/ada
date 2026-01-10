@@ -12,7 +12,7 @@ export function EdgeTable({ edges }: { edges: Edge[] }) {
     return (
         <div className="h-full flex flex-col">
             <h3 className="text-lg font-semibold p-4 pb-0 flex-shrink-0">Input Stream</h3>
-            <h4 className="text-sm font-medium px-4 flex-shrink-0 text-muted-foreground">{"Count: TODO"}</h4>
+            <h4 className="text-sm font-medium px-4 flex-shrink-0 text-muted-foreground">{"Count: " + edges.length}</h4>
             <div className="flex-1 overflow-auto">
                 <Table>
                     <TableHeader>

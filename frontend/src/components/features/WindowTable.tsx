@@ -6,10 +6,10 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import type { Edge } from '@/types/Edge'
+import type { TEdge } from '@/types/Edge'
 import type { Window } from '@/types/Window'
 
-export function WindowTable({ window, edges }: { window?: Window, edges?: Edge[] }) {
+export function WindowTable({ window, edges }: { window?: Window, edges?: TEdge[] }) {
     return (
         <div className="h-full flex flex-col">
             <h3 className="text-lg font-semibold p-4 pb-0 flex-shrink-0">Active Window</h3>

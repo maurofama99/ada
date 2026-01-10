@@ -6,6 +6,7 @@ streaming_rpq
 
 backend/**/*.csv
 backend/code/dataset/dummy.txt
+backend/code/dataset/testsets/*
 backend/build/
 
 node_modules/

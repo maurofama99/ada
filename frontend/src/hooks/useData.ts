@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { fetchState } from '@/services/services'
-import type { Edge } from '@/types/Edge'
+import type { Edge, SGEdge, TEdge } from '@/types/Edge'
 import type { Window } from '@/types/Window'
 import type { Result } from '@/types/Result'
 import type { QueryPattern } from '@/types/QueryPattern'
@@ -9,8 +9,8 @@ export function useData() {
     const [inputEdges, setInputEdges] = useState<Edge[]>([])
     const [window, setWindow] = useState<Window>()
     const [queryPattern, setQueryPattern] = useState<QueryPattern>()
-    const [tEdges, setTEdges] = useState<Edge[]>([])
-    const [sgEdges, setSGEdges] = useState<Edge[]>([])
+    const [tEdges, setTEdges] = useState<TEdge[]>([])
+    const [sgEdges, setSGEdges] = useState<SGEdge[]>([])
     const [results, setResults] = useState<Result[]>([])
     const [totRes, setTotRes] = useState<number>(0)
     const [isLoading, setIsLoading] = useState(false)

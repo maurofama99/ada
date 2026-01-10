@@ -411,6 +411,7 @@ int main(int argc, char *argv[])
         sg_edge_json["l"] = new_sgt->label;
         sg_edge_json["t"] = new_sgt->timestamp;
         sg_edge_json["lives"] = new_sgt->lives;
+        sg_edge_json["criteria"] = sg->get_zscore(new_sgt->s);
         temp_sg_edges.push_back(std::move(sg_edge_json));
         signalHandler.setResponse(
             "sg_edges",
@@ -593,6 +594,7 @@ int main(int argc, char *argv[])
                     edge_json["l"] = edge->label;
                     edge_json["t"] = edge->timestamp;
                     edge_json["lives"] = edge->lives;
+                    edge_json["criteria"] = sg->get_zscore(edge->s);
 
                     temp_sg_edges.push_back(std::move(edge_json));
                 }

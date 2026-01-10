@@ -3,8 +3,15 @@ export interface Edge {
     d: string
     l: string
     t: number
-    lives?: number
     t_new?: number
+}
+
+export interface TEdge extends Edge {
+    lives: number
+}
+
+export interface SGEdge extends TEdge {
+    criteria: string
 }
 
 function isValidEdge(obj: any): obj is Edge {
@@ -13,8 +20,18 @@ function isValidEdge(obj: any): obj is Edge {
         'd' in obj &&
         'l' in obj &&
         't' in obj &&
-        typeof obj.t === 'number' &&
-        (!('lives' in obj) || typeof obj.lives === 'number')
+        typeof obj.t === 'number'
+}
+
+function isValidTEdge(obj: any): obj is TEdge {
+    return isValidEdge(obj) &&
+        'lives' in obj &&
+        typeof obj.lives === 'number'
+}
+
+function isValidSGEdge(obj: any): obj is SGEdge {
+    return isValidTEdge(obj) &&
+        'criteria' in obj
 }
 
 function normalizeEdge(raw: any): Edge | undefined {
@@ -24,9 +41,33 @@ function normalizeEdge(raw: any): Edge | undefined {
         s: String(raw.s),
         d: String(raw.d),
         l: String(raw.l),
-        t: Number(raw.t),
-        lives: raw.lives !== undefined ? Number(raw.lives) : undefined
+        t: Number(raw.t)
     }
 }
 
-export { isValidEdge, normalizeEdge }
+function normalizeTEdge(raw: any): TEdge | undefined {
+    if (!isValidTEdge(raw)) return undefined
+
+    return {
+        s: String(raw.s),
+        d: String(raw.d),
+        l: String(raw.l),
+        t: Number(raw.t),
+        lives: Number(raw.lives)
+    }
+}
+
+function normalizeSGEdge(raw: any): SGEdge | undefined {
+    if (!isValidSGEdge(raw)) return undefined
+
+    return {
+        s: String(raw.s),
+        d: String(raw.d),
+        l: String(raw.l),
+        t: Number(raw.t),
+        lives: Number(raw.lives),
+        criteria: String(raw.criteria)
+    }
+}
+
+export { isValidEdge, isValidTEdge, isValidSGEdge, normalizeEdge, normalizeTEdge, normalizeSGEdge }

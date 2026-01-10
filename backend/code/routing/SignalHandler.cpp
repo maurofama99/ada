@@ -32,7 +32,8 @@ SignalHandler::SignalHandler(int port) : port_(port)
             "d": double,
             "l": double,
             "t": double,
-            "lives": int
+            "lives": int,
+            "criteria": double
             }, ...],
         ?"results": [{          batch
             "s": double,
