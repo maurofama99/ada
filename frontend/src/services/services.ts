@@ -1,5 +1,5 @@
 import type { ApiResponse } from '@/types/ApiResponse'
-import { isValidEdge, isValidTEdge, isValidSGEdge, normalizeEdge, normalizeTEdge, normalizeSGEdge,  type Edge, type TEdge, type SGEdge } from '@/types/Edge'
+import { isValidEdge, isValidTEdge, isValidSGEdge, normalizeEdge, normalizeTEdge, normalizeSGEdge, type Edge, type TEdge, type SGEdge } from '@/types/Edge'
 import { isValidQueryPattern, normalizeQueryPattern } from '@/types/QueryPattern'
 import { isValidResult, normalizeResult } from '@/types/Result'
 import { isValidWindow, normalizeWindow, type Window } from '@/types/Window'
@@ -26,6 +26,10 @@ export async function fetchState(): Promise<ApiResponse> {
     throw new Error('Invalid active window')
   }
 
+  if (raw.pruned_count !== undefined && typeof raw.pruned_count !== 'number') {
+    throw new Error('Invalid hot edges')
+  }
+
   if (raw.query_pattern !== undefined && !isValidQueryPattern(raw.query_pattern)) {
     throw new Error('Invalid query pattern')
   }
@@ -50,6 +54,8 @@ export async function fetchState(): Promise<ApiResponse> {
     new_edge: normalizeEdge(raw.new_edge)!,
     active_window: normalizeWindow(raw.active_window),
     query_pattern: normalizeQueryPattern(raw.query_pattern),
+    prune_criteria: raw.prune_criteria !== undefined ? String(raw.prune_criteria) : undefined,
+    pruned_count: raw.pruned_count !== undefined ? Number(raw.pruned_count) : undefined,
     t_edges: raw.t_edges !== undefined ? raw.t_edges.map(normalizeTEdge) : undefined,
     sg_edges: raw.sg_edges !== undefined ? raw.sg_edges.map(normalizeSGEdge) : undefined,
     results: raw.results !== undefined ? raw.results.map(normalizeResult) : undefined,

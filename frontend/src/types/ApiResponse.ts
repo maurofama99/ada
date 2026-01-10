@@ -7,6 +7,8 @@ export interface ApiResponse {
     new_edge: Edge
     active_window?: Window
     query_pattern?: QueryPattern
+    prune_criteria?: string
+    pruned_count?: number
     t_edges?: TEdge[]
     sg_edges?: SGEdge[]
     results?: Result[]

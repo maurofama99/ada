@@ -8,9 +8,11 @@ export interface Edge {
 
 export interface TEdge extends Edge {
     lives: number
+    criteria: string
 }
 
-export interface SGEdge extends TEdge {
+export interface SGEdge extends Edge {
+    lives: number
     criteria: string
 }
 
@@ -26,12 +28,15 @@ function isValidEdge(obj: any): obj is Edge {
 function isValidTEdge(obj: any): obj is TEdge {
     return isValidEdge(obj) &&
         'lives' in obj &&
+        'criteria' in obj &&
         typeof obj.lives === 'number'
 }
 
 function isValidSGEdge(obj: any): obj is SGEdge {
-    return isValidTEdge(obj) &&
-        'criteria' in obj
+    return isValidEdge(obj) &&
+        'lives' in obj &&
+        'criteria' in obj &&
+        typeof obj.lives === 'number'
 }
 
 function normalizeEdge(raw: any): Edge | undefined {
@@ -53,7 +58,8 @@ function normalizeTEdge(raw: any): TEdge | undefined {
         d: String(raw.d),
         l: String(raw.l),
         t: Number(raw.t),
-        lives: Number(raw.lives)
+        lives: Number(raw.lives),
+        criteria: String(raw.criteria)
     }
 }
 

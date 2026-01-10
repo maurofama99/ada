@@ -334,6 +334,7 @@ int main(int argc, char *argv[])
                         "active_window",
                         "close",
                         static_cast<int64_t>(windows[0].t_close));
+                    signalHandler.setResponse("prune_criteria", sg->zscore_threshold);
                 }
                 else
                 {
@@ -392,30 +393,30 @@ int main(int argc, char *argv[])
         t_edge = new timed_edge(new_sgt); // associate the timed edge with the snapshot graph edge
         sg->add_timed_edge(t_edge);       // append the element to the time list
 
-        std::vector<crow::json::wvalue> temp_t_edges;
-        crow::json::wvalue t_edge_json;
-        t_edge_json["s"] = t_edge->edge_pt->s;
-        t_edge_json["d"] = t_edge->edge_pt->d;
-        t_edge_json["l"] = t_edge->edge_pt->label;
-        t_edge_json["t"] = t_edge->edge_pt->timestamp;
-        t_edge_json["lives"] = t_edge->edge_pt->lives;
-        temp_t_edges.push_back(std::move(t_edge_json));
-        signalHandler.setResponse(
-            "t_edges",
-            std::move(temp_t_edges));
+        // std::vector<crow::json::wvalue> temp_t_edges;
+        // crow::json::wvalue t_edge_json;
+        // t_edge_json["s"] = t_edge->edge_pt->s;
+        // t_edge_json["d"] = t_edge->edge_pt->d;
+        // t_edge_json["l"] = t_edge->edge_pt->label;
+        // t_edge_json["t"] = t_edge->edge_pt->timestamp;
+        // t_edge_json["lives"] = t_edge->edge_pt->lives;
+        // temp_t_edges.push_back(std::move(t_edge_json));
+        // signalHandler.setResponse(
+        //     "t_edges",
+        //     std::move(temp_t_edges));
 
-        std::vector<crow::json::wvalue> temp_sg_edges;
-        crow::json::wvalue sg_edge_json;
-        sg_edge_json["s"] = new_sgt->s;
-        sg_edge_json["d"] = new_sgt->d;
-        sg_edge_json["l"] = new_sgt->label;
-        sg_edge_json["t"] = new_sgt->timestamp;
-        sg_edge_json["lives"] = new_sgt->lives;
-        sg_edge_json["criteria"] = sg->get_zscore(new_sgt->s);
-        temp_sg_edges.push_back(std::move(sg_edge_json));
-        signalHandler.setResponse(
-            "sg_edges",
-            std::move(temp_sg_edges));
+        // std::vector<crow::json::wvalue> temp_sg_edges;
+        // crow::json::wvalue sg_edge_json;
+        // sg_edge_json["s"] = new_sgt->s;
+        // sg_edge_json["d"] = new_sgt->d;
+        // sg_edge_json["l"] = new_sgt->label;
+        // sg_edge_json["t"] = new_sgt->timestamp;
+        // sg_edge_json["lives"] = new_sgt->lives;
+        // sg_edge_json["criteria"] = sg->get_zscore(new_sgt->s);
+        // temp_sg_edges.push_back(std::move(sg_edge_json));
+        // signalHandler.setResponse(
+        //     "sg_edges",
+        //     std::move(temp_sg_edges));
 
         // update window boundaries and check for window eviction
         for (size_t i = window_offset; i < windows.size(); i++)
@@ -488,6 +489,7 @@ int main(int argc, char *argv[])
 
             timed_edge *current = evict_start_point;
 
+            int pruned_count = 0;
             while (current && current != evict_end_point)
             {
 
@@ -498,21 +500,34 @@ int main(int argc, char *argv[])
                     EINIT_count--;
 
                 if (current->duplicate)
+                {
                     sg->delete_timed_edge(current);
+                }
                 else
                 {
                     auto z_score_s = sg->get_zscore(cur_edge->s);
                     auto z_score_d = sg->get_zscore(cur_edge->d);
-                    if (std::max(z_score_s, z_score_d) > zscore || cur_edge->lives <= 1 || cur_edge->timestamp < windows[to_evict.back() + 1].t_open - slide)
+                    if (cur_edge->lives <= 1 || cur_edge->timestamp < windows[to_evict.back() + 1].t_open - slide)
                     {
-                        cout << "[DEBUG] hot or dying: " << cur_edge->s << "_" << cur_edge->d << endl;
+                        cout << "[DEBUG] dying: " << cur_edge->s << "_" << cur_edge->d
+                             << " Z-scores: " << z_score_s << ", " << z_score_d << endl;
                         candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // delete from RPQ Forest
                         sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label);    // delete from adjacency list
                         sg->delete_timed_edge(current);                                // delete from window state store
                     }
+                    else if (std::max(z_score_s, z_score_d) > zscore)
+                    {
+                        cout << "[DEBUG] hot: " << cur_edge->s << "_" << cur_edge->d
+                             << " Z-scores: " << z_score_s << ", " << z_score_d << endl;
+                        candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // delete from RPQ Forest
+                        sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label);    // delete from adjacency list
+                        sg->delete_timed_edge(current);                                // delete from window state store
+                        pruned_count++;
+                    }
                     else
                     {
-                        cout << "[DEBUG] not hot" << cur_edge->s << "_" << cur_edge->d << endl;
+                        cout << "[DEBUG] not hot" << cur_edge->s << "_" << cur_edge->d
+                             << " Z-scores: " << z_score_s << ", " << z_score_d << endl;
                         cur_edge->lives--;
                         saved_edges++;
                         sg->shift_timed_edge(cur_edge->time_pos, windows[to_evict.back() + 1].first);
@@ -558,50 +573,51 @@ int main(int argc, char *argv[])
                 "active_window",
                 "close",
                 static_cast<int64_t>(windows[window_offset].t_close));
+            signalHandler.setResponse("pruned_count", pruned_count);
 
-            timed_edge *curr = windows[window_offset].first;
-            std::vector<crow::json::wvalue> temp_t_edges;
-            while (curr)
-            {
-                sg_edge *e = curr->edge_pt;
-                crow::json::wvalue edge_json;
+            // timed_edge *curr = windows[window_offset].first;
+            // std::vector<crow::json::wvalue> temp_t_edges;
+            // while (curr)
+            // {
+            //     sg_edge *e = curr->edge_pt;
+            //     crow::json::wvalue edge_json;
 
-                edge_json["s"] = e->s;
-                edge_json["d"] = e->d;
-                edge_json["l"] = e->label;
-                edge_json["t"] = e->timestamp;
-                edge_json["lives"] = e->lives;
+            //     edge_json["s"] = e->s;
+            //     edge_json["d"] = e->d;
+            //     edge_json["l"] = e->label;
+            //     edge_json["t"] = e->timestamp;
+            //     edge_json["lives"] = e->lives;
 
-                temp_t_edges.push_back(std::move(edge_json));
+            //     temp_t_edges.push_back(std::move(edge_json));
 
-                curr = curr->next;
-            }
-            signalHandler.setResponse(
-                "t_edges",
-                std::move(temp_t_edges));
+            //     curr = curr->next;
+            // }
+            // signalHandler.setResponse(
+            //     "t_edges",
+            //     std::move(temp_t_edges));
 
-            // Snapshot Graph
-            std::vector<crow::json::wvalue> temp_sg_edges;
-            for (const auto &[vertex, edges] : sg->adjacency_list)
-            {
-                for (size_t i = 0; i < edges.size(); ++i)
-                {
-                    const auto &[to, edge] = edges[i];
-                    crow::json::wvalue edge_json;
+            // // Snapshot Graph
+            // std::vector<crow::json::wvalue> temp_sg_edges;
+            // for (const auto &[vertex, edges] : sg->adjacency_list)
+            // {
+            //     for (size_t i = 0; i < edges.size(); ++i)
+            //     {
+            //         const auto &[to, edge] = edges[i];
+            //         crow::json::wvalue edge_json;
 
-                    edge_json["s"] = edge->s;
-                    edge_json["d"] = edge->d;
-                    edge_json["l"] = edge->label;
-                    edge_json["t"] = edge->timestamp;
-                    edge_json["lives"] = edge->lives;
-                    edge_json["criteria"] = sg->get_zscore(edge->s);
+            //         edge_json["s"] = edge->s;
+            //         edge_json["d"] = edge->d;
+            //         edge_json["l"] = edge->label;
+            //         edge_json["t"] = edge->timestamp;
+            //         edge_json["lives"] = edge->lives;
+            //         edge_json["criteria"] = sg->get_zscore(edge->s);
 
-                    temp_sg_edges.push_back(std::move(edge_json));
-                }
-            }
-            signalHandler.setResponse(
-                "sg_edges",
-                std::move(temp_sg_edges));
+            //         temp_sg_edges.push_back(std::move(edge_json));
+            //     }
+            // }
+            // signalHandler.setResponse(
+            //     "sg_edges",
+            //     std::move(temp_sg_edges));
 
             /*
              * MEMORY PROFILING (https://stackoverflow.com/a/64166)
@@ -633,6 +649,51 @@ int main(int argc, char *argv[])
             */
         }
 
+        timed_edge *curr = windows[window_offset].first;
+        std::vector<crow::json::wvalue> temp_t_edges;
+        while (curr)
+        {
+            sg_edge *e = curr->edge_pt;
+            crow::json::wvalue edge_json;
+
+            edge_json["s"] = e->s;
+            edge_json["d"] = e->d;
+            edge_json["l"] = e->label;
+            edge_json["t"] = e->timestamp;
+            edge_json["lives"] = e->lives;
+            edge_json["criteria"] = std::round(sg->get_zscore(e->s) * 100.0) / 100.0;
+
+            temp_t_edges.push_back(std::move(edge_json));
+
+            curr = curr->next;
+        }
+        signalHandler.setResponse(
+            "t_edges",
+            std::move(temp_t_edges));
+
+        // Snapshot Graph
+        std::vector<crow::json::wvalue> temp_sg_edges;
+        for (const auto &[vertex, edges] : sg->adjacency_list)
+        {
+            for (size_t i = 0; i < edges.size(); ++i)
+            {
+                const auto &[to, edge] = edges[i];
+                crow::json::wvalue edge_json;
+
+                edge_json["s"] = edge->s;
+                edge_json["d"] = edge->d;
+                edge_json["l"] = edge->label;
+                edge_json["t"] = edge->timestamp;
+                edge_json["lives"] = edge->lives;
+                edge_json["criteria"] = std::round(sg->get_zscore(edge->s) * 100.0) / 100.0;
+
+                temp_sg_edges.push_back(std::move(edge_json));
+            }
+        }
+        signalHandler.setResponse(
+            "sg_edges",
+            std::move(temp_sg_edges));
+
         cout << "\nRemaining active windows:\n";
         for (size_t i = window_offset; i < windows.size(); i++)
         {
@@ -657,7 +718,8 @@ int main(int argc, char *argv[])
                              << " (L:" << e->label
                              << ", T:" << e->timestamp
                              << ", Exp:" << e->expiration_time
-                             << ", Lives:" << e->lives << ")\n";
+                             << ", Lives:" << e->lives
+                             << ", IsDupe:" << curr->duplicate << ")\n";
 
                         // Stop at last edge or when timestamp exceeds window
                         if (curr == windows[i].last || e->timestamp >= windows[i].t_close)

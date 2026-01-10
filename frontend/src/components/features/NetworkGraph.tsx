@@ -19,7 +19,7 @@ type EdgeType = {
 interface NetworkHandle {
     addNode: (node: NodeType) => void;
     addEdge: (edge: SGEdge) => void;
-    refresh: (edges: Edge[]) => void;
+    refresh: (edges: SGEdge[]) => void;
     clear: () => void;
 };
 
@@ -29,13 +29,13 @@ const NetworkGraph = forwardRef<NetworkHandle>((props, ref) => {
     const edgesRef = useRef<DataSet<EdgeType> | null>(null);
     const nodesRef = useRef<DataSet<NodeType> | null>(null);
 
-    function getNodeEdgeIds(edges: Edge[]) {
+    function getNodeEdgeIds(edges: SGEdge[]) {
         const setNodes = new Set<string>()
         const setEdges = new Set<string>()
         edges.forEach(edge => {
             setNodes.add("net_" + edge.s)
             setNodes.add("net_" + edge.d)
-            setEdges.add("net_" + edge.s + "_" + edge.d + "_" + edge.l)
+            setEdges.add("net_" + edge.s + "_" + edge.d + "_" + edge.l + "_" + edge.lives)
         })
         return {
             nodeIds: [...setNodes],
@@ -48,7 +48,7 @@ const NetworkGraph = forwardRef<NetworkHandle>((props, ref) => {
             nodesRef.current?.update(node);
         },
         addEdge(edge: SGEdge) {
-            const edgeId = "net_" + edge.s + "_" + edge.d + "_" + edge.l;
+            const edgeId = "net_" + edge.s + "_" + edge.d + "_" + edge.l + "_" + edge.lives;
             edgesRef.current?.update({
                 id: edgeId,
                 from: "net_" + edge.s,
@@ -58,7 +58,7 @@ const NetworkGraph = forwardRef<NetworkHandle>((props, ref) => {
                 color: edge.lives !== undefined && edge.lives > 1 ? 'slategray' : "red"
             });
         },
-        refresh(edges: Edge[]) { // removes nodes and edges not in the current edges list
+        refresh(edges: SGEdge[]) { // removes nodes and edges not in the current edges list
             const { nodeIds, edgeIds } = getNodeEdgeIds(edges)
             edgesRef.current?.getIds().forEach(id => {
                 if (!edgeIds.includes(id.toString())) {

@@ -20,14 +20,17 @@ SignalHandler::SignalHandler(int port) : port_(port)
             "pattern": string,
             "mapping": string
         },
-        ?"t_edges": [{          batch on eviction, incremental
+        ?"prune_criteria": string,
+        ?"hot_edges": int,    on eviction
+        ?"t_edges": [{          batch on eviction, incremental -> batch every time
             "s": double,
             "d": double,
             "l": double,
             "t": double,
             "lives": int
+            "criteria": double
             }, ...],
-        ?"sg_edges": [{         batch on eviction, incremental
+        ?"sg_edges": [{         batch on eviction, incremental -> batch every time
             "s": double,
             "d": double,
             "l": double,
