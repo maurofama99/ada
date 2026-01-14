@@ -4,10 +4,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <filesystem>
-#include <cmath>
-#include <algorithm>
 #include <sstream>
-#include <numeric>
 #include <random>
 
 #define MEMORY_PROFILER false
@@ -150,7 +147,13 @@ int main(int argc, char *argv[]) {
     switch (config.adaptive) {
         case 0: mode = "sl";
             break;
-        case 1: mode = "ad";
+        case 11: mode = "ad_function";
+            break;
+        case 12: mode = "ad_degree";
+            break;
+        case 13: mode = "ad_einit";
+            break;
+        case 14: mode = "ad_freeman";
             break;
         case 2: mode = "adwin";
             break;
@@ -160,8 +163,6 @@ int main(int argc, char *argv[]) {
             cerr << "ERROR: Unknown mode" << endl;
             exit(4);
     }
-
-    bool ADAPTIVE_WINDOW = config.adaptive == 1;
 
     // ADAPTIVE WINDOW
     static double cumulative_size = 0.0;
@@ -246,7 +247,7 @@ int main(int argc, char *argv[]) {
     ctx.to_evict = &to_evict;
     ctx.evict = &evict;
     ctx.last_t_open = &last_t_open;
-    ctx.ADAPTIVE_WINDOW = ADAPTIVE_WINDOW;
+    ctx.mode = config.adaptive;
     ctx.cumulative_size = &cumulative_size;
     ctx.size_count = &size_count;
     ctx.avg_size = &avg_size;

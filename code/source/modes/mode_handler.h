@@ -45,6 +45,8 @@ public:
 
 // Context structure to hold shared state for mode handlers
 struct ModeContext {
+    int mode;
+
     // Windows and graph structures
     std::vector<window>* windows;
     streaming_graph* sg;

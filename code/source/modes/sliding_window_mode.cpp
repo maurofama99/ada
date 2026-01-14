@@ -168,12 +168,25 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         candidate_for_deletion.clear();
         *ctx.evict = false;
 
-        if (ctx.ADAPTIVE_WINDOW) {
+        if (ctx.mode > 10) {
             // max degree computation
             *ctx.max_deg = 1;
             for (size_t i = *ctx.window_offset; i < ctx.windows->size(); i++) {
                 if ((*ctx.windows)[i].max_degree > *ctx.max_deg) *ctx.max_deg = (*ctx.windows)[i].max_degree;
             }
+
+            *ctx.avg_deg = *ctx.cumulative_degree / *ctx.window_cardinality;
+
+            // degree centralization (Freeman)
+            double freeman = 0.0;
+            if (ctx.mode == 14) {
+                int cumulative_degree_centralization = 0;
+                for (int i = 0; i < ctx.sg->density.size(); i++) {
+                    cumulative_degree_centralization += *ctx.max_deg - ctx.sg->density[i];
+                }
+                freeman = cumulative_degree_centralization / ((ctx.sg->vertex_num - 1) * (ctx.sg->vertex_num - 2));
+            }
+
 
             double n = 0;
             if (*ctx.EINIT_count > *ctx.edge_number) std::cerr << "ERROR: more initial transitions than edges." << std::endl;
@@ -184,7 +197,24 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
 
             if (*ctx.cost > *ctx.cost_max) *ctx.cost_max = *ctx.cost;
             if (*ctx.cost < *ctx.cost_min) *ctx.cost_min = *ctx.cost;
-            *ctx.cost_norm = (*ctx.cost - *ctx.cost_min) / (*ctx.cost_max - *ctx.cost_min);
+
+            switch (ctx.mode) {
+                case 11:
+                    *ctx.cost_norm = (*ctx.cost - *ctx.cost_min) / (*ctx.cost_max - *ctx.cost_min);
+                    break;
+                case 12:
+                    *ctx.cost_norm = *ctx.avg_deg;
+                    break;
+                case 13:
+                    *ctx.cost_norm = *ctx.EINIT_count;
+                    break;
+                case 14:
+                    *ctx.cost_norm = freeman;
+                    break;
+                default:
+                    cerr << "ERROR: unknown cost mode." << endl;
+                    exit(1);
+            }
 
             ctx.cost_window->push_back(*ctx.cost_norm);
             if (ctx.cost_window->size() > ctx.overlap)

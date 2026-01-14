@@ -82,26 +82,6 @@ struct pair_hash {
     }
 };
 
-
-struct replication_rank_element {
-    long long from;
-    long long to;
-    long long replication = 0;
-    long long timestamp;
-
-    replication_rank_element(long long f, long long t, long long r, long long timestamp) : from(f), to (t), replication(r), timestamp(timestamp) {}
-
-    bool operator==(const replication_rank_element &other) const {
-        return from == other.from && to == other.to;
-    }
-};
-
-struct replication_comparator {
-    bool operator() (replication_rank_element const &t1, replication_rank_element const &t2) const {
-        return t1.replication>t2.replication;
-    }
-};
-
 struct MemoryEstimatorAdjL {
     static constexpr size_t ptr_size = sizeof(void*);
     static constexpr size_t node_overhead = 2 * sizeof(void*); // approx. per unordered_map node
