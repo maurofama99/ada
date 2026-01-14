@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <sstream>
 #include <numeric>
+#include <random>
 
 #define MEMORY_PROFILER false
 
@@ -140,8 +141,11 @@ int main(int argc, char *argv[]) {
     auto *sg = new streaming_graph(2.5);
     auto *sink = new Sink();
     auto *aut = new FiniteStateAutomaton();
-    int maxBuckets = 2;
-    Adwin adwin(maxBuckets);
+
+    int maxBuckets = 8;
+    int minLen = size;
+    double delta = 0.001;
+    Adwin adwin(maxBuckets, minLen, delta);
 
     f->possible_states = setup_automaton(query_type, aut, config.labels);
 
@@ -177,9 +181,16 @@ int main(int argc, char *argv[]) {
             break;
         case 2: mode = "adwin";
             break;
-        default: cerr << "ERROR: Unknown mode" << endl;
+        case 3: mode = "lshed";
+            break;
+        default:
+            cerr << "ERROR: Unknown mode" << endl;
+            exit(4);
     }
+
     bool ADAPTIVE_WINDOW = config.adaptive == 1;
+
+    // ADAPTIVE WINDOW
     static double cumulative_size = 0.0;
     static long long size_count = 0;
     double avg_size = 0;
@@ -190,17 +201,28 @@ int main(int argc, char *argv[]) {
     double lat_min = 922337203685470;
     double cost = 0;
     double cost_norm;
-
-    int warmup = 0;
     double last_cost = 0.0;
     double last_diff = 0.0;
     double max_deg = 1;
-    int resizings = 0;
-    int window_cardinality = 0;
-
     const int overlap = size / slide;
     std::deque<double> cost_window;
     std::deque<double> normalization_window;
+
+    // ADWIN
+    int warmup = 0;
+    double cumulative_degree = 0.0;
+    double avg_deg = 0.0;
+    int resizings = 0;
+    int window_cardinality = 0;
+
+    // LOAD SHEDDING
+    double p_shed = 0.0;
+    std::mt19937 gen(std::random_device{}());
+    std::uniform_real_distribution<double> dist(0.0, 1.0);
+    double granularity = min_size / 100.0;
+    cout << "Load shedding granularity: " << granularity << endl;
+    double max_shed = max_size / 100.0;
+    cout << "Max shedding step: " << max_shed << endl;
 
     std::ofstream csv_summary(
         data_folder + "_summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" +
@@ -223,6 +245,11 @@ int main(int argc, char *argv[]) {
         std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
     csv_memory << "tot_virtual,used_virtual,tot_ram,used_ram,data_mem\n";
 
+    std::ofstream csv_adwin_distribution(
+        data_folder + "_adwin_dist_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" +
+        std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
+    csv_adwin_distribution << "avg_deg,cost,cost_norm\n";
+
     clock_t start = clock();
     windows.emplace_back(0, size, nullptr, nullptr);
     long long s, d, l, t;
@@ -239,13 +266,14 @@ int main(int argc, char *argv[]) {
         if (!aut->hasLabel(l))
             continue;
 
-        edge_number++;
-        if (l == first_transition) EINIT_count++;
-
         timed_edge *t_edge;
         sg_edge *new_sgt;
 
         if (mode == "sl" || mode == "ad") {
+
+            edge_number++;
+            if (l == first_transition) EINIT_count++;
+
             long long window_close;
             double base = std::floor(static_cast<double>(time) / slide) * slide;
             double o_i = base;
@@ -262,7 +290,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (new_window) {
-                    if (window_close < windows[windows.size() - 1].t_close) {
+                    if (window_close < windows[windows.size() - 1].t_close) {    // shrink
                         for (size_t j = windows.size() - 1; j >= window_offset; j--) {
                             if (windows[j].t_close > window_close) {
                                 windows[j].evicted = true;
@@ -274,8 +302,7 @@ int main(int argc, char *argv[]) {
                             }
                         }
                     }
-                    if (window_close > windows[windows.size() - 1].t_close && window_open > windows[windows.size() - 1].
-                        t_open) {
+                    if (window_close > windows[windows.size() - 1].t_close && window_open > windows[windows.size() - 1].t_open) {  // expand
                         if (windows[windows.size() - 1].t_close < window_close) {
                             // report results
                             windows[windows.size() - 1].total_matched_results = sink->matched_paths;
@@ -337,6 +364,10 @@ int main(int argc, char *argv[]) {
             size_count++;
             avg_size = cumulative_size / size_count;
 
+            cumulative_degree += sg->density[new_sgt->s];
+            window_cardinality++;
+            avg_deg = cumulative_degree / window_cardinality;
+
             /* EVICT */
             if (evict) {
                 // to compute window cost, we take the size of the snapshot graph of the window here, since no more elements will be added and it can be considered complete and closed
@@ -365,6 +396,8 @@ int main(int argc, char *argv[]) {
                     auto next = current->next;
 
                     if (cur_edge->label == first_transition) EINIT_count--;
+                    cumulative_degree -= sg->density[cur_edge->s];
+                    window_cardinality--;
 
                     candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
                     // schedule for deletion from RPQ forest
@@ -482,10 +515,19 @@ int main(int argc, char *argv[]) {
                 << windows[window_offset >= 1 ? window_offset - 1 : 0].normalized_latency << ","
                 << windows[window_offset >= 1 ? window_offset - 1 : 0].elements_count << ","
                 << windows[window_offset >= 1 ? window_offset - 1 : 0].t_close - windows[window_offset >= 1 ? window_offset - 1 : 0].t_open << endl;
+
+
+
+            csv_adwin_distribution << avg_deg << "," << cost << "," << cost_norm << "\n";
         }
         else if (mode == "adwin") {
+
+            edge_number++;
+            if (l == first_transition) EINIT_count++;
+
             window_cardinality++;
             windows[resizings].elements_count++;
+            warmup++;
 
             new_sgt = sg->insert_edge(edge_number, s, d, l, time, time);
 
@@ -502,6 +544,10 @@ int main(int argc, char *argv[]) {
             // update max degree observed
             if (sg->density[new_sgt->s] > max_deg) max_deg = sg->density[new_sgt->s];
 
+            // compute average out degree centrality incrementally
+            cumulative_degree += sg->density[new_sgt->s];
+            avg_deg = cumulative_degree / window_cardinality;
+
             // compute cost function
             double n = 0;
             for (int i = 0; i < EINIT_count; i++) {
@@ -512,14 +558,15 @@ int main(int argc, char *argv[]) {
             if (cost < cost_min) cost_min = cost;
             cost_norm = (cost - cost_min) / (cost_max - cost_min);
 
-            // if (adwin.update(cost)) { // drift detected
-            if (adwin.update(sg->density[new_sgt->s])) {
+            if (warmup > 2700) csv_adwin_distribution << avg_deg << "," << cost << "," << cost_norm << "\n";
+
+            // if (adwin.update(cost)) {
+            if (adwin.update(cost_norm*10) && warmup > 2700) {
                 cout << "\n>>> DRIFT DETECTED " << endl;
                 cout << "    Current estimation: " << adwin.getEstimation() << endl;
                 cout << "    Window length: " << adwin.length() << endl;
                 windows[resizings].t_close = time;
-                windows[resizings].latency = static_cast<double>(clock() - windows[resizings].start_time) /
-                                             CLOCKS_PER_SEC;
+                windows[resizings].latency = static_cast<double>(clock() - windows[resizings].start_time) / CLOCKS_PER_SEC;
                 windows[resizings].total_matched_results = sink->matched_paths;
                 windows[resizings].emitted_results = sink->getResultSetSize();
                 resizings++;
@@ -532,6 +579,7 @@ int main(int argc, char *argv[]) {
                     auto next = current->next;
 
                     if (cur_edge->label == first_transition) EINIT_count--;
+                    cumulative_degree -= sg->density[cur_edge->s];
 
                     candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
 
@@ -567,6 +615,215 @@ int main(int argc, char *argv[]) {
                 << windows[resizings].elements_count << ","
                 << windows[resizings].t_close - windows[resizings].t_open << endl;
         }
+        else if (mode == "lshed") {
+
+            if (dist(gen) < p_shed) { // load shedding
+                continue;
+            }
+
+            edge_number++;
+            if (l == first_transition) EINIT_count++;
+
+            long long window_close;
+            double base = std::floor(static_cast<double>(time) / slide) * slide;
+            double o_i = base;
+            bool new_window = true;
+            do {
+                auto window_open = static_cast<long long>(o_i);
+                window_close = static_cast<long long>(o_i + size);
+
+                for (size_t i = window_offset; i < windows.size(); i++) {
+                    if (windows[i].t_open == window_open && windows[i].t_close == window_close) {
+                        // computed window is already present in WSS
+                        new_window = false;
+                    }
+                }
+
+                if (new_window) { // trigger report and append new window
+                        if (windows[windows.size() - 1].t_close < window_close) {
+                            // report results
+                            windows[windows.size() - 1].total_matched_results = sink->matched_paths;
+                            // matched paths until this window
+                            windows[windows.size() - 1].emitted_results = sink->getResultSetSize();
+                            // paths emitted on this window close
+                            windows[windows.size() - 1].window_matches = windows[windows.size() - 1].emitted_results;
+                        }
+                        windows.emplace_back(window_open, window_close, nullptr, nullptr);
+                }
+
+                o_i += slide;
+            } while (o_i < time);
+
+            new_sgt = sg->insert_edge(edge_number, s, d, l, time, window_close);
+
+            if (!new_sgt) {
+                // search for the duplicate
+                cerr << "ERROR: new sgt is null, time: " << time << endl;
+                exit(1);
+            }
+
+            // add edge to time list
+            t_edge = new timed_edge(new_sgt); // associate the timed edge with the snapshot graph edge
+            sg->add_timed_edge(t_edge); // append the element to the time list
+
+            // update window boundaries and check for window eviction
+            for (size_t i = window_offset; i < windows.size(); i++) {
+                if (windows[i].t_open <= time && time < windows[i].t_close) {
+                    // active window
+                    if (!windows[i].first || time < windows[i].first->edge_pt->timestamp) {
+                        if (!windows[i].first) windows[i].last = t_edge;
+                        windows[i].first = t_edge;
+                        windows[i].elements_count++;
+                        total_elements_count++;
+                    } else if (!windows[i].last || time >= windows[i].last->edge_pt->timestamp) {
+                        windows[i].last = t_edge;
+                        windows[i].elements_count++;
+                        total_elements_count++;
+                    }
+                    if (sg->density[s] > windows[i].max_degree) {
+                        windows[i].max_degree = sg->density[s];
+                    }
+                } else if (time >= windows[i].t_close) {
+                    // schedule window for eviction
+                    window_offset = i + 1;
+                    to_evict.push_back(i);
+                    evict = true;
+                    if (windows[i].elements_count == 0) {
+                        cerr << "ERROR: Empty window: " << i << endl;
+                        exit(1);
+                    }
+                }
+            }
+            new_sgt->time_pos = t_edge; // associate the snapshot graph edge with the timed edge
+
+            cumulative_size += size;
+            size_count++;
+            avg_size = cumulative_size / size_count;
+
+            cumulative_degree += sg->density[new_sgt->s];
+            window_cardinality++;
+            avg_deg = cumulative_degree / window_cardinality;
+
+            /* EVICT */
+            if (evict) {
+                // to compute window cost, we take the size of the snapshot graph of the window here, since no more elements will be added and it can be considered complete and closed
+                std::vector<pair<long long, long long> > candidate_for_deletion;
+                timed_edge *evict_start_point = windows[to_evict[0]].first;
+                timed_edge *evict_end_point = windows[to_evict.back() + 1].first;
+                long long to_evict_timestamp = windows[to_evict.back() + 1].t_open;
+
+                if (!evict_start_point) {
+                    cerr << "ERROR: Evict start point is null." << endl;
+                    exit(1);
+                }
+
+                if (evict_end_point == nullptr) {
+                    evict_end_point = sg->time_list_tail;
+                    cout << "WARNING: Evict end point is null, evicting whole buffer." << endl;
+                }
+
+                if (last_t_open != windows[to_evict[0]].t_open) sink->refresh_resultSet(windows[to_evict[0]].t_open);
+                last_t_open = windows[to_evict[0]].t_open;
+
+                timed_edge *current = evict_start_point;
+
+                while (current && current != evict_end_point) {
+                    auto cur_edge = current->edge_pt;
+                    auto next = current->next;
+
+                    if (cur_edge->label == first_transition) EINIT_count--;
+                    cumulative_degree -= sg->density[cur_edge->s];
+                    window_cardinality--;
+
+                    candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // schedule for deletion from RPQ forest
+                    sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label); // delete from adjacency list
+                    sg->delete_timed_edge(current); // delete from time list
+
+                    current = next;
+                }
+
+                // reset time list pointers
+                sg->time_list_head = evict_end_point;
+                sg->time_list_head->prev = nullptr;
+
+                f->expire_timestamped(to_evict_timestamp, candidate_for_deletion);
+
+                // mark window as evicted
+                for (unsigned long i: to_evict) {
+                    warmup++;
+                    windows[i].evicted = true;
+                    windows[i].first = nullptr;
+                    windows[i].last = nullptr;
+                    windows[i].latency = static_cast<double>(clock() - windows[i].start_time) / CLOCKS_PER_SEC;
+                    if (windows[i].latency > lat_max) lat_max = windows[i].latency;
+                    if (windows[i].latency < lat_min) lat_min = windows[i].latency;
+                    windows[i].normalized_latency = (windows[i].latency - lat_min) / (lat_max - lat_min);
+                }
+
+                to_evict.clear();
+                candidate_for_deletion.clear();
+                evict = false;
+
+                // max degree computation
+                max_deg = 1;
+                for (size_t i = window_offset; i < windows.size(); i++) {
+                    if (windows[i].max_degree > max_deg) max_deg = windows[i].max_degree;
+                }
+
+                double n = 0;
+                if (EINIT_count > edge_number) cerr << "ERROR: more initial transitions than edges." << endl;
+                for (int i = 0; i < EINIT_count; i++) {
+                    n += sg->edge_num - i;
+                }
+                cost = n / max_deg;
+
+                if (cost > cost_max) cost_max = cost;
+                if (cost < cost_min) cost_min = cost;
+                cost_norm = (cost - cost_min) / (cost_max - cost_min);
+
+                cost_window.push_back(cost_norm);
+                if (cost_window.size() > overlap)
+                    cost_window.pop_front();
+
+                cost_norm = std::accumulate(cost_window.begin(), cost_window.end(), 0.0) / cost_window.size();
+
+                double cost_diff = cost_norm - last_cost;
+                last_cost = cost_norm;
+
+                double cost_diff_diff = cost_diff - last_diff;
+                last_diff = cost_diff_diff;
+
+                if (std::isnan(last_diff)) {
+                    last_diff = 0;
+                }
+                if (std::isnan(cost_diff)) {
+                    cost_diff = 0;
+                }
+
+                if (cost_diff > 0 || cost_norm >= 0.9) {
+                    cost_diff <= 0.1 ? p_shed += granularity : p_shed += ceil(cost_diff * 10 * granularity);
+                } else if (cost_diff < 0 || cost_norm <= 0.1) {
+                    cost_diff <= 0.1 ? p_shed -= granularity : p_shed -= ceil(cost_diff * 10 * granularity);
+                }
+
+                p_shed = std::max(std::min(p_shed, max_shed), 0.0);
+
+                cout << ">>> Updated load shedding probability: " << p_shed << endl;
+            }
+
+            csv_tuples
+                << cost << ","
+                << cost_norm << ","
+                << windows[window_offset >= 1 ? window_offset - 1 : 0].latency << ","
+                << windows[window_offset >= 1 ? window_offset - 1 : 0].normalized_latency << ","
+                << windows[window_offset >= 1 ? window_offset - 1 : 0].elements_count << ","
+                << windows[window_offset >= 1 ? window_offset - 1 : 0].t_close - windows[window_offset >= 1 ? window_offset - 1 : 0].t_open << endl;
+
+        } else {
+            // error
+            cerr << "unknown mode" << endl;
+            exit(4);
+        }
 
         /* QUERY */
         query->pattern_matching_tc(new_sgt);
@@ -576,12 +833,6 @@ int main(int argc, char *argv[]) {
             printf("avg degree: %f\n", sg->mean);
             cout << "matched paths: " << sink->matched_paths << "\n\n";
         }
-
-        // sg->printGraph();
-
-        // f->printForest();
-
-        // cout << "============================" << endl;
     }
 
     cout << "Created windows: " << windows.size() << endl;
@@ -615,6 +866,8 @@ int main(int argc, char *argv[]) {
     csv_summary.close();
     csv_windows.close();
     csv_tuples.close();
+    csv_memory.close();
+    csv_adwin_distribution.close();
 
     // cleanup
     delete sg;

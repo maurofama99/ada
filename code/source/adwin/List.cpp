@@ -49,7 +49,7 @@ void List::addToHead()
   //	 pre: anObject is non-null
   //	 post: the object is added to the beginning of the list
 
-  ListNode *temp = new ListNode(M);
+  auto *temp = new ListNode(M);
 
   if (head) {
     temp->next = head;
@@ -67,7 +67,7 @@ void List::addToTail()
   //			 pre: anObject is non-null
   //			 post: the object is added at the end of the list
 
-  ListNode *temp = new ListNode(M);
+  auto *temp = new ListNode(M);
   if (tail) {
     temp->prev = tail;
     tail->next = temp;
@@ -83,16 +83,14 @@ void List::removeFromHead()
 {
   //		 pre: list is not empty
   //		 post: removes and returns first object from the list
-  ListNode* temp;
-  temp = head;
+  ListNode *temp = head;
   head = head->next;
-  if (head != NULL)
-    head->prev=NULL;
+  if (head != nullptr)
+    head->prev=nullptr;
   else
-    tail = NULL;
+    tail = nullptr;
   count--;
   delete temp;
-  return;
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,14 +98,12 @@ void List::removeFromTail()
 {
   //			 pre: list is not empty
   //			 post: the last object in the list is removed and returned
-  ListNode* temp;
-  temp = tail;
+  ListNode *temp = tail;
   tail = tail->prev;
-  if (tail == NULL)
-    head = NULL;
+  if (tail == nullptr)
+    head = nullptr;
   else
-    tail->next=NULL;
+    tail->next=nullptr;
   count--;
   delete temp;
-  return ;
 }

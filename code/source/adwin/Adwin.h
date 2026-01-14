@@ -25,7 +25,7 @@ class Adwin  {
 
  public:
   
-  Adwin(int _M);
+  Adwin(int _M, int MINLEN, double DELTA);
 
   double getEstimation() const; 
   bool update(const double &value);

@@ -33,8 +33,8 @@ ListNode::ListNode(int _M)
    size(0),
    sum(M+1,0.0),
    variance(M+1,0.0),
-   next(NULL),
-   prev(NULL)
+   next(nullptr),
+   prev(nullptr)
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
