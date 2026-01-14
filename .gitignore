@@ -1,0 +1,20 @@
+# Build artifacts
+code/streaming_rpq
+*.o
+*.a
+*.so
+*.dylib
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Output files
+*.csv
+
+# OS files
+.DS_Store
+Thumbs.db
