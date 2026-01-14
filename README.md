@@ -1,24 +1,24 @@
-# ADA: Adaptive Windowing for Continuous Regular Path Queries over Streaming Graphs
+# ADA:  Adaptive Windowing for Continuous Regular Path Queries over Streaming Graphs
 
 ## Build
 
-Prerequisites: C++17 compiler (`g++` or `clang++`), sources under `source/`.
+Prerequisites:  C++17 compiler (`g++` or `clang++`), sources under `source/`.
 
 Example (macOS / Linux):
 
 ```bash
-g++ -O3 -std=c++17 -I./source main.cpp source/*.cpp -o streaming_rpq
+g++ -O3 -std=c++17 -I./source main.cpp source/*. cpp -o streaming_rpq
 ```
 
 ## Run
 
-The program accepts a single argument: the path to the configuration file.
+The program accepts a single argument:  the path to the configuration file.
 
 ```bash
-./streaming_rpq config.txt
+./streaming_rpq code/config.txt
 ```
 
-## Input graph file format
+## Input Graph File Format
 
 The file referenced by `input_data_path` must contain one edge per line:
 
@@ -30,97 +30,223 @@ Where:
 - `s`: source node (long long)
 - `d`: destination node
 - `l`: integer label
-- `t`: timestamp (monotonic non\-necessarily contiguous)
+- `t`: timestamp (monotonic, non-necessarily contiguous)
 
 Only edges whose label appears in `labels` are processed.
 
-## Configuration file
+---
 
-Key\=value format, one pair per line, no spaces. Example:
+## Configuration File
+
+The configuration file uses a key=value format, with one pair per line and **no spaces around the `=` sign**.
+
+### Example Configuration
 
 ```ini
-input_data_path=data/sample_edges.txt
-adaptive=1
-size=1000
+adaptive=10
+input_data_path=code/dataset/higgs-activity/higgs-activity_time_postprocess.txt
+size=2400
 slide=200
-max_size=4000
-min_size=400
-query_type=5
-labels=10,11,12
+query_type=1
+labels=1
+max_size=2400
+min_size=1200
 ```
 
-### Parameters
+---
 
-| Key | Description |
-|-----|-------------|
-| `input_data_path` | Relative or absolute path to the edge list. Resolved against the executable directory. |
-| `adaptive` | `0` = fixed-size sliding window, `1` = adaptive window. |
-| `size` | Initial time window width (timestamp units). |
-| `slide` | Slide step (if equal to size rollbacks to tumbling window). |
-| `max_size` | Upper bound for adaptive window size. |
-| `min_size` | Lower bound for adaptive window size. |
-| `query_type` | Query identifier (builds one of the prepared rpqs automaton, see below). |
-| `labels` | Comma separated integers: ordered symbols used in automaton transitions. |
+## Configuration Parameters
 
-### Supported queries (`query_type`)
+| Key | Type | Required | Description |
+|-----|------|----------|-------------|
+| `input_data_path` | String | Yes | Relative or absolute path to the edge list file.  Resolved against the current working directory. |
+| `adaptive` | Integer | Yes | Windowing mode selector.  Determines how windows are managed (see [Windowing Modes](#windowing-modes) below). |
+| `size` | Integer | Yes | Initial time window width (in timestamp units). Also used as the minimum length for ADWIN.  |
+| `slide` | Integer | Yes | Slide step for window advancement. If equal to `size`, behaves as a tumbling window. |
+| `max_size` | Integer | Yes | Upper bound for adaptive window size. Must be greater than or equal to `min_size`. |
+| `min_size` | Integer | Yes | Lower bound for adaptive window size. Must be less than or equal to `max_size`. |
+| `query_type` | Integer | Yes | Query identifier that selects which Regular Path Query automaton to build (see [Supported Queries](#supported-queries)). |
+| `labels` | String | Yes | Comma-separated integers representing the ordered symbols used in automaton transitions. |
 
-| `query_type` | Pattern |
-|--------------|---------|
-| 1 | `a+` | 
-| 2 | `ab*` | 
-| 3 | `ab*c*` | 
-| 4 | `(abc)+` | 
-| 5 | `ab*c` | 
-| 6 | `a*b*` |
-| 7 | `abc*` | 
-| 10 | `(a\|b)c*` | 
+---
 
-Ensure the number of provided labels matches the distinct symbols required.
+## Windowing Modes
 
-## Generated CSV outputs
+The `adaptive` parameter controls which windowing strategy is used:
 
-Prefix: dataset folder name (`data_folder`) followed by type and parameters.
+| Value | Mode Name | Description |
+|-------|-----------|-------------|
+| `10` | `sl` | **Sliding Window** - Fixed-size sliding window with constant size and slide parameters. |
+| `11` | `ad_function` | **Adaptive Function** - Adaptive windowing based on a cost function. |
+| `12` | `ad_degree` | **Adaptive Degree** - Adaptive windowing that adjusts based on node degree metrics. |
+| `13` | `ad_einit` | **Adaptive EINIT** - Adaptive windowing using EINIT (Edge Initialization) count heuristics. |
+| `14` | `ad_freeman` | **Adaptive Freeman** - Adaptive windowing using Freeman centrality-based metrics. |
+| `2` | `adwin` | **ADWIN** - Adaptive Windowing algorithm for detecting change and adjusting window size dynamically. |
+| `3` | `lshed` | **Load Shedding** - Probabilistic load shedding mode that drops edges based on system load. |
 
-1. `_summary_results_...csv`  
-   Columns:  
-   - `total_edges`: processed edges (filtered by allowed labels)  
-   - `matches`: total recognized paths  
-   - `exec_time`: total execution time (seconds)  
-   - `windows_created`: number of windows generated  
-   - `avg_window_cardinality`: average edges per window  
-   - `avg_window_size`: average effective time span (adaptive)  
+### Mode Details
 
-2. `_window_results_...csv`  
-   - `index`  
-   - `t_open`  
-   - `t_close`  
-   - `window_results`: results emitted at window close  
-   - `incremental_matches`: cumulative matches up to this window  
-   - `latency`: window completion time  
-   - `window_cardinality`  
-   - `window_size`  
+#### Sliding Window (`adaptive=10`)
+Standard sliding window approach where:
+- Window size remains fixed at `size`
+- Windows slide by `slide` units
+- No adaptive behavior
 
-3. `_tuples_results_...csv`  
-   - `estimated_cost`  
-   - `normalized_estimated_cost`  
-   - `latency`  
-   - `normalized_latency`  
-   - `window_cardinality`  
-   - `window_size` (note: original field name contains a typo)  
+#### Adaptive Modes (`adaptive=11, 12, 13, 14`)
+These modes dynamically adjust the window size between `min_size` and `max_size` based on different heuristics:
+- **Function-based (11)**: Uses a computed cost function
+- **Degree-based (12)**: Adapts based on average node degree in the graph
+- **EINIT-based (13)**: Adjusts based on edge initialization patterns
+- **Freeman-based (14)**: Uses Freeman centrality measures
 
-4. `_memory_results_...csv` (only if `MEMORY_PROFILER` set to `true` at compile time)  
-   - `tot_virtual`  
-   - `used_virtual`  
-   - `tot_ram`  
-   - `used_ram`  
-   - `data_mem` (sum of main data structures)  
+#### ADWIN (`adaptive=2`)
+Implements the ADWIN (ADaptive WINdowing) algorithm:
+- Automatically detects concept drift
+- Adjusts window size based on detected changes
+- Uses configurable parameters:  `maxBuckets=8`, `minLen=size`, `delta=0.001`
 
+#### Load Shedding (`adaptive=3`)
+Probabilistic edge dropping mode:
+- Granularity: `min_size / 100.0`
+- Maximum shedding step: `max_size / 100.0`
+- Edges are randomly dropped based on computed shedding probability
 
-## Notes
+---
 
-- No comments supported in the config file.
-- Do not insert spaces around `=`.
-- Timestamps should be non\-decreasing for predictable behavior.
-- Memory profiling code is supported only for Linux os, disabled by default (`MEMORY_PROFILER false` in `main.cpp`).
+## Supported Queries (`query_type`)
 
+| `query_type` | Pattern | Description |
+|--------------|---------|-------------|
+| 1 | `a+` | One or more occurrences of label `a` |
+| 2 | `ab*` | Label `a` followed by zero or more `b` |
+| 3 | `ab*c*` | Label `a`, then zero or more `b`, then zero or more `c` |
+| 4 | `(abc)+` | One or more repetitions of the sequence `abc` |
+| 5 | `ab*c` | Label `a`, zero or more `b`, then exactly one `c` |
+| 6 | `a*b*` | Zero or more `a` followed by zero or more `b` |
+| 7 | `abc*` | Labels `a` and `b` followed by zero or more `c` |
+| 10 | `(a\|b)c*` | Either `a` or `b`, followed by zero or more `c` |
 
+> **Note**:  Ensure the number of provided labels matches the distinct symbols required by the chosen query pattern.
+
+---
+
+## Generated CSV Outputs
+
+Output files are named with the dataset folder name as prefix, followed by type and configuration parameters.
+
+### 1. Summary Results (`_summary_results_...csv`)
+
+| Column | Description |
+|--------|-------------|
+| `total_edges` | Number of processed edges (filtered by allowed labels) |
+| `matches` | Total number of recognized paths |
+| `exec_time` | Total execution time in seconds |
+| `windows_created` | Number of windows generated |
+| `avg_window_cardinality` | Average number of edges per window |
+| `avg_window_size` | Average effective time span (for adaptive modes) |
+
+### 2. Window Results (`_window_results_...csv`)
+
+| Column | Description |
+|--------|-------------|
+| `index` | Window index |
+| `t_open` | Window open timestamp |
+| `t_close` | Window close timestamp |
+| `window_results` | Results emitted at window close |
+| `incremental_matches` | Cumulative matches up to this window |
+| `latency` | Window completion latency |
+| `window_cardinality` | Number of elements in the window |
+| `window_size` | Time span of the window |
+
+### 3. Tuples Results (`_tuples_results_...csv`)
+
+| Column | Description |
+|--------|-------------|
+| `estimated_cost` | Estimated processing cost |
+| `normalized_estimated_cost` | Normalized cost value |
+| `latency` | Processing latency |
+| `normalized_latency` | Normalized latency value |
+| `window_cardinality` | Number of elements in window |
+| `window_size` | Size of the window |
+
+### 4. Memory Results (`_memory_results_...csv`)
+
+> **Note**: Only generated if `MEMORY_PROFILER` is set to `true` at compile time (Linux only).
+
+| Column | Description |
+|--------|-------------|
+| `tot_virtual` | Total virtual memory |
+| `used_virtual` | Used virtual memory |
+| `tot_ram` | Total RAM |
+| `used_ram` | Used RAM |
+| `data_mem` | Memory used by main data structures |
+
+### 5. ADWIN Distribution (`_adwin_dist_...csv`)
+
+| Column | Description |
+|--------|-------------|
+| `avg_deg` | Average degree |
+| `cost` | Cost value |
+| `cost_norm` | Normalized cost |
+
+---
+
+## Important Notes
+
+1. **No comments** are supported in the configuration file.
+2. **Do not insert spaces** around the `=` sign.
+3. **Timestamps should be non-decreasing** for predictable behavior.
+4. **`max_size` must be ≥ `min_size`** - the program will exit with an error if this constraint is violated.
+5. **Memory profiling** is only supported on Linux and is disabled by default (`MEMORY_PROFILER false` in `main.cpp`).
+
+---
+
+## Example Configurations
+
+### Basic Sliding Window
+```ini
+adaptive=10
+input_data_path=code/dataset/sample/edges.txt
+size=1000
+slide=200
+query_type=1
+labels=1
+max_size=1000
+min_size=1000
+```
+
+### Adaptive Degree-Based Window
+```ini
+adaptive=12
+input_data_path=code/dataset/sample/edges.txt
+size=2000
+slide=400
+query_type=5
+labels=1,2,3
+max_size=4000
+min_size=500
+```
+
+### ADWIN Mode
+```ini
+adaptive=2
+input_data_path=code/dataset/sample/edges.txt
+size=1500
+slide=300
+query_type=2
+labels=10,11
+max_size=3000
+min_size=750
+```
+
+### Load Shedding Mode
+```ini
+adaptive=3
+input_data_path=code/dataset/sample/edges.txt
+size=2400
+slide=200
+query_type=1
+labels=1
+max_size=4800
+min_size=1200
+```
