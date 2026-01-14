@@ -19,6 +19,10 @@
  *      Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
  *      MA 02110-1301, USA.
  */
+
+#ifndef ADWIN_H
+#define ADWIN_H
+
 #include "List.h"
 
 class Adwin  {
@@ -77,5 +81,5 @@ class Adwin  {
 
 
 
-
+#endif // ADWIN_H
 
