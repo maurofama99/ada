@@ -168,7 +168,7 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         candidate_for_deletion.clear();
         *ctx.evict = false;
 
-        if (ctx.mode > 10) {
+        if (ctx.mode >= 11) {
             // max degree computation
             *ctx.max_deg = 1;
             for (size_t i = *ctx.window_offset; i < ctx.windows->size(); i++) {

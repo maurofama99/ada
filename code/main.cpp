@@ -75,8 +75,6 @@ config readConfig(const std::string &filename) {
     return config;
 }
 
-int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels);
-
 int main(int argc, char *argv[]) {
     fs::path exe_path = fs::canonical(fs::absolute(argv[0]));
     fs::path exe_dir = exe_path.parent_path();
@@ -117,7 +115,7 @@ int main(int argc, char *argv[]) {
     double delta = 0.001;
     Adwin adwin(maxBuckets, minLen, delta);
 
-    f->possible_states = setup_automaton(query_type, aut, config.labels);
+    f->possible_states = aut->setup_automaton(query_type, config.labels);
 
     int first_transition = config.labels[0];
 
@@ -141,11 +139,10 @@ int main(int argc, char *argv[]) {
     long long checkpoint = 100;
 
     vector<long long> node_count;
-    long long saved_edges = 0;
 
     std::string mode;
     switch (config.adaptive) {
-        case 0: mode = "sl";
+        case 10: mode = "sl";
             break;
         case 11: mode = "ad_function";
             break;
@@ -225,7 +222,7 @@ int main(int argc, char *argv[]) {
     csv_adwin_distribution << "avg_deg,cost,cost_norm\n";
 
     // Create mode handler using factory
-    auto mode_handler = ModeFactory::create_mode_handler(mode, &adwin, &gen, &dist);
+    auto mode_handler = ModeFactory::create_mode_handler(config.adaptive, &adwin, &gen, &dist);
     
     // Setup context for mode handlers
     ModeContext ctx;
@@ -348,80 +345,4 @@ int main(int argc, char *argv[]) {
     delete query;
 
     return 0;
-}
-
-// Set up the automaton correspondant for each query
-int setup_automaton(long long query_type, FiniteStateAutomaton *aut, const vector<long long> &labels) {
-    int states_count = 0;
-    /*
-     * 0 - initial state
-     * 0 -> 1 - first transition
-     * Always enumerate the states starting from 0 and incrementing by 1.
-     */
-    switch (query_type) {
-        case 1: // a+
-            aut->addFinalState(1);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[0]);
-            states_count = 2;
-            break;
-        case 5: // ab*c
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[1]);
-            aut->addTransition(1, 2, labels[2]);
-            states_count = 3;
-            break;
-        case 7: // abc*
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(2, 2, labels[2]);
-            states_count = 3;
-            break;
-        case 4: // (abc)+
-            aut->addFinalState(3);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(2, 3, labels[2]);
-            aut->addTransition(3, 1, labels[0]);
-            states_count = 4;
-            break;
-        case 2: // ab*
-            aut->addFinalState(1);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[1]);
-            states_count = 2;
-            break;
-        case 10: // (a|b)c*
-            aut->addFinalState(1);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(0, 1, labels[1]);
-            aut->addTransition(1, 1, labels[2]);
-            states_count = 2;
-            break;
-        case 6: // a*b*
-            aut->addFinalState(1);
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[0]);
-            aut->addTransition(1, 2, labels[1]);
-            aut->addTransition(0, 2, labels[1]);
-            aut->addTransition(2, 2, labels[1]);
-            states_count = 3;
-            break;
-        case 3: // ab*c*
-            aut->addFinalState(1);
-            aut->addFinalState(2);
-            aut->addTransition(0, 1, labels[0]);
-            aut->addTransition(1, 1, labels[1]);
-            aut->addTransition(1, 2, labels[2]);
-            aut->addTransition(2, 2, labels[2]);
-            states_count = 3;
-            break;
-        default:
-            cerr << "ERROR: Wrong query type" << endl;
-            exit(1);
-    }
-    return states_count;
 }

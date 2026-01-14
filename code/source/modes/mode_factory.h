@@ -12,29 +12,30 @@
 class ModeFactory {
 public:
     static std::unique_ptr<ModeHandler> create_mode_handler(
-        const std::string& mode,
+        const int mode,
         Adwin* adwin_instance = nullptr,
         std::mt19937* generator = nullptr,
         std::uniform_real_distribution<double>* distribution = nullptr
     ) {
-        if (mode == "sl" || mode == "ad") {
+        if (mode >= 10) {
             return std::make_unique<SlidingWindowMode>();
-        } else if (mode == "adwin") {
+        }
+        if (mode == 2) {
             if (!adwin_instance) {
                 std::cerr << "ERROR: ADWIN mode requires adwin instance" << std::endl;
                 exit(4);
             }
             return std::make_unique<AdwinMode>(adwin_instance);
-        } else if (mode == "lshed") {
+        }
+        if (mode == 3) {
             if (!generator || !distribution) {
                 std::cerr << "ERROR: Load shedding mode requires generator and distribution" << std::endl;
                 exit(4);
             }
             return std::make_unique<LoadSheddingMode>(generator, distribution);
-        } else {
-            std::cerr << "unknown mode" << std::endl;
-            exit(4);
         }
+        std::cerr << "unknown mode" << std::endl;
+        exit(4);
     }
 };
 
