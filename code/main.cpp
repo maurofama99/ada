@@ -195,30 +195,37 @@ int main(int argc, char *argv[]) {
     double max_shed = max_size / 100.0;
     cout << "Max shedding step: " << max_shed << endl;
 
-    std::ofstream csv_summary(
-        data_folder + "_summary_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" +
-        std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
+    // output folder for csvs
+    fs::path output_folder = "results_testtype";
+    if (!fs::exists(output_folder)) {
+        fs::create_directories(output_folder);
+    }
+
+    // Base filename (without folder)
+    const std::string base =
+        data_folder + "_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" +
+        std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size);
+
+    // Build full paths under output_folder
+    const fs::path summary_path = output_folder / (base + "_summary_results.csv");
+    const fs::path windows_path = output_folder / (base + "_window_results.csv");
+    const fs::path tuples_path  = output_folder / (base + "_tuples_results.csv");
+    const fs::path memory_path  = output_folder / (base + "_memory_results.csv");
+    const fs::path adwin_path   = output_folder / (base + "_adwin_dist.csv");
+
+    std::ofstream csv_summary(summary_path.string());
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
 
-    std::ofstream csv_windows(
-        data_folder + "_window_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" +
-        std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
+    std::ofstream csv_windows(windows_path.string());
     csv_windows << "index,t_open,t_close,window_results,incremental_matches,latency,window_cardinality,window_size\n";
 
-    std::ofstream csv_tuples(
-        data_folder + "_tuples_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" +
-        std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
-    csv_tuples <<
-            "estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,window_size\n";
+    std::ofstream csv_tuples(tuples_path.string());
+    csv_tuples << "estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,window_size\n";
 
-    std::ofstream csv_memory(
-        data_folder + "_memory_results_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" +
-        std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
+    std::ofstream csv_memory(memory_path.string());
     csv_memory << "tot_virtual,used_virtual,tot_ram,used_ram,data_mem\n";
 
-    std::ofstream csv_adwin_distribution(
-        data_folder + "_adwin_dist_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" +
-        std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size) + ".csv");
+    std::ofstream csv_adwin_distribution(adwin_path.string());
     csv_adwin_distribution << "avg_deg,cost,cost_norm\n";
 
     // Create mode handler using factory
