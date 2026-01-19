@@ -42,7 +42,7 @@ def main():
 
 
 
-    algorithms = [11]
+    algorithms = [10]
     query_label_pairs =  higgs_query_label_pairs
     datasets = higgs_dataset
     window_slide_pairs = HIGGS_LATENCY
