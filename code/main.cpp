@@ -211,7 +211,6 @@ int main(int argc, char *argv[]) {
     const fs::path windows_path = output_folder / (base + "_window_results.csv");
     const fs::path tuples_path  = output_folder / (base + "_tuples_results.csv");
     const fs::path memory_path  = output_folder / (base + "_memory_results.csv");
-    const fs::path adwin_path   = output_folder / (base + "_adwin_dist.csv");
 
     std::ofstream csv_summary(summary_path.string());
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";

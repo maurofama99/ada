@@ -286,7 +286,5 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         << (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].elements_count << ","
         << (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].t_close - (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].t_open << std::endl;
 
-    (*ctx.csv_adwin_distribution) << *ctx.avg_deg << "," << *ctx.cost << "," << *ctx.cost_norm << "\n";
-    
     return true;
 }
