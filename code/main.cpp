@@ -225,9 +225,6 @@ int main(int argc, char *argv[]) {
     std::ofstream csv_memory(memory_path.string());
     csv_memory << "tot_virtual,used_virtual,tot_ram,used_ram,data_mem\n";
 
-    std::ofstream csv_adwin_distribution(adwin_path.string());
-    csv_adwin_distribution << "avg_deg,cost,cost_norm\n";
-
     // Create mode handler using factory
     auto mode_handler = ModeFactory::create_mode_handler(config.adaptive, &adwin, &gen, &dist);
     
@@ -239,7 +236,6 @@ int main(int argc, char *argv[]) {
     ctx.sink = sink;
     ctx.aut = aut;
     ctx.csv_tuples = &csv_tuples;
-    ctx.csv_adwin_distribution = &csv_adwin_distribution;
     ctx.size = size;
     ctx.slide = slide;
     ctx.max_size = max_size;
@@ -342,7 +338,6 @@ int main(int argc, char *argv[]) {
     csv_windows.close();
     csv_tuples.close();
     csv_memory.close();
-    csv_adwin_distribution.close();
 
     // cleanup
     delete sg;

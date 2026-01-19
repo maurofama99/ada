@@ -1,8 +1,0 @@
-adaptive=1
-input_data_path=code/dataset/so/so-stream_labelled_bursted.txt
-size=172800
-slide=17280
-query_type=2
-labels=2,1
-max_size=224640
-min_size=120960

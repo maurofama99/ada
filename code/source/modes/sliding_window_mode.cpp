@@ -187,34 +187,36 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
                 freeman = cumulative_degree_centralization / ((ctx.sg->vertex_num - 1) * (ctx.sg->vertex_num - 2));
             }
 
-
+            // cost function
             double n = 0;
-            if (*ctx.EINIT_count > *ctx.edge_number) std::cerr << "ERROR: more initial transitions than edges." << std::endl;
-            for (int i = 0; i < *ctx.EINIT_count; i++) {
-                n += ctx.sg->edge_num - i;
+            if (ctx.mode == 11) {
+                if (*ctx.EINIT_count > *ctx.edge_number) std::cerr << "ERROR: more initial transitions than edges." << std::endl;
+                for (int i = 0; i < *ctx.EINIT_count; i++) {
+                    n += ctx.sg->edge_num - i;
+                }
             }
-            *ctx.cost = n / *ctx.max_deg;
-
-            if (*ctx.cost > *ctx.cost_max) *ctx.cost_max = *ctx.cost;
-            if (*ctx.cost < *ctx.cost_min) *ctx.cost_min = *ctx.cost;
 
             switch (ctx.mode) {
                 case 11:
-                    *ctx.cost_norm = (*ctx.cost - *ctx.cost_min) / (*ctx.cost_max - *ctx.cost_min);
+                    *ctx.cost = n / *ctx.max_deg;
                     break;
                 case 12:
-                    *ctx.cost_norm = *ctx.avg_deg;
+                    *ctx.cost = *ctx.avg_deg;
                     break;
                 case 13:
-                    *ctx.cost_norm = *ctx.EINIT_count;
+                    *ctx.cost = *ctx.EINIT_count;
                     break;
                 case 14:
-                    *ctx.cost_norm = freeman;
+                    *ctx.cost = freeman;
                     break;
                 default:
                     cerr << "ERROR: unknown cost mode." << endl;
                     exit(1);
             }
+
+            if (*ctx.cost > *ctx.cost_max) *ctx.cost_max = *ctx.cost;
+            if (*ctx.cost < *ctx.cost_min) *ctx.cost_min = *ctx.cost;
+            *ctx.cost_norm = (*ctx.cost - *ctx.cost_min) / (*ctx.cost_max - *ctx.cost_min);
 
             ctx.cost_window->push_back(*ctx.cost_norm);
             if (ctx.cost_window->size() > ctx.overlap)
@@ -235,10 +237,12 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
                 cost_diff = 0;
             }
 
-            if (cost_diff > 0 || *ctx.cost_norm >= 0.9) {
-                cost_diff <= 0.1 ? ctx.size -= ctx.slide : ctx.size -= ceil(cost_diff * 10 * ctx.slide);
-            } else if (cost_diff < 0 || *ctx.cost_norm <= 0.1) {
-                cost_diff <= 0.1 ? ctx.size += ctx.slide : ctx.size += ceil(cost_diff * 10 * ctx.slide);
+            if (cost_diff > 0 || *ctx.cost_norm >= 0.95) {
+                // cost_diff <= 0.1 ? ctx.size -= ctx.slide : ctx.size -= ceil(cost_diff * 10 * ctx.slide);
+                ctx.size -= ceil(cost_diff * 10 * ctx.slide);
+            } else if (cost_diff < 0 || *ctx.cost_norm <= 0.05) {
+                // cost_diff <= 0.1 ? ctx.size += ctx.slide : ctx.size += ceil(cost_diff * 10 * ctx.slide);
+                ctx.size += ceil(cost_diff * 10 * ctx.slide);
             }
 
             // cap to max and min size

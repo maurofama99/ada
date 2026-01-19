@@ -55,7 +55,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
     *new_sgt_out = new_sgt;
 
     // add edge to time list
-    timed_edge* t_edge = new timed_edge(new_sgt); // associate the timed edge with the snapshot graph edge
+    auto* t_edge = new timed_edge(new_sgt); // associate the timed edge with the snapshot graph edge
     ctx.sg->add_timed_edge(t_edge); // append the element to the time list
 
     // update window boundaries and check for window eviction
@@ -192,10 +192,10 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
             cost_diff = 0;
         }
 
-        if (cost_diff > 0 || *ctx.cost_norm >= 0.9) {
-            cost_diff <= 0.1 ? *ctx.p_shed += ctx.granularity : *ctx.p_shed += ceil(cost_diff * 10 * ctx.granularity);
-        } else if (cost_diff < 0 || *ctx.cost_norm <= 0.1) {
-            cost_diff <= 0.1 ? *ctx.p_shed -= ctx.granularity : *ctx.p_shed -= ceil(cost_diff * 10 * ctx.granularity);
+        if (cost_diff > 0 || *ctx.cost_norm >= 0.95) {
+            *ctx.p_shed += ceil(cost_diff * 10 * ctx.granularity);
+        } else if (cost_diff < 0 || *ctx.cost_norm <= 0.05) {
+            *ctx.p_shed -= ceil(cost_diff * 10 * ctx.granularity);
         }
 
         *ctx.p_shed = std::max(std::min(*ctx.p_shed, ctx.max_shed), 0.0);

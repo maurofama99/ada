@@ -23,11 +23,30 @@ def generate_config_files(datasets, algorithms, window_slide_pairs, query_label_
                             print(f"Generated {config_filepath}")
 
 def main():
-    algorithms = [11, 12, 13, 14]
-    query_label_pairs = [(1, [14])]
-    datasets = ["code/dataset/ldbc/social-graph12_14v4_bursted.txt"]
-    window_slide_pairs = [(172800, 10800, 172800, 172800)]
-    output = "cost_accuracy/ldbc"
+    # SO
+    # query_label_pairs = [(1,[1]), (5,[2,1,3]), (7,[3,2,1]), (2,[2,1]), (10,[3,2,1]), (6,[1,2]), (3,[3,1,2]), (4,[3,1,2])]
+
+    # LDBC
+    # datasets = ["code/dataset/ldbc/social-graph12_14v4_bursted.txt"]
+    # query_label_pairs = [(4, [3,0,8]), (1, [14]), (5, [3,0,8]), (2, [3,0]), (10, [9,3,0]), (7, [8,9,0])]
+    # COMPLETENESS : window_slide_pairs = [(345600, 21600, 345600, 324000), (345600, 21600, 345600, 302400), (345600, 21600, 345600, 280800), (345600, 21600, 345600, 259200), (345600, 21600, 345600, 237600)]
+    # COMPLETENESS (LS) :  window_slide_pairs = [(345600, 10800, 5, 1), (345600, 10800, 10, 2), (345600, 10800, 15, 3), (345600, 10800, 20, 4), (345600, 10800, 25, 5)]
+    # LATENCY / TUPUT : window_slide_pairs = [(172800, 10800, 172800, 118800), (345600, 10800, 345600, 259200)]
+
+    # HIGGS
+    higgs_dataset = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
+    higgs_query_label_pairs =  [(1,[1]), (5,[2,1,3]), (7,[2,3,1]), (2,[2,1]), (10,[2,3,1]), (6,[2,1]), (3,[3,2,1]), (4,[2,1,3])]
+    HIGGS_LATENCY = [(3600, 600, 3600, 2700), (7200, 600, 7200, 5400), (10800, 600, 10800, 8100)]
+    HIGGS_COMPLETENESS  = [(3600, 300, 3600, 2100), (3600, 300, 3600, 2400), (3600, 300, 3600, 2700), (3600, 300, 3600, 3000), (3600, 300, 3600, 3300)]
+    HIGGS_LOAD_SHEDDING = [(3600, 300, 5, 1), (3600, 300, 10, 2), (3600, 300, 15, 3), (3600, 300, 20, 4), (3600, 300, 25, 5)]
+
+
+
+    algorithms = [11]
+    query_label_pairs =  higgs_query_label_pairs
+    datasets = higgs_dataset
+    window_slide_pairs = HIGGS_LATENCY
+    output = "latency_tput/higgs"
 
     # Query	        LDBC	HIGGS	SO
     # 1) a*	        0	    1	    1
@@ -38,18 +57,6 @@ def main():
     # 6) a*b*	            2,1	    1,2
     # 3) ab*c*	            3,2,1	3,1,2
     # 4) (abc)+	    3,0,8	2,1,3	3,1,2
-
-    # SO
-    # query_label_pairs = [(1,[1]), (5,[2,1,3]), (7,[3,2,1]), (2,[2,1]), (10,[3,2,1]), (6,[1,2]), (3,[3,1,2]), (4,[3,1,2])]
-
-    # LDBC
-    # datasets = ["code/dataset/ldbc/social-graph12_14v4_bursted.txt"]
-    # query_label_pairs = [(4, [3,0,8]), (1, [14]), (5, [3,0,8]), (2, [3,0]), (10, [9,3,0]), (7, [8,9,0])]
-    # COMPLETENESS : window_slide_pairs = [(345600, 21600, 345600, 324000), (345600, 21600, 345600, 302400), (345600, 21600, 345600, 280800), (345600, 21600, 345600, 259200), (345600, 21600, 345600, 237600)]
-
-    # HIGGS
-    # datasets = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
-    # query_label_pairs =  [(1,[1]), (5,[2,1,3]), (7,[2,3,1]), (2,[2,1]), (10,[2,3,1]), (6,[2,1]), (3,[3,2,1]), (4,[2,1,3])]
 
     generate_config_files(datasets, algorithms, window_slide_pairs, query_label_pairs, output)
 
