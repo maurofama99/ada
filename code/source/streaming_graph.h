@@ -31,7 +31,9 @@ struct edge_info // the structure as query result, include all the information o
     long long timestamp;
     long long expiration_time;
     long long id;
-    edge_info(long long src,  long long dst, long long time, long long label_, long long expiration_time_, long long id_) {
+
+    edge_info(long long src, long long dst, long long time, long long label_, long long expiration_time_,
+              long long id_) {
         s = src;
         d = dst;
         timestamp = time;
@@ -51,7 +53,8 @@ public:
     long long id;
     int lives;
 
-    sg_edge(const long long id_, const long long src, const long long dst, const long long label_, const long long time, int lives_, const long long expiration_time_) {
+    sg_edge(const long long id_, const long long src, const long long dst, const long long label_, const long long time,
+            int lives_, const long long expiration_time_) {
         id = id_;
         s = src;
         d = dst;
@@ -64,8 +67,8 @@ public:
 };
 
 struct pair_hash_aj {
-    template <class T1, class T2>
-    std::size_t operator()(const std::pair<T1, T2>& p) const {
+    template<class T1, class T2>
+    std::size_t operator()(const std::pair<T1, T2> &p) const {
         auto hash1 = std::hash<T1>()(p.first);
         auto hash2 = std::hash<T2>()(p.second);
         return hash1 ^ (hash2 << 1); // Combine the two hash values
@@ -83,8 +86,8 @@ struct pair_hash {
 };
 
 struct MemoryEstimatorAdjL {
-    static constexpr size_t ptr_size = sizeof(void*);
-    static constexpr size_t node_overhead = 2 * sizeof(void*); // approx. per unordered_map node
+    static constexpr size_t ptr_size = sizeof(void *);
+    static constexpr size_t node_overhead = 2 * sizeof(void *); // approx. per unordered_map node
 
     // size of one sg_edge object
     static size_t size_of_sg_edge() {
@@ -93,20 +96,19 @@ struct MemoryEstimatorAdjL {
 
     // estimate memory for unordered_map<long long, vector<pair<long long, sg_edge*>>>
     static size_t estimate_adjacency_list(
-        const std::unordered_map<long long, std::vector<std::pair<long long, sg_edge*>>>& m)
-    {
+        const std::unordered_map<long long, std::vector<std::pair<long long, sg_edge *> > > &m) {
         size_t total = 0;
         // bucket array
         total += m.bucket_count() * ptr_size;
 
-        for (const auto& kv : m) {
-            total += sizeof(long long);               // key
-            total += sizeof(std::vector<std::pair<long long, sg_edge*>>); // vector object
-            total += node_overhead;                   // unordered_map node overhead
+        for (const auto &kv: m) {
+            total += sizeof(long long); // key
+            total += sizeof(std::vector<std::pair<long long, sg_edge *> >); // vector object
+            total += node_overhead; // unordered_map node overhead
 
-            const auto& vec = kv.second;
+            const auto &vec = kv.second;
             // vector capacity (not just size!) times element size
-            total += vec.capacity() * sizeof(std::pair<long long, sg_edge*>);
+            total += vec.capacity() * sizeof(std::pair<long long, sg_edge *>);
         }
         return total;
     }
@@ -116,14 +118,18 @@ class streaming_graph {
 public:
     unordered_map<long long, vector<pair<long long, sg_edge *> > > adjacency_list;
 
-    double edge_num=0; // number of edges in the window
+    double edge_num = 0; // number of edges in the window
     int EINIT_count = 0;
-    long long vertex_num=0; // number of vertices in the window
+
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
 
     int first_transition; // the first label in the query
     int lives = 1;
+
+    unordered_map<long long, int> in_degree;
+    unordered_map<long long, int> out_degree;
+    long long vertex_num = 0; // number of vertices in the window
 
     // Z-score computation
     double mean = 0;
@@ -140,15 +146,15 @@ public:
 
     ~streaming_graph() {
         // Free memory for all edges in the adjacency list
-        for (auto& [_, edges] : adjacency_list) {
-            for (auto& [_, edge] : edges) {
+        for (auto &[_, edges]: adjacency_list) {
+            for (auto &[_, edge]: edges) {
                 delete edge;
             }
         }
 
         // Free memory for the timed edges list
         while (time_list_head) {
-            timed_edge* temp = time_list_head;
+            timed_edge *temp = time_list_head;
             time_list_head = time_list_head->next;
             delete temp;
         }
@@ -198,8 +204,7 @@ public:
         delete cur;
     }
 
-    sg_edge * search_existing_edge(long long from, long long to, long long label) {
-
+    sg_edge *search_existing_edge(long long from, long long to, long long label) {
         for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
             if (existing_edge->label == label && to_vertex == to) {
                 return existing_edge;
@@ -209,9 +214,9 @@ public:
         return nullptr;
     }
 
-    sg_edge* insert_edge(const long long edge_id, const long long from,  long long to, const long long label, const long long timestamp,
+    sg_edge *insert_edge(const long long edge_id, const long long from, long long to, const long long label,
+                         const long long timestamp,
                          const long long expiration_time) {
-
         // Check if the edge already exists in the adjacency list
         for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
             if (existing_edge->label == label && to_vertex == to) {
@@ -228,37 +233,46 @@ public:
 
         // Add the edge to the adjacency list if it doesn't exist
         if (adjacency_list[from].empty()) {
-            vertex_num++;
             adjacency_list[from] = vector<pair<long long, sg_edge *> >();
         }
         adjacency_list.at(from).emplace_back(to, edge);
 
-        density[from]++;
+        // Track vertex count and degrees
+        if (out_degree.find(from) == out_degree.end()) {
+            out_degree[from] = 0;
+            if (in_degree.find(from) == in_degree.end()) {
+                in_degree[from] = 0;
+            }
+            vertex_num++;
+        }
+        if (in_degree.find(to) == in_degree.end()) {
+            in_degree[to] = 0;
+            if (out_degree.find(to) == out_degree.end()) {
+                out_degree[to] = 0;
+            }
+            vertex_num++;
+        }
+        out_degree[from]++;
+        in_degree[to]++;
 
-        // update z score
+        // old z score logic ///////
+        density[from]++;
         if (edge_num == 1) {
-            // density[to]++;
-            // mean = (density[from] + density[to]) / 2;
             mean = density[from];
             m2 = 0;
         } else {
             double old_mean = mean;
             mean += (density[from] - mean) / vertex_num;
             m2 += (density[from] - old_mean) * (density[from] - mean);
-            /*
-            density[to]++;
-            old_mean = mean;
-            mean += (density[to] - mean) / vertex_num;
-            m2 += (density[to] - old_mean) * (density[to] - mean);
-            */
         }
-
         update_zscore_tracking(from);
-        // update_zscore_tracking(to);
+        ////////////////////////////
+
         return edge;
     }
 
-    bool remove_edge(long long from, long long to, long long label) { // delete an edge from the snapshot graph
+    bool remove_edge(long long from, long long to, long long label) {
+        // delete an edge from the snapshot graph
 
         // Check if the vertex exists in the adjacency list
         if (adjacency_list[from].empty()) {
@@ -267,37 +281,45 @@ public:
 
         auto &edges = adjacency_list[from];
         for (auto it = edges.begin(); it != edges.end(); ++it) {
-            sg_edge *edge = it->second;
-
             // Check if this is the edge to remove
-            if (it->first == to && edge->label == label) {
-
+            if (sg_edge *edge = it->second; it->first == to && edge->label == label) {
                 // Remove the edge from the adjacency list
                 edges.erase(it);
                 edge_num--;
                 if (label == first_transition) EINIT_count--;
-
                 if (edges.empty()) {
                     adjacency_list.erase(from);
+                }
+
+                // Update degrees
+                out_degree[from]--;
+                in_degree[to]--;
+
+                // Remove 'from' vertex if it has no incident edges
+                if (out_degree[from] == 0 && in_degree[from] == 0) {
+                    out_degree.erase(from);
+                    in_degree.erase(from);
                     vertex_num--;
                 }
 
-                // update z-score computation
+                // Remove 'to' vertex if it has no incident edges
+                if (out_degree[to] == 0 && in_degree[to] == 0) {
+                    out_degree.erase(to);
+                    in_degree.erase(to);
+                    if (adjacency_list.count(to)) {
+                        adjacency_list.erase(to);
+                    }
+                    vertex_num--;
+                }
+
+                // old z-score logic /////////////////
                 double old_mean = mean;
                 mean -= (mean - density[from]) / (vertex_num);
                 m2 -= (density[from] - old_mean) * (density[from] - mean);
-
                 density[from]--;
-
-                /*
-                old_mean = mean;
-                mean -= (mean - density[to]) / (vertex_num);
-                m2 -= (density[to] - old_mean) * (density[to] - mean);
-                density[to]--;
-                */
-
                 update_zscore_tracking(from);
-                // update_zscore_tracking(to);
+                /////////////////////////////////////
+
                 return true; // Successfully removed
             }
         }
@@ -351,35 +373,35 @@ public:
         return MemoryEstimatorAdjL::estimate_adjacency_list(adjacency_list);
     }
 
-void printGraph() const {
-    if (adjacency_list.empty()) {
-        std::cout << "╔════════════════╗\n";
-        std::cout << "║ Empty Graph    ║\n";
-        std::cout << "╚════════════════╝\n";
-        return;
-    }
-
-    std::cout << "╔════════════════════════════════════════╗\n";
-    std::cout << "║ Graph Statistics                       ║\n";
-    std::cout << "╠════════════════════════════════════════╣\n";
-    std::cout << "║ Vertices: " << vertex_num << std::string(29 - std::to_string(vertex_num).length(), ' ') << "║\n";
-    std::cout << "║ Edges: " << static_cast<long long>(edge_num) << std::string(32 - std::to_string(static_cast<long long>(edge_num)).length(), ' ') << "║\n";
-    std::cout << "╚════════════════════════════════════════╝\n\n";
-
-    for (const auto& [from, edges] : adjacency_list) {
-        std::cout << "Vertex " << from;
-
-        for (size_t i = 0; i < edges.size(); ++i) {
-            const auto& [to, edge] = edges[i];
-            bool isLast = (i == edges.size() - 1);
-
-            std::cout << (isLast ? "└──" : "├──") << "→ " << to;
-            std::cout << " [label:" << edge->label
-                      << " ts:" << edge->timestamp << "]\n";
+    void printGraph() const {
+        if (adjacency_list.empty()) {
+            std::cout << "╔════════════════╗\n";
+            std::cout << "║ Empty Graph    ║\n";
+            std::cout << "╚════════════════╝\n";
+            return;
         }
-        std::cout << "\n";
+
+        std::cout << "╔════════════════════════════════════════╗\n";
+        std::cout << "║ Graph Statistics                       ║\n";
+        std::cout << "╠════════════════════════════════════════╣\n";
+        std::cout << "║ Vertices: " << vertex_num << std::string(29 - std::to_string(vertex_num).length(), ' ') <<
+                "║\n";
+        std::cout << "║ Edges: " << static_cast<long long>(edge_num) << std::string(
+            32 - std::to_string(static_cast<long long>(edge_num)).length(), ' ') << "║\n";
+        std::cout << "╚════════════════════════════════════════╝\n\n";
+
+        for (const auto &[from, edges]: adjacency_list) {
+            std::cout << "Vertex " << from;
+
+            for (size_t i = 0; i < edges.size(); ++i) {
+                const auto &[to, edge] = edges[i];
+                bool isLast = (i == edges.size() - 1);
+
+                std::cout << (isLast ? "└──" : "├──") << "→ " << to;
+                std::cout << " [label:" << edge->label
+                        << " ts:" << edge->timestamp << "]\n";
+            }
+            std::cout << "\n";
+        }
     }
-}
-
-
 };
