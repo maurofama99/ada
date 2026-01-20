@@ -11,7 +11,6 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
     }
 
     (*ctx.edge_number)++;
-    if (l == ctx.first_transition) (*ctx.EINIT_count)++;
 
     long long window_close;
     double base = std::floor(static_cast<double>(time) / ctx.slide) * ctx.slide;
@@ -123,7 +122,6 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
             auto cur_edge = current->edge_pt;
             auto next = current->next;
 
-            if (cur_edge->label == ctx.first_transition) (*ctx.EINIT_count)--;
             *ctx.cumulative_degree -= ctx.sg->density[cur_edge->s];
             (*ctx.window_cardinality)--;
 
@@ -163,8 +161,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
         }
 
         double n = 0;
-        if (*ctx.EINIT_count > *ctx.edge_number) std::cerr << "ERROR: more initial transitions than edges." << std::endl;
-        for (int i = 0; i < *ctx.EINIT_count; i++) {
+        for (int i = 0; i < ctx.sg->EINIT_count; i++) {
             n += ctx.sg->edge_num - i;
         }
         *ctx.cost = n / *ctx.max_deg;

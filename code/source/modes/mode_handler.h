@@ -67,7 +67,6 @@ struct ModeContext {
     
     // Counters and state variables
     long long* edge_number;
-    int* EINIT_count;
     long long* window_offset;
     std::vector<size_t>* to_evict;
     bool* evict;

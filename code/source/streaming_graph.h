@@ -117,10 +117,12 @@ public:
     unordered_map<long long, vector<pair<long long, sg_edge *> > > adjacency_list;
 
     double edge_num=0; // number of edges in the window
+    int EINIT_count = 0;
     long long vertex_num=0; // number of vertices in the window
     timed_edge *time_list_head; // head of the time sequence list;
     timed_edge *time_list_tail; // tail of the time sequence list
 
+    int first_transition; // the first label in the query
     int lives = 1;
 
     // Z-score computation
@@ -130,8 +132,8 @@ public:
     double zscore_threshold;
     unordered_set<long long> high_zscore_vertices;
 
-    explicit streaming_graph(double zscore_threshold_)
-        : zscore_threshold(zscore_threshold_) {
+    explicit streaming_graph(const int first_transition, const double zscore_threshold_)
+        : first_transition(first_transition), zscore_threshold(zscore_threshold_) {
         time_list_head = nullptr;
         time_list_tail = nullptr;
     }
@@ -220,6 +222,8 @@ public:
         }
 
         edge_num++;
+        if (label == first_transition) EINIT_count++;
+
         auto *edge = new sg_edge(edge_id, from, to, label, timestamp, lives, expiration_time);
 
         // Add the edge to the adjacency list if it doesn't exist
@@ -271,6 +275,7 @@ public:
                 // Remove the edge from the adjacency list
                 edges.erase(it);
                 edge_num--;
+                if (label == first_transition) EINIT_count--;
 
                 if (edges.empty()) {
                     adjacency_list.erase(from);

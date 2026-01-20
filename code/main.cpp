@@ -106,7 +106,6 @@ int main(int argc, char *argv[]) {
     }
 
     auto *f = new Forest();
-    auto *sg = new streaming_graph(2.5);
     auto *sink = new Sink();
     auto *aut = new FiniteStateAutomaton();
 
@@ -117,7 +116,7 @@ int main(int argc, char *argv[]) {
 
     f->possible_states = aut->setup_automaton(query_type, config.labels);
 
-    int first_transition = config.labels[0];
+    auto *sg = new streaming_graph(config.labels[0], 2.5);
 
     auto query = new QueryHandler(*aut, *f, *sg, *sink); // Density-based Retention
 
@@ -239,7 +238,6 @@ int main(int argc, char *argv[]) {
     ctx.slide = slide;
     ctx.max_size = max_size;
     ctx.min_size = min_size;
-    ctx.first_transition = first_transition;
     ctx.edge_number = &edge_number;
     ctx.EINIT_count = &EINIT_count;
     ctx.window_offset = &window_offset;

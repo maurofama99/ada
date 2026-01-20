@@ -3,7 +3,6 @@
 
 bool AdwinMode::process_edge(long long s, long long d, long long l, long long time, ModeContext& ctx, sg_edge** new_sgt_out) {
     (*ctx.edge_number)++;
-    if (l == ctx.first_transition) (*ctx.EINIT_count)++;
 
     (*ctx.window_cardinality)++;
     (*ctx.windows)[*ctx.resizings].elements_count++;
@@ -33,9 +32,10 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
 
     // compute cost function
     double n = 0;
-    for (int i = 0; i < *ctx.EINIT_count; i++) {
+    for (int i = 0; i < ctx.sg->EINIT_count; i++) {
         n += ctx.sg->edge_num - i;
     }
+
     *ctx.cost = n / *ctx.max_deg;
     if (*ctx.cost > *ctx.cost_max) *ctx.cost_max = *ctx.cost;
     if (*ctx.cost < *ctx.cost_min) *ctx.cost_min = *ctx.cost;
@@ -61,7 +61,6 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
             auto cur_edge = current->edge_pt;
             auto next = current->next;
 
-            if (cur_edge->label == ctx.first_transition) (*ctx.EINIT_count)--;
             *ctx.cumulative_degree -= ctx.sg->density[cur_edge->s];
 
             candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
