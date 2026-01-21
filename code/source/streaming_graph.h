@@ -51,17 +51,14 @@ public:
     timed_edge *time_pos;
     long long s, d;
     long long id;
-    int lives;
 
-    sg_edge(const long long id_, const long long src, const long long dst, const long long label_, const long long time,
-            int lives_, const long long expiration_time_) {
+    sg_edge(const long long id_, const long long src, const long long dst, const long long label_, const long long time, const long long expiration_time_) {
         id = id_;
         s = src;
         d = dst;
         timestamp = time;
         label = label_;
         time_pos = nullptr;
-        lives = lives_;
         expiration_time = expiration_time_;
     }
 };
@@ -125,21 +122,12 @@ public:
     timed_edge *time_list_tail; // tail of the time sequence list
 
     int first_transition; // the first label in the query
-    int lives = 1;
 
     unordered_map<long long, int> in_degree;
     unordered_map<long long, int> out_degree;
     long long vertex_num = 0; // number of vertices in the window
 
-    // Z-score computation
-    double mean = 0;
-    double m2 = 0;
-    unordered_map<long long, double> density;
-    double zscore_threshold;
-    unordered_set<long long> high_zscore_vertices;
-
-    explicit streaming_graph(const int first_transition, const double zscore_threshold_)
-        : first_transition(first_transition), zscore_threshold(zscore_threshold_) {
+    explicit streaming_graph(const int first_transition) : first_transition(first_transition) {
         time_list_head = nullptr;
         time_list_tail = nullptr;
     }
@@ -157,15 +145,6 @@ public:
             timed_edge *temp = time_list_head;
             time_list_head = time_list_head->next;
             delete temp;
-        }
-    }
-
-    void update_zscore_tracking(long long vertex) {
-        double z = get_zscore(vertex);
-        if (z > zscore_threshold) {
-            high_zscore_vertices.insert(vertex);
-        } else {
-            high_zscore_vertices.erase(vertex);
         }
     }
 
@@ -229,7 +208,7 @@ public:
         edge_num++;
         if (label == first_transition) EINIT_count++;
 
-        auto *edge = new sg_edge(edge_id, from, to, label, timestamp, lives, expiration_time);
+        auto *edge = new sg_edge(edge_id, from, to, label, timestamp, expiration_time);
 
         // Add the edge to the adjacency list if it doesn't exist
         if (adjacency_list[from].empty()) {
@@ -254,19 +233,6 @@ public:
         }
         out_degree[from]++;
         in_degree[to]++;
-
-        // old z score logic ///////
-        density[from]++;
-        if (edge_num == 1) {
-            mean = density[from];
-            m2 = 0;
-        } else {
-            double old_mean = mean;
-            mean += (density[from] - mean) / vertex_num;
-            m2 += (density[from] - old_mean) * (density[from] - mean);
-        }
-        update_zscore_tracking(from);
-        ////////////////////////////
 
         return edge;
     }
@@ -312,14 +278,6 @@ public:
                     vertex_num--;
                 }
 
-                // old z-score logic /////////////////
-                double old_mean = mean;
-                mean -= (mean - density[from]) / (vertex_num);
-                m2 -= (density[from] - old_mean) * (density[from] - mean);
-                density[from]--;
-                update_zscore_tracking(from);
-                /////////////////////////////////////
-
                 return true; // Successfully removed
             }
         }
@@ -336,15 +294,6 @@ public:
             sucs.emplace_back(s, to, edge->timestamp, edge->label, edge->expiration_time, edge->id);
         }
         return sucs;
-    }
-
-    double get_zscore(long long vertex) {
-        double variance = m2 / edge_num;
-        double std_dev = std::sqrt(variance);
-
-        if (std_dev == 0) return 0;
-
-        return (density[vertex] - mean) / std_dev;
     }
 
     void shift_timed_edge(timed_edge *to_insert, timed_edge *target) {

@@ -79,8 +79,8 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
                 (*ctx.windows)[i].elements_count++;
                 (*ctx.total_elements_count)++;
             }
-            if (ctx.sg->density[s] > (*ctx.windows)[i].max_degree) {
-                (*ctx.windows)[i].max_degree = ctx.sg->density[s];
+            if (ctx.sg->out_degree[s] > (*ctx.windows)[i].max_degree) {
+                (*ctx.windows)[i].max_degree = ctx.sg->out_degree[s];
             }
         } else if (time >= (*ctx.windows)[i].t_close) {
             // schedule window for eviction
@@ -99,7 +99,7 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
     (*ctx.size_count)++;
     *ctx.avg_size = *ctx.cumulative_size / *ctx.size_count;
 
-    *ctx.cumulative_degree += ctx.sg->density[new_sgt->s];
+    *ctx.cumulative_degree += ctx.sg->out_degree[new_sgt->s];
     (*ctx.window_cardinality)++;
     *ctx.avg_deg = *ctx.cumulative_degree / *ctx.window_cardinality;
 
@@ -130,7 +130,7 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
             auto cur_edge = current->edge_pt;
             auto next = current->next;
 
-            *ctx.cumulative_degree -= ctx.sg->density[cur_edge->s];
+            *ctx.cumulative_degree -= ctx.sg->out_degree[cur_edge->s];
             (*ctx.window_cardinality)--;
 
             candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
@@ -179,8 +179,8 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
             double freeman = 0.0;
             if (ctx.mode == 14) {
                 int cumulative_degree_centralization = 0;
-                for (int i = 0; i < ctx.sg->density.size(); i++) {
-                    cumulative_degree_centralization += *ctx.max_deg - ctx.sg->density[i];
+                for (int i = 0; i < ctx.sg->out_degree.size(); i++) {
+                    cumulative_degree_centralization += *ctx.max_deg - ctx.sg->out_degree[i];
                 }
                 freeman = cumulative_degree_centralization / ((ctx.sg->vertex_num - 1) * (ctx.sg->vertex_num - 2));
             }

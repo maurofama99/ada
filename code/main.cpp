@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
 
     f->possible_states = aut->setup_automaton(query_type, config.labels);
 
-    auto *sg = new streaming_graph(config.labels[0], 2.5);
+    auto *sg = new streaming_graph(config.labels[0]);
 
     auto query = new QueryHandler(*aut, *f, *sg, *sink); // Density-based Retention
 
@@ -239,7 +239,6 @@ int main(int argc, char *argv[]) {
     ctx.max_size = max_size;
     ctx.min_size = min_size;
     ctx.edge_number = &edge_number;
-    ctx.EINIT_count = &EINIT_count;
     ctx.window_offset = &window_offset;
     ctx.to_evict = &to_evict;
     ctx.evict = &evict;
@@ -298,7 +297,7 @@ int main(int argc, char *argv[]) {
 
         if (edge_number % checkpoint == 0) {
             printf("processed edges: %lld\n", edge_number);
-            printf("avg degree: %f\n", sg->mean);
+            printf("avg degree: %f\n", *ctx.avg_deg);
             cout << "matched paths: " << sink->matched_paths << "\n\n";
         }
     }

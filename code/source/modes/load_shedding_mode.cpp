@@ -71,8 +71,8 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
                 (*ctx.windows)[i].elements_count++;
                 (*ctx.total_elements_count)++;
             }
-            if (ctx.sg->density[s] > (*ctx.windows)[i].max_degree) {
-                (*ctx.windows)[i].max_degree = ctx.sg->density[s];
+            if (ctx.sg->out_degree[s] > (*ctx.windows)[i].max_degree) {
+                (*ctx.windows)[i].max_degree = ctx.sg->out_degree[s];
             }
         } else if (time >= (*ctx.windows)[i].t_close) {
             // schedule window for eviction
@@ -91,7 +91,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
     (*ctx.size_count)++;
     *ctx.avg_size = *ctx.cumulative_size / *ctx.size_count;
 
-    *ctx.cumulative_degree += ctx.sg->density[new_sgt->s];
+    *ctx.cumulative_degree += ctx.sg->out_degree[new_sgt->s];
     (*ctx.window_cardinality)++;
     *ctx.avg_deg = *ctx.cumulative_degree / *ctx.window_cardinality;
 
@@ -122,7 +122,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
             auto cur_edge = current->edge_pt;
             auto next = current->next;
 
-            *ctx.cumulative_degree -= ctx.sg->density[cur_edge->s];
+            *ctx.cumulative_degree -= ctx.sg->out_degree[cur_edge->s];
             (*ctx.window_cardinality)--;
 
             candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // schedule for deletion from RPQ forest
@@ -196,8 +196,6 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
         }
 
         *ctx.p_shed = std::max(std::min(*ctx.p_shed, ctx.max_shed), 0.0);
-
-        std::cout << ">>> Updated load shedding probability: " << *ctx.p_shed << std::endl;
     }
 
     (*ctx.csv_tuples)

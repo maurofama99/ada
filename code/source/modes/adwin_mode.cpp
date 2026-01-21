@@ -24,10 +24,10 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
     new_sgt->time_pos = t_edge;
 
     // update max degree observed
-    if (ctx.sg->density[new_sgt->s] > *ctx.max_deg) *ctx.max_deg = ctx.sg->density[new_sgt->s];
+    if (ctx.sg->out_degree[new_sgt->s] > *ctx.max_deg) *ctx.max_deg = ctx.sg->out_degree[new_sgt->s];
 
     // compute average out degree centrality incrementally
-    *ctx.cumulative_degree += ctx.sg->density[new_sgt->s];
+    *ctx.cumulative_degree += ctx.sg->out_degree[new_sgt->s];
     *ctx.avg_deg = *ctx.cumulative_degree / *ctx.window_cardinality;
 
     // compute cost function
@@ -61,7 +61,7 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
             auto cur_edge = current->edge_pt;
             auto next = current->next;
 
-            *ctx.cumulative_degree -= ctx.sg->density[cur_edge->s];
+            *ctx.cumulative_degree -= ctx.sg->out_degree[cur_edge->s];
 
             candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
 
@@ -81,7 +81,7 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
         while (current) {
             auto cur_edge = current->edge_pt;
             auto next = current->next;
-            if (ctx.sg->density[cur_edge->s] > *ctx.max_deg) *ctx.max_deg = ctx.sg->density[cur_edge->s];
+            if (ctx.sg->out_degree[cur_edge->s] > *ctx.max_deg) *ctx.max_deg = ctx.sg->out_degree[cur_edge->s];
             current = next;
         }
 
