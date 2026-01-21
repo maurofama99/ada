@@ -179,11 +179,17 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
             double freeman = 0.0;
             if (ctx.mode == 14) {
                 int cumulative_degree_centralization = 0;
-                for (int i = 0; i < ctx.sg->out_degree.size(); i++) {
+                for (size_t i = 0; i < ctx.sg->out_degree.size(); i++) {
                     cumulative_degree_centralization += *ctx.max_deg - ctx.sg->out_degree[i];
                 }
-                freeman = cumulative_degree_centralization / ((ctx.sg->vertex_num - 1) * (ctx.sg->vertex_num - 2));
+                long long denominator = (ctx.sg->vertex_num - 1) * (ctx.sg->vertex_num - 2);
+                if (denominator > 0) {
+                    freeman = static_cast<double>(cumulative_degree_centralization) / denominator;
+                } else {
+                    freeman = 0.0;
+                }
             }
+
 
             // cost function
             double n = 0;
