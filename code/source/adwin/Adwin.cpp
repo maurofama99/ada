@@ -31,7 +31,7 @@ static int bucketSize(int Row)
 {
   return (int) pow(2,Row);
 }
-   
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Adwin:: Adwin(int MAXB, int MINLEN, double DELTA)
@@ -66,16 +66,18 @@ bool Adwin::update(const double &value)
 
 void Adwin::insertElement(const double &value)
 {
-  //Insert new bucket	
-  W++;
-  bucketList.head->addBack(value,0.0);	
-  bucketNumber++; 
+  if (value > 0) {
+    //Insert new bucket
+    W++;
+    bucketList.head->addBack(value,0.0);
+    bucketNumber++;
 
-  // update stats
-  if (W > 1) {
-    var += (W-1) * (value-sum/(W-1)) * (value-sum/(W-1))/W;
+    // update stats
+    if (W > 1) {
+      var += (W-1) * (value-sum/(W-1)) * (value-sum/(W-1))/W;
+    }
+    sum+=value;
   }
-  sum+=value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////  
@@ -116,7 +118,7 @@ void Adwin::compressBuckets()
     cursor = cursor->next;
     i++;
 
-  } while (cursor != NULL);
+  } while (cursor != nullptr);
                
 } 
 
@@ -236,7 +238,7 @@ bool Adwin::cutExpression(int N0, int N1, const double &u0, const double &u1)
 double Adwin::getEstimation() const
 {
   if (W > 0)
-    return sum / double(W);
+    return sum / static_cast<double>(W);
   else
     return 0;   
 }    

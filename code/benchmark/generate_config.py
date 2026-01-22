@@ -39,14 +39,15 @@ def main():
     HIGGS_LATENCY = [(3600, 600, 3600, 2700), (7200, 600, 7200, 5400), (10800, 600, 10800, 8100)]
     HIGGS_COMPLETENESS  = [(3600, 300, 3600, 2100), (3600, 300, 3600, 2400), (3600, 300, 3600, 2700), (3600, 300, 3600, 3000), (3600, 300, 3600, 3300)]
     HIGGS_LOAD_SHEDDING = [(3600, 300, 5, 1), (3600, 300, 10, 2), (3600, 300, 15, 3), (3600, 300, 20, 4), (3600, 300, 25, 5)]
+    HIGGS_ADWIN = [(0, 0, 0, 10), (0, 0, 0, 15), (0, 0, 0, 20), (0, 0, 0, 25), (0, 0, 0, 30)]
 
 
 
-    algorithms = [10]
+    algorithms = [2]
     query_label_pairs =  higgs_query_label_pairs
     datasets = higgs_dataset
-    window_slide_pairs = HIGGS_LATENCY
-    output = "latency_tput/higgs"
+    window_slide_pairs = HIGGS_ADWIN
+    output = "cost_accuracy/higgs"
 
     # Query	        LDBC	HIGGS	SO
     # 1) a*	        0	    1	    1

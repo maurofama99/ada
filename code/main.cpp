@@ -109,9 +109,9 @@ int main(int argc, char *argv[]) {
     auto *sink = new Sink();
     auto *aut = new FiniteStateAutomaton();
 
-    int maxBuckets = 8;
-    int minLen = size;
-    double delta = 0.001;
+    int maxBuckets = 3;
+    int minLen = 1;
+    double delta = min_size/static_cast<double>(100); // 0.01 of min_size
     Adwin adwin(maxBuckets, minLen, delta);
 
     f->possible_states = aut->setup_automaton(query_type, config.labels);
@@ -135,7 +135,7 @@ int main(int argc, char *argv[]) {
     long long last_t_open = -1;
 
     // long long checkpoint = 9223372036854775807L;
-    long long checkpoint = 100;
+    long long checkpoint = 1000;
 
     vector<long long> node_count;
 

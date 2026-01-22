@@ -41,10 +41,10 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
     if (*ctx.cost < *ctx.cost_min) *ctx.cost_min = *ctx.cost;
     *ctx.cost_norm = (*ctx.cost - *ctx.cost_min) / (*ctx.cost_max - *ctx.cost_min);
 
-    if (*ctx.warmup > 2700) (*ctx.csv_adwin_distribution) << *ctx.avg_deg << "," << *ctx.cost << "," << *ctx.cost_norm << "\n";
 
     // if (adwin.update(cost)) {
-    if (adwin->update(*ctx.cost_norm*10) && *ctx.warmup > 2700) {
+    if (adwin->update(*ctx.cost_norm) && *ctx.warmup > 2700) {
+    // if (adwin->update(*ctx.avg_deg) && *ctx.warmup > 2700) {
         std::cout << "\n>>> DRIFT DETECTED " << std::endl;
         std::cout << "    Current estimation: " << adwin->getEstimation() << std::endl;
         std::cout << "    Window length: " << adwin->length() << std::endl;
@@ -89,6 +89,9 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
         ctx.f->expire_timestamped(ctx.sg->time_list_head->edge_pt->timestamp, candidate_for_deletion);
         candidate_for_deletion.clear();
     }
+    (*ctx.windows)[*ctx.resizings].t_close = time;
+
+    // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,window_size
     (*ctx.csv_tuples)
         << *ctx.cost << ","
         << *ctx.cost_norm << ","

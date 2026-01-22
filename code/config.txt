@@ -1,8 +1,8 @@
-adaptive=11
-input_data_path=code/dataset/higgs-activity/higgs-activity_time_postprocess.txt
-size=3600
-slide=600
+adaptive=2
+input_data_path=code/dataset/ldbc/social-graph12_14v5_bursted.txt
+size=1
+slide=800
 query_type=1
-labels=1
-max_size=3600
-min_size=1800
+labels=14
+max_size=1000
+min_size=1000
