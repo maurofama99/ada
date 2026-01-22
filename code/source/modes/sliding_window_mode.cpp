@@ -241,11 +241,9 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
             }
 
             if (cost_diff > 0 || *ctx.cost_norm >= 0.95) {
-                // cost_diff <= 0.1 ? ctx.size -= ctx.slide : ctx.size -= ceil(cost_diff * 10 * ctx.slide);
-                ctx.size -= ceil(cost_diff * 10 * ctx.slide);
+                ctx.size -= ceil(cost_diff * 10) * ctx.slide;
             } else if (cost_diff < 0 || *ctx.cost_norm <= 0.05) {
-                // cost_diff <= 0.1 ? ctx.size += ctx.slide : ctx.size += ceil(cost_diff * 10 * ctx.slide);
-                ctx.size += ceil(cost_diff * 10 * ctx.slide);
+                ctx.size += ceil(-cost_diff * 10) * ctx.slide;
             }
 
             // cap to max and min size
