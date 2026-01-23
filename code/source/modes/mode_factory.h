@@ -18,7 +18,7 @@ public:
         std::uniform_real_distribution<double>* distribution = nullptr
     ) {
         if (mode >= 10) {
-            return std::make_unique<SlidingWindowMode>();
+            return std::make_unique<SlidingWindowMode>(adwin_instance);
         }
         if (mode == 2) {
             if (!adwin_instance) {

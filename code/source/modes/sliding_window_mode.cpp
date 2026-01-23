@@ -212,6 +212,9 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
                 case 14:
                     *ctx.cost = freeman;
                     break;
+                case 15: // ADWIN
+                    *ctx.cost = n / *ctx.max_deg;
+                    break;
                 default:
                     cerr << "ERROR: unknown cost mode." << endl;
                     exit(1);
@@ -227,23 +230,37 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
 
             *ctx.cost_norm = std::accumulate(ctx.cost_window->begin(), ctx.cost_window->end(), 0.0) / ctx.cost_window->size();
 
-            double cost_diff = *ctx.cost_norm - *ctx.last_cost;
-            *ctx.last_cost = *ctx.cost_norm;
+            if (ctx.mode <= 14) {
+                double cost_diff = *ctx.cost_norm - *ctx.last_cost;
+                *ctx.last_cost = *ctx.cost_norm;
 
-            double cost_diff_diff = cost_diff - *ctx.last_diff;
-            *ctx.last_diff = cost_diff_diff;
+                double cost_diff_diff = cost_diff - *ctx.last_diff;
+                *ctx.last_diff = cost_diff_diff;
 
-            if (std::isnan(*ctx.last_diff)) {
-                *ctx.last_diff = 0;
-            }
-            if (std::isnan(cost_diff)) {
-                cost_diff = 0;
-            }
+                if (std::isnan(*ctx.last_diff)) {
+                    *ctx.last_diff = 0;
+                }
+                if (std::isnan(cost_diff)) {
+                    cost_diff = 0;
+                }
 
-            if (cost_diff > 0 || *ctx.cost_norm >= 0.95) {
-                ctx.size -= ceil(cost_diff * 10) * ctx.slide;
-            } else if (cost_diff < 0 || *ctx.cost_norm <= 0.05) {
-                ctx.size += ceil(-cost_diff * 10) * ctx.slide;
+                if (cost_diff > 0 || *ctx.cost_norm >= 0.95) {
+                    ctx.size -= ceil(cost_diff * 10) * ctx.slide;
+                } else if (cost_diff < 0 || *ctx.cost_norm <= 0.05) {
+                    ctx.size += ceil(-cost_diff * 10) * ctx.slide;
+                }
+            } else if (ctx.mode == 15) {
+                // use ADWIN to detect drift
+                if (*ctx.cost_norm > 0 && adwin->update(*ctx.cost_norm)) {
+                    if (adwin->positiveChange) {
+                        ctx.size -= ctx.slide;
+                    } else {
+                        ctx.size += ctx.slide;
+                    }
+                }
+            } else {
+                cerr << "ERROR: unknown adaptive mode." << endl;
+                exit(1);
             }
 
             // cap to max and min size

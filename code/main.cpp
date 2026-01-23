@@ -111,8 +111,17 @@ int main(int argc, char *argv[]) {
 
     int maxBuckets = 3;
     int minLen = 1;
-    double delta = min_size/static_cast<double>(100); // 0.01 of min_size
+    double delta = 1.0 / static_cast<double>(min_size);
+    if (config.adaptive == 15) delta = 0.2;
     Adwin adwin(maxBuckets, minLen, delta);
+
+    if (config.adaptive == 2 || config.adaptive == 15) {
+        // print adwin configuration
+        cout << "ADWIN configuration: " << endl;
+        cout << "  - maxBuckets: " << maxBuckets << endl;
+        cout << "  - minLen: " << minLen << endl;
+        cout << "  - delta: " << delta << endl;
+    }
 
     f->possible_states = aut->setup_automaton(query_type, config.labels);
 
@@ -151,6 +160,8 @@ int main(int argc, char *argv[]) {
             break;
         case 14: mode = "ad_freeman";
             break;
+        case 15: mode = "ad_adwin";
+            break;
         case 2: mode = "adwin";
             break;
         case 3: mode = "lshed";
@@ -164,7 +175,6 @@ int main(int argc, char *argv[]) {
     static double cumulative_size = 0.0;
     static long long size_count = 0;
     double avg_size = 0;
-    int EINIT_count = 0;
     double cost_max = 0.0;
     double cost_min = 922337203685470;
     double lat_max = 0.0;
@@ -174,7 +184,8 @@ int main(int argc, char *argv[]) {
     double last_cost = 0.0;
     double last_diff = 0.0;
     double max_deg = 1;
-    const int overlap = size / slide;
+    int overlap = -1;
+    if (size >0 && slide >0) overlap = size / slide;
     std::deque<double> cost_window;
     std::deque<double> normalization_window;
 
@@ -195,7 +206,7 @@ int main(int argc, char *argv[]) {
     cout << "Max shedding step: " << max_shed << endl;
 
     // output folder for csvs
-    fs::path output_folder = "results_testtype";
+    fs::path output_folder = "results_adwin";
     if (!fs::exists(output_folder)) {
         fs::create_directories(output_folder);
     }

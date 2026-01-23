@@ -25,61 +25,58 @@
 
 #include "List.h"
 
-class Adwin  {
+class Adwin {
+public:
+    Adwin(int _M, int MINLEN, double DELTA);
 
- public:
-  
-  Adwin(int _M, int MINLEN, double DELTA);
+    [[nodiscard]] double getEstimation() const;
 
-  double getEstimation() const; 
-  bool update(const double &value);
-  void print() const;
-  int length() const { return W; }
+    bool update(const double &value);
 
- private:
+    void print() const;
 
-  void insertElement(const double &value);  
-  void compressBuckets();  
-  bool checkDrift();
+    [[nodiscard]] int length() const { return W; }
 
-  void deleteElement();  
+    bool positiveChange = false;
 
-  bool cutExpression(int n0,
-		     int n1,
-		     const double &u0,
-		     const double &u1);
+private:
+    void insertElement(const double &value);
 
+    void compressBuckets();
 
- private:
+    bool checkDrift();
 
-  const int MINTCLOCK;
-  const int MINLENGTHWINDOW;
-  const double DELTA;
-  const int MAXBUCKETS;
+    void deleteElement();
 
- private:
-  
-  int mintTime;
-  int mintClock;
-  double mdblError;
-  double mdblWidth;
+    bool cutExpression(int n0,
+                       int n1,
+                       const double &u0,
+                       const double &u1);
 
-  //BUCKET
+    const int MINTCLOCK;
+    const int MINLENGTHWINDOW;
+    const double DELTA;
+    const int MAXBUCKETS;
 
-  int bucketNumber;
-  List bucketList;
+    int mintTime;
+    int mintClock;
+    double mdblError;
+    double mdblWidth;
 
-  int W; // Width
+    //BUCKET
 
-  int lastBucketRow; 
+    int bucketNumber;
+    List bucketList;
 
-  double sum; // running sum
-  double var; // running variance
+    int W; // Width
 
+    int lastBucketRow;
 
+    double sum; // running sum
+    double var; // running variance
+
+    double lastEstimation = 0.0;
 };
 
 
-
 #endif // ADWIN_H
-

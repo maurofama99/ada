@@ -2,10 +2,15 @@
 #define SLIDING_WINDOW_MODE_H
 
 #include "mode_handler.h"
+#include "../adwin/Adwin.h"
 
 class SlidingWindowMode : public ModeHandler {
+private:
+    Adwin* adwin;
+    double last_adwin_estimation = 0.0;
+
 public:
-    SlidingWindowMode() = default;
+    explicit SlidingWindowMode(Adwin* adwin_instance) : adwin(adwin_instance) {}
     ~SlidingWindowMode() override = default;
     
     bool process_edge(

@@ -31,7 +31,7 @@ def main():
     ldbc_query_label_pairs = [(4, [3,0,8]), (1, [14]), (5, [3,0,8]), (2, [3,0]), (10, [9,3,0]), (7, [8,9,0])]
     # COMPLETENESS : window_slide_pairs = [(345600, 21600, 345600, 324000), (345600, 21600, 345600, 302400), (345600, 21600, 345600, 280800), (345600, 21600, 345600, 259200), (345600, 21600, 345600, 237600)]
     # COMPLETENESS (LS) :  window_slide_pairs = [(345600, 10800, 5, 1), (345600, 10800, 10, 2), (345600, 10800, 15, 3), (345600, 10800, 20, 4), (345600, 10800, 25, 5)]
-    # LATENCY / TUPUT : window_slide_pairs = [(172800, 10800, 172800, 118800), (345600, 10800, 345600, 259200)]
+    LDBC_LATENCY = [(172800, 10800, 172800, 118800), (345600, 10800, 345600, 259200)]
 
     # HIGGS
     higgs_dataset = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
@@ -40,14 +40,15 @@ def main():
     HIGGS_COMPLETENESS  = [(3600, 300, 3600, 2100), (3600, 300, 3600, 2400), (3600, 300, 3600, 2700), (3600, 300, 3600, 3000), (3600, 300, 3600, 3300)]
     HIGGS_LOAD_SHEDDING = [(3600, 300, 5, 1), (3600, 300, 10, 2), (3600, 300, 15, 3), (3600, 300, 20, 4), (3600, 300, 25, 5)]
 
-    ADWIN = [(0, 0, 0, 10), (0, 0, 0, 15), (0, 0, 0, 20), (0, 0, 0, 25), (0, 0, 0, 30)]
+    ADWIN = [(0, 0, 0, 10), (0, 0, 0, 5), (0, 0, 0, 3)]
+    LDBC_ADWIN_ADAPTIVE = [(97200, 5400, 97200, 54000), (102600, 5400, 102600, 54000), (108000, 5400, 108000, 54000)]
 
 
-    algorithms = [2]
+    algorithms = [15]
     query_label_pairs =  ldbc_query_label_pairs
     datasets = ldbc_dataset
-    window_slide_pairs = ADWIN
-    output = "cost_accuracy/ldbc"
+    window_slide_pairs = LDBC_ADWIN_ADAPTIVE
+    output = "adwin"
 
     # Query	        LDBC	HIGGS	SO
     # 1) a*	        0	    1	    1
