@@ -10,8 +10,11 @@ private:
     std::uniform_real_distribution<double>* dist;
     
 public:
-    LoadSheddingMode(std::mt19937* generator, std::uniform_real_distribution<double>* distribution) 
-        : gen(generator), dist(distribution) {}
+    LoadSheddingMode(std::mt19937* generator, std::uniform_real_distribution<double>* distribution) : gen(generator), dist(distribution) {
+        if (gen) {
+            gen->seed(123456u);
+        }
+    }
     ~LoadSheddingMode() override = default;
     
     bool process_edge(

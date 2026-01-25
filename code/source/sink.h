@@ -74,6 +74,8 @@ public:
     // export the result set into a file in form of csv with columns source, destination, timestamp
     void exportResultSet(const std::string &filename) {
         std::ofstream file(filename);
+        // insert header
+        file << "source,destination,timestamp" << std::endl;
         for (const auto &[source, destinations]: result_set) {
             for (const auto &destination: destinations) {
                 file << source << "," << destination.destination << "," << destination.timestamp << std::endl;

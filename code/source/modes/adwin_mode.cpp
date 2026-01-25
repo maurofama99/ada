@@ -87,7 +87,7 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
             current = next;
         }
 
-        ctx.sink->refresh_resultSet(ctx.sg->time_list_head->edge_pt->timestamp);
+        // ctx.sink->refresh_resultSet(ctx.sg->time_list_head->edge_pt->timestamp);
         ctx.f->expire_timestamped(ctx.sg->time_list_head->edge_pt->timestamp, candidate_for_deletion);
         candidate_for_deletion.clear();
     }

@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
     int maxBuckets = 3;
     int minLen = 1;
     double delta = 1.0 / static_cast<double>(min_size);
-    if (config.adaptive == 15) delta = 0.2;
+    if (config.adaptive == 15) delta = 0.1;
     Adwin adwin(maxBuckets, minLen, delta);
 
     if (config.adaptive == 2 || config.adaptive == 15) {
@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
     long long last_t_open = -1;
 
     // long long checkpoint = 9223372036854775807L;
-    long long checkpoint = 1000;
+    long long checkpoint = 500000;
 
     vector<long long> node_count;
 
@@ -340,6 +340,8 @@ int main(int argc, char *argv[]) {
                 << windows[i].elements_count << ","
                 << windows[i].t_close - windows[i].t_open << "\n";
     }
+
+    sink->exportResultSet(base + "_result_set.csv");
 
     csv_summary.close();
     csv_windows.close();

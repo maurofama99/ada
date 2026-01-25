@@ -121,7 +121,7 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
             std::cout << "WARNING: Evict end point is null, evicting whole buffer." << std::endl;
         }
 
-        if (*ctx.last_t_open != (*ctx.windows)[(*ctx.to_evict)[0]].t_open) ctx.sink->refresh_resultSet((*ctx.windows)[(*ctx.to_evict)[0]].t_open);
+        // if (*ctx.last_t_open != (*ctx.windows)[(*ctx.to_evict)[0]].t_open) ctx.sink->refresh_resultSet((*ctx.windows)[(*ctx.to_evict)[0]].t_open);
         *ctx.last_t_open = (*ctx.windows)[(*ctx.to_evict)[0]].t_open;
 
         timed_edge *current = evict_start_point;
@@ -245,9 +245,9 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
                 }
 
                 if (cost_diff > 0 || *ctx.cost_norm >= 0.95) {
-                    ctx.size -= ceil(cost_diff * 10) * ctx.slide;
+                    ctx.size -= floor(cost_diff * 10) * ctx.slide;
                 } else if (cost_diff < 0 || *ctx.cost_norm <= 0.05) {
-                    ctx.size += ceil(-cost_diff * 10) * ctx.slide;
+                    ctx.size += floor(-cost_diff * 10) * ctx.slide;
                 }
             } else if (ctx.mode == 15) {
                 // use ADWIN to detect drift

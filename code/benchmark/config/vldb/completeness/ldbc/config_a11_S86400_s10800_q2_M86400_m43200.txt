@@ -1,8 +1,8 @@
 adaptive=11
 input_data_path=code/dataset/ldbc/social-graph12_14v7_bursted.txt
 size=86400
-slide=5400
-query_type=1
-labels=14
+slide=10800
+query_type=2
+labels=8,14
 max_size=86400
 min_size=43200

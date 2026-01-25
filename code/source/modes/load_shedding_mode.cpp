@@ -113,7 +113,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
             std::cout << "WARNING: Evict end point is null, evicting whole buffer." << std::endl;
         }
 
-        if (*ctx.last_t_open != (*ctx.windows)[(*ctx.to_evict)[0]].t_open) ctx.sink->refresh_resultSet((*ctx.windows)[(*ctx.to_evict)[0]].t_open);
+        // if (*ctx.last_t_open != (*ctx.windows)[(*ctx.to_evict)[0]].t_open) ctx.sink->refresh_resultSet((*ctx.windows)[(*ctx.to_evict)[0]].t_open);
         *ctx.last_t_open = (*ctx.windows)[(*ctx.to_evict)[0]].t_open;
 
         timed_edge *current = evict_start_point;
