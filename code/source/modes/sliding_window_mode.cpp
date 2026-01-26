@@ -5,6 +5,8 @@
 
 bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long long time, ModeContext& ctx, sg_edge** new_sgt_out) {
     (*ctx.edge_number)++;
+    int acc_threshold = 0;
+    if (ctx.mode >= 11 && ctx.mode <= 14) acc_threshold = 10;
 
     long long window_close;
     double base = std::floor(static_cast<double>(time) / ctx.slide) * ctx.slide;
@@ -166,7 +168,7 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         candidate_for_deletion.clear();
         *ctx.evict = false;
 
-        if (ctx.mode >= 11) {
+        if (ctx.mode >= 11 && ctx.mode <= 14 && accumulator > acc_threshold) {
             // max degree computation
             *ctx.max_deg = 1;
             for (size_t i = *ctx.window_offset; i < ctx.windows->size(); i++) {
@@ -189,7 +191,6 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
                     freeman = 0.0;
                 }
             }
-
 
             // cost function
             double n = 0;
@@ -230,42 +231,26 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
 
             *ctx.cost_norm = std::accumulate(ctx.cost_window->begin(), ctx.cost_window->end(), 0.0) / ctx.cost_window->size();
 
-            if (ctx.mode <= 14) {
-                double cost_diff = *ctx.cost_norm - *ctx.last_cost;
-                *ctx.last_cost = *ctx.cost_norm;
+            double cost_diff = *ctx.cost_norm - *ctx.last_cost;
+            *ctx.last_cost = *ctx.cost_norm;
 
-                double cost_diff_diff = cost_diff - *ctx.last_diff;
-                *ctx.last_diff = cost_diff_diff;
+            if (std::isnan(*ctx.last_diff)) {
+                *ctx.last_diff = 0;
+            }
+            if (std::isnan(cost_diff)) {
+                cost_diff = 0;
+            }
 
-                if (std::isnan(*ctx.last_diff)) {
-                    *ctx.last_diff = 0;
-                }
-                if (std::isnan(cost_diff)) {
-                    cost_diff = 0;
-                }
-
-                if (cost_diff > 0 || *ctx.cost_norm >= 0.95) {
-                    ctx.size -= floor(cost_diff * 10) * ctx.slide;
-                } else if (cost_diff < 0 || *ctx.cost_norm <= 0.05) {
-                    ctx.size += floor(-cost_diff * 10) * ctx.slide;
-                }
-            } else if (ctx.mode == 15) {
-                // use ADWIN to detect drift
-                if (*ctx.cost_norm > 0 && adwin->update(*ctx.cost_norm)) {
-                    if (adwin->positiveChange) {
-                        ctx.size -= ctx.slide;
-                    } else {
-                        ctx.size += ctx.slide;
-                    }
-                }
-            } else {
-                cerr << "ERROR: unknown adaptive mode." << endl;
-                exit(1);
+            if (cost_diff >= 0.01 || *ctx.cost_norm >= 0.95) {
+                ctx.size -= ceil(cost_diff * 10) * ctx.slide;
+            } else if (cost_diff <= 0.01 || *ctx.cost_norm <= 0.05) {
+                ctx.size += ceil(-cost_diff * 10) * ctx.slide;
             }
 
             // cap to max and min size
             ctx.size = std::max(std::min(ctx.size, ctx.max_size), ctx.min_size);
-        }
+            accumulator = 0;
+        } else accumulator++;
 
         /*
         * MEMORY PROFILING (https://stackoverflow.com/a/64166)
@@ -296,6 +281,47 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         }
         */
     }
+
+    if (ctx.mode >= 15 && accumulator > acc_threshold) {
+        // max degree computation
+        *ctx.max_deg = 1;
+        for (size_t i = *ctx.window_offset; i < ctx.windows->size(); i++) {
+            if ((*ctx.windows)[i].max_degree > *ctx.max_deg) *ctx.max_deg = (*ctx.windows)[i].max_degree;
+        }
+
+        *ctx.avg_deg = *ctx.cumulative_degree / *ctx.window_cardinality;
+
+        // cost function
+        double n = 0;
+        for (int i = 0; i < ctx.sg->EINIT_count; i++) {
+            n += ctx.sg->edge_num - i;
+        }
+
+        *ctx.cost = n / *ctx.max_deg;
+
+        if (*ctx.cost > *ctx.cost_max) *ctx.cost_max = *ctx.cost;
+        if (*ctx.cost < *ctx.cost_min) *ctx.cost_min = *ctx.cost;
+        *ctx.cost_norm = (*ctx.cost - *ctx.cost_min) / (*ctx.cost_max - *ctx.cost_min);
+
+        ctx.cost_window->push_back(*ctx.cost_norm);
+        if (ctx.cost_window->size() > ctx.overlap)
+            ctx.cost_window->pop_front();
+
+        *ctx.cost_norm = std::accumulate(ctx.cost_window->begin(), ctx.cost_window->end(), 0.0) / ctx.cost_window->size();
+
+        // use ADWIN to detect drift
+        if (*ctx.cost_norm > 0 && adwin->update(*ctx.cost_norm)) {
+            if (adwin->positiveChange) {
+                ctx.size -= ctx.slide;
+            } else {
+                ctx.size += ctx.slide;}
+        }
+
+        // cap to max and min size
+        ctx.size = std::max(std::min(ctx.size, ctx.max_size), ctx.min_size);
+        accumulator = 0;
+    } else accumulator++;
+
     (*ctx.csv_tuples)
         << *ctx.cost << ","
         << *ctx.cost_norm << ","

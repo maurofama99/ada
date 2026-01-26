@@ -183,7 +183,7 @@ bool Adwin::checkDrift() {
                             break;
                         }
 
-                        if (getEstimation() > lastEstimation)
+                        if (getEstimation() >= lastEstimation)
                             positiveChange = true;
                         else
                             positiveChange = false;

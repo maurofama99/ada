@@ -8,9 +8,11 @@ class SlidingWindowMode : public ModeHandler {
 private:
     Adwin* adwin;
     double last_adwin_estimation = 0.0;
+    int accumulator = 0;
 
 public:
-    explicit SlidingWindowMode(Adwin* adwin_instance) : adwin(adwin_instance) {}
+    explicit SlidingWindowMode(Adwin* adwin_instance) : adwin(adwin_instance) {
+    }
     ~SlidingWindowMode() override = default;
     
     bool process_edge(

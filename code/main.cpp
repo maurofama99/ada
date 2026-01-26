@@ -109,10 +109,10 @@ int main(int argc, char *argv[]) {
     auto *sink = new Sink();
     auto *aut = new FiniteStateAutomaton();
 
-    int maxBuckets = 3;
+    int maxBuckets = 5;
     int minLen = 1;
     double delta = 1.0 / static_cast<double>(min_size);
-    if (config.adaptive == 15) delta = 0.1;
+    if (config.adaptive == 15) delta = 0.2;
     Adwin adwin(maxBuckets, minLen, delta);
 
     if (config.adaptive == 2 || config.adaptive == 15) {
@@ -201,9 +201,12 @@ int main(int argc, char *argv[]) {
     std::mt19937 gen(std::random_device{}());
     std::uniform_real_distribution<double> dist(0.0, 1.0);
     double granularity = min_size / 100.0;
-    cout << "Load shedding granularity: " << granularity << endl;
     double max_shed = max_size / 100.0;
-    cout << "Max shedding step: " << max_shed << endl;
+    if (config.adaptive == 3) {
+        cout << "Load shedding activated." << endl;
+        cout << "Load shedding granularity: " << granularity << endl;
+        cout << "Max shedding step: " << max_shed << endl;
+    }
 
     // output folder for csvs
     fs::path output_folder = "results_adwin";
