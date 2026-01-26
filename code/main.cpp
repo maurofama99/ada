@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
     int maxBuckets = 5;
     int minLen = 1;
     double delta = 1.0 / static_cast<double>(min_size);
-    if (config.adaptive == 15) delta = 0.2;
+    if (config.adaptive == 15) delta = 0.15;
     Adwin adwin(maxBuckets, minLen, delta);
 
     if (config.adaptive == 2 || config.adaptive == 15) {
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
             break;
         case 13: mode = "ad_einit";
             break;
-        case 14: mode = "ad_freeman";
+        case 14: mode = "ad_latency";
             break;
         case 15: mode = "ad_adwin";
             break;
@@ -170,6 +170,8 @@ int main(int argc, char *argv[]) {
             cerr << "ERROR: Unknown mode" << endl;
             exit(4);
     }
+
+    cout << "Modalità: " << mode << " (config. " << config.adaptive << ")" << endl;
 
     // ADAPTIVE WINDOW
     static double cumulative_size = 0.0;
@@ -188,6 +190,7 @@ int main(int argc, char *argv[]) {
     if (size >0 && slide >0) overlap = size / slide;
     std::deque<double> cost_window;
     std::deque<double> normalization_window;
+    double cumulative_window_latency = 0.0;
 
     // ADWIN
     int warmup = 0;
@@ -282,6 +285,7 @@ int main(int argc, char *argv[]) {
     ctx.granularity = granularity;
     ctx.max_shed = max_shed;
     ctx.total_elements_count = &total_elements_count;
+    ctx.cumulative_window_latency = &cumulative_window_latency;
 
     clock_t start = clock();
     windows.emplace_back(0, size, nullptr, nullptr);

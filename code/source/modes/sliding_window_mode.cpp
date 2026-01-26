@@ -161,7 +161,7 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
             if ((*ctx.windows)[i].latency > *ctx.lat_max) *ctx.lat_max = (*ctx.windows)[i].latency;
             if ((*ctx.windows)[i].latency < *ctx.lat_min) *ctx.lat_min = (*ctx.windows)[i].latency;
             (*ctx.windows)[i].normalized_latency = ((*ctx.windows)[i].latency - *ctx.lat_min) / (*ctx.lat_max - *ctx.lat_min);
-            // state_size,estimated_cost,normalized_estimated_cost,latency,normalized_latency
+            *ctx.cumulative_window_latency += (*ctx.windows)[i].latency;
         }
 
         ctx.to_evict->clear();
@@ -178,19 +178,19 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
             *ctx.avg_deg = *ctx.cumulative_degree / *ctx.window_cardinality;
 
             // degree centralization (Freeman)
-            double freeman = 0.0;
-            if (ctx.mode == 14) {
-                int cumulative_degree_centralization = 0;
-                for (size_t i = 0; i < ctx.sg->out_degree.size(); i++) {
-                    cumulative_degree_centralization += *ctx.max_deg - ctx.sg->out_degree[i];
-                }
-                long long denominator = (ctx.sg->vertex_num - 1) * (ctx.sg->vertex_num - 2);
-                if (denominator > 0) {
-                    freeman = static_cast<double>(cumulative_degree_centralization) / denominator;
-                } else {
-                    freeman = 0.0;
-                }
-            }
+            // double freeman = 0.0;
+            // if (ctx.mode == 14) {
+            //     int cumulative_degree_centralization = 0;
+            //     for (size_t i = 0; i < ctx.sg->out_degree.size(); i++) {
+            //         cumulative_degree_centralization += *ctx.max_deg - ctx.sg->out_degree[i];
+            //     }
+            //     long long denominator = (ctx.sg->vertex_num - 1) * (ctx.sg->vertex_num - 2);
+            //     if (denominator > 0) {
+            //         freeman = static_cast<double>(cumulative_degree_centralization) / denominator;
+            //     } else {
+            //         freeman = 0.0;
+            //     }
+            // }
 
             // cost function
             double n = 0;
@@ -211,7 +211,7 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
                     *ctx.cost = ctx.sg->EINIT_count;
                     break;
                 case 14:
-                    *ctx.cost = freeman;
+                    *ctx.cost = *ctx.cumulative_window_latency / ctx.windows->size();
                     break;
                 case 15: // ADWIN
                     *ctx.cost = n / *ctx.max_deg;
@@ -282,7 +282,7 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         */
     }
 
-    if (ctx.mode >= 15 && accumulator > acc_threshold) {
+    if (ctx.mode >= 15 && *ctx.warmup > 2700) {
         // max degree computation
         *ctx.max_deg = 1;
         for (size_t i = *ctx.window_offset; i < ctx.windows->size(); i++) {
@@ -310,11 +310,17 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         *ctx.cost_norm = std::accumulate(ctx.cost_window->begin(), ctx.cost_window->end(), 0.0) / ctx.cost_window->size();
 
         // use ADWIN to detect drift
-        if (*ctx.cost_norm > 0 && adwin->update(*ctx.cost_norm)) {
+        if (*ctx.cost_norm > 0 && adwin->update(*ctx.cost_norm) && *ctx.warmup > 2700) {
+            //std::cout << "\n>>> DRIFT DETECTED " << std::endl;
+
             if (adwin->positiveChange) {
                 ctx.size -= ctx.slide;
+                //cout << "    Decreasing window size to " << ctx.size << std::endl;
             } else {
-                ctx.size += ctx.slide;}
+                ctx.size += ctx.slide;
+                //cout << "    Increasing window size to " << ctx.size << std::endl;
+            }
+
         }
 
         // cap to max and min size

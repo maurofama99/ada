@@ -187,6 +187,7 @@ bool Adwin::checkDrift() {
                             positiveChange = true;
                         else
                             positiveChange = false;
+                        //std::cout << "    ADWIN: Change detected. New estimation: " << getEstimation() << ", Old estimation: " << lastEstimation << ", Window length: " << W << std::endl;
 
                         lastEstimation = getEstimation();
                     }

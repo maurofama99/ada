@@ -8,7 +8,7 @@ class SlidingWindowMode : public ModeHandler {
 private:
     Adwin* adwin;
     double last_adwin_estimation = 0.0;
-    int accumulator = 0;
+    int accumulator = 1;
 
 public:
     explicit SlidingWindowMode(Adwin* adwin_instance) : adwin(adwin_instance) {

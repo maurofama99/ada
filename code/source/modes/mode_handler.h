@@ -104,6 +104,8 @@ struct ModeContext {
     
     // Other
     int* total_elements_count;
+
+    double* cumulative_window_latency;
 };
 
 // Abstract base class for mode handlers
