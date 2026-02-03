@@ -6,7 +6,7 @@
 bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long long time, ModeContext& ctx, sg_edge** new_sgt_out) {
     (*ctx.edge_number)++;
     int acc_threshold = 0;
-    if (ctx.mode >= 11 && ctx.mode <= 14) acc_threshold = 10;
+    if (ctx.mode >= 11 && ctx.mode <= 14) acc_threshold = 1;
 
     long long window_close;
     double base = std::floor(static_cast<double>(time) / ctx.slide) * ctx.slide;
@@ -153,7 +153,6 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
 
         // mark window as evicted
         for (unsigned long i: *ctx.to_evict) {
-            (*ctx.warmup)++;
             (*ctx.windows)[i].evicted = true;
             (*ctx.windows)[i].first = nullptr;
             (*ctx.windows)[i].last = nullptr;
@@ -164,11 +163,12 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
             *ctx.cumulative_window_latency += (*ctx.windows)[i].latency;
         }
 
+        (*ctx.warmup)++;
         ctx.to_evict->clear();
         candidate_for_deletion.clear();
         *ctx.evict = false;
 
-        if (ctx.mode >= 11 && ctx.mode <= 14 && accumulator > acc_threshold) {
+        if (ctx.mode >= 11 && ctx.mode <= 15 && *ctx.warmup > 10) {
             // max degree computation
             *ctx.max_deg = 1;
             for (size_t i = *ctx.window_offset; i < ctx.windows->size(); i++) {
@@ -177,28 +177,17 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
 
             *ctx.avg_deg = *ctx.cumulative_degree / *ctx.window_cardinality;
 
-            // degree centralization (Freeman)
-            // double freeman = 0.0;
-            // if (ctx.mode == 14) {
-            //     int cumulative_degree_centralization = 0;
-            //     for (size_t i = 0; i < ctx.sg->out_degree.size(); i++) {
-            //         cumulative_degree_centralization += *ctx.max_deg - ctx.sg->out_degree[i];
-            //     }
-            //     long long denominator = (ctx.sg->vertex_num - 1) * (ctx.sg->vertex_num - 2);
-            //     if (denominator > 0) {
-            //         freeman = static_cast<double>(cumulative_degree_centralization) / denominator;
-            //     } else {
-            //         freeman = 0.0;
-            //     }
-            // }
-
             // cost function
             double n = 0;
-            if (ctx.mode == 11) {
-                for (int i = 0; i < ctx.sg->EINIT_count; i++) {
-                    n += ctx.sg->edge_num - i;
-                }
+            for (int i = 0; i < ctx.sg->EINIT_count; i++) {
+                n += ctx.sg->edge_num - i;
             }
+
+            if (n==0) cout << "WARNING: n is 0." << std::endl;
+
+            // if (ctx.mode == 11) {
+            //     n = (ctx.sg->EINIT_count+1)*(2*ctx.sg->edge_num - ctx.sg->EINIT_count) / 2.0;
+            // }
 
             switch (ctx.mode) {
                 case 11:
@@ -208,18 +197,20 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
                     *ctx.cost = *ctx.avg_deg;
                     break;
                 case 13:
-                    *ctx.cost = ctx.sg->EINIT_count;
+                    *ctx.cost = n;
                     break;
                 case 14:
-                    *ctx.cost = *ctx.cumulative_window_latency / ctx.windows->size();
+                    *ctx.cost = *ctx.max_deg;
                     break;
-                case 15: // ADWIN
-                    *ctx.cost = n / *ctx.max_deg;
+                case 15:
+                    *ctx.cost = ctx.sg->EINIT_count * ctx.sg->edge_num;
                     break;
                 default:
                     cerr << "ERROR: unknown cost mode." << endl;
                     exit(1);
             }
+
+            (*ctx.csv_memory) << n / *ctx.max_deg << "," << *ctx.avg_deg << "," << n << "," << *ctx.max_deg << "," << ctx.sg->EINIT_count * ctx.sg->edge_num << std::endl;
 
             if (*ctx.cost > *ctx.cost_max) *ctx.cost_max = *ctx.cost;
             if (*ctx.cost < *ctx.cost_min) *ctx.cost_min = *ctx.cost;
@@ -281,52 +272,6 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         }
         */
     }
-
-    if (ctx.mode >= 15 && *ctx.warmup > 2700) {
-        // max degree computation
-        *ctx.max_deg = 1;
-        for (size_t i = *ctx.window_offset; i < ctx.windows->size(); i++) {
-            if ((*ctx.windows)[i].max_degree > *ctx.max_deg) *ctx.max_deg = (*ctx.windows)[i].max_degree;
-        }
-
-        *ctx.avg_deg = *ctx.cumulative_degree / *ctx.window_cardinality;
-
-        // cost function
-        double n = 0;
-        for (int i = 0; i < ctx.sg->EINIT_count; i++) {
-            n += ctx.sg->edge_num - i;
-        }
-
-        *ctx.cost = n / *ctx.max_deg;
-
-        if (*ctx.cost > *ctx.cost_max) *ctx.cost_max = *ctx.cost;
-        if (*ctx.cost < *ctx.cost_min) *ctx.cost_min = *ctx.cost;
-        *ctx.cost_norm = (*ctx.cost - *ctx.cost_min) / (*ctx.cost_max - *ctx.cost_min);
-
-        ctx.cost_window->push_back(*ctx.cost_norm);
-        if (ctx.cost_window->size() > ctx.overlap)
-            ctx.cost_window->pop_front();
-
-        *ctx.cost_norm = std::accumulate(ctx.cost_window->begin(), ctx.cost_window->end(), 0.0) / ctx.cost_window->size();
-
-        // use ADWIN to detect drift
-        if (*ctx.cost_norm > 0 && adwin->update(*ctx.cost_norm) && *ctx.warmup > 2700) {
-            //std::cout << "\n>>> DRIFT DETECTED " << std::endl;
-
-            if (adwin->positiveChange) {
-                ctx.size -= ctx.slide;
-                //cout << "    Decreasing window size to " << ctx.size << std::endl;
-            } else {
-                ctx.size += ctx.slide;
-                //cout << "    Increasing window size to " << ctx.size << std::endl;
-            }
-
-        }
-
-        // cap to max and min size
-        ctx.size = std::max(std::min(ctx.size, ctx.max_size), ctx.min_size);
-        accumulator = 0;
-    } else accumulator++;
 
     (*ctx.csv_tuples)
         << *ctx.cost << ","

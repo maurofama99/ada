@@ -115,14 +115,6 @@ int main(int argc, char *argv[]) {
     if (config.adaptive == 15) delta = 0.15;
     Adwin adwin(maxBuckets, minLen, delta);
 
-    if (config.adaptive == 2 || config.adaptive == 15) {
-        // print adwin configuration
-        cout << "ADWIN configuration: " << endl;
-        cout << "  - maxBuckets: " << maxBuckets << endl;
-        cout << "  - minLen: " << minLen << endl;
-        cout << "  - delta: " << delta << endl;
-    }
-
     f->possible_states = aut->setup_automaton(query_type, config.labels);
 
     auto *sg = new streaming_graph(config.labels[0]);
@@ -151,20 +143,50 @@ int main(int argc, char *argv[]) {
     std::string mode;
     switch (config.adaptive) {
         case 10: mode = "sl";
+            cout << "Window size: " << size << endl;
+            cout << "Window slide: " << slide << endl;
             break;
         case 11: mode = "ad_function";
+            cout << "Window size: " << size << endl;
+            cout << "Window slide: " << slide << endl;
+            cout << "Min window size: " << min_size << endl;
+            cout << "Max window size: " << max_size << endl;
             break;
         case 12: mode = "ad_degree";
+            cout << "Window size: " << size << endl;
+            cout << "Window slide: " << slide << endl;
+            cout << "Min window size: " << min_size << endl;
+            cout << "Max window size: " << max_size << endl;
             break;
         case 13: mode = "ad_einit";
+            cout << "Window size: " << size << endl;
+            cout << "Window slide: " << slide << endl;
+            cout << "Min window size: " << min_size << endl;
+            cout << "Max window size: " << max_size << endl;
             break;
         case 14: mode = "ad_latency";
+            cout << "Window size: " << size << endl;
+            cout << "Window slide: " << slide << endl;
+            cout << "Min window size: " << min_size << endl;
+            cout << "Max window size: " << max_size << endl;
             break;
-        case 15: mode = "ad_adwin";
+        case 15: mode = "ad_stupid";
+            cout << "Window size: " << size << endl;
+            cout << "Window slide: " << slide << endl;
+            cout << "Min window size: " << min_size << endl;
+            cout << "Max window size: " << max_size << endl;
             break;
         case 2: mode = "adwin";
+            cout << "ADWIN configuration: " << endl;
+            cout << "  - maxBuckets: " << maxBuckets << endl;
+            cout << "  - minLen: " << minLen << endl;
+            cout << "  - delta: " << delta << endl;
             break;
         case 3: mode = "lshed";
+            cout << "Load shedding mode activated." << endl;
+            cout << "Window size: " << size << endl;
+            cout << "Window slide: " << slide << endl;
+
             break;
         default:
             cerr << "ERROR: Unknown mode" << endl;
@@ -172,6 +194,7 @@ int main(int argc, char *argv[]) {
     }
 
     cout << "Modalità: " << mode << " (config. " << config.adaptive << ")" << endl;
+
 
     // ADAPTIVE WINDOW
     static double cumulative_size = 0.0;
@@ -206,7 +229,6 @@ int main(int argc, char *argv[]) {
     double granularity = min_size / 100.0;
     double max_shed = max_size / 100.0;
     if (config.adaptive == 3) {
-        cout << "Load shedding activated." << endl;
         cout << "Load shedding granularity: " << granularity << endl;
         cout << "Max shedding step: " << max_shed << endl;
     }
@@ -238,7 +260,7 @@ int main(int argc, char *argv[]) {
     csv_tuples << "estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,window_size\n";
 
     std::ofstream csv_memory(memory_path.string());
-    csv_memory << "tot_virtual,used_virtual,tot_ram,used_ram,data_mem\n";
+    csv_memory << "alef,avg_deg,lef,max_deg,nm\n";
 
     // Create mode handler using factory
     auto mode_handler = ModeFactory::create_mode_handler(config.adaptive, &adwin, &gen, &dist);
@@ -251,6 +273,7 @@ int main(int argc, char *argv[]) {
     ctx.sink = sink;
     ctx.aut = aut;
     ctx.csv_tuples = &csv_tuples;
+    ctx.csv_memory = &csv_memory;
     ctx.size = size;
     ctx.slide = slide;
     ctx.max_size = max_size;
@@ -349,6 +372,22 @@ int main(int argc, char *argv[]) {
     }
 
     sink->exportResultSet(base + "_result_set.csv");
+
+    if (mode == "adwin") {
+        // print maximum and minimum window sizes
+        int max = 0;
+        int min = 922337368;
+        for (auto & window : windows) {
+            if (window.t_close - window.t_open > max) {
+                max = window.t_close - window.t_open;
+            }
+            if (window.t_close - window.t_open < min) {
+                min = window.t_close - window.t_open;
+            }
+        }
+        cout << "min window size: " << min << endl;
+        cout << "max window size: " << max << endl;
+    }
 
     csv_summary.close();
     csv_windows.close();

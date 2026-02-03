@@ -27,39 +27,35 @@ def main():
     # query_label_pairs = [(1,[1]), (5,[2,1,3]), (7,[3,2,1]), (2,[2,1]), (10,[3,2,1]), (6,[1,2]), (3,[3,1,2]), (4,[3,1,2])]
 
     # LDBC
-    ldbc_dataset_completeness = ["code/dataset/ldbc/social-graph12_14v7_bursted.txt"]
-    ldbc_query_label_pairs = [(4, [8,9,0]), (1, [14]), (5, [8,14,9]), (2, [8,14]), (10, [9,3,0]), (7, [8,9,0])]
-    COMPLETENESS_window_slide_pairs = [(86400, 10800, 86400, 43200)]
-    COMPLETENESS_window_slide_pairs_lshed = [(86400, 10800, 5, 1)]
-    LDBC_LATENCY = [(172800, 10800, 172800, 118800), (345600, 10800, 345600, 259200)]
+    ldbc_dataset = ["code/dataset/ldbc/social-graph12_14v7_bursted.txt"]
+    ldbc_query_label_pairs = [(4, [0,8,9]), (1, [14]), (5, [8,14,9]), (2, [8,14]), (10, [9,3,0]), (7, [8,9,0])]
+    COMPLETENESS_window_slide_pairs_lshed = [(86400, 10800, 5, 1), (86400, 10800, 10, 2), (86400, 10800, 15, 3)]
+    LDBC_LATENCY = [(86400, 10800, 86400, 43200), (172800, 10800, 172800, 129600)]
+    LDBC_COST = [(86400, 10800, 86400, 86400)]
 
     # HIGGS
     higgs_dataset = ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"]
-    higgs_query_label_pairs =  [(1,[1]), (5,[2,1,3]), (7,[2,3,1]), (2,[2,1]), (10,[2,3,1]), (6,[2,1]), (3,[3,2,1]), (4,[2,1,3])]
+    higgs_query_label_pairs =  [(1,[1]), (5,[1,2,3]), (7,[1,2,3]), (2,[2,1]), (10,[2,3,1]), (6,[2,1]), (3,[3,2,1]), (4,[2,1,3])]
     HIGGS_LATENCY = [(3600, 600, 3600, 2700), (7200, 600, 7200, 5400), (10800, 600, 10800, 8100)]
-    HIGGS_COMPLETENESS_AD  = [(3600, 300, 3600, 2400)]
-    HIGGS_COMPLETENESS_LS  = [(3600, 300, 30, 5)]
-    HIGGS_LOAD_SHEDDING = [(3600, 300, 5, 1), (3600, 300, 10, 2), (3600, 300, 15, 3), (3600, 300, 20, 4), (3600, 300, 25, 5)]
+    HIGGS_LOAD_SHEDDING = [(3600, 300, 10, 2), (3600, 300, 20, 4), (3600, 300, 30, 5)]
 
     ADWIN = [(0, 0, 0, 10), (0, 0, 0, 5), (0, 0, 0, 3)]
-    LDBC_ADWIN_ADAPTIVE = [(97200, 5400, 97200, 54000), (102600, 5400, 102600, 54000), (108000, 5400, 108000, 54000)]
 
-
-    algorithms = [3]
-    query_label_pairs =  higgs_query_label_pairs
-    datasets = higgs_dataset
-    window_slide_pairs = HIGGS_COMPLETENESS_LS
-    output = "completeness_v2/higgs"
+    algorithms = [11, 12, 13, 15]
+    query_label_pairs =  ldbc_query_label_pairs
+    datasets = ldbc_dataset
+    window_slide_pairs = LDBC_COST
+    output = "completeness/ldbc"
 
     # Query	        LDBC	HIGGS	SO
     # 1) a*	        14	    1	    1
-    # 5) ab*c	    8,14,9	2,1,3	2,1,3
+    # 5) ab*c	    8,14,9	1,2,3	2,1,3
     # 7) abc*	    8,9,0	2,3,1	3,2,1
     # 2) ab*	    8,14	    2,1	    2,1
     # 10) (a|b)c*	9,3,0	2,3,1	3,2,1
     # 6) a*b*	            2,1	    1,2
     # 3) ab*c*	            3,2,1	3,1,2
-    # 4) (abc)+	    8,9,0	2,1,3	3,1,2
+    # 4) (abc)+	    0,8,9   2,1,3 	3,1,2
 
     generate_config_files(datasets, algorithms, window_slide_pairs, query_label_pairs, output)
 

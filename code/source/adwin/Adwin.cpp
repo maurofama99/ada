@@ -34,7 +34,7 @@ static int bucketSize(int Row) {
 ////////////////////////////////////////////////////////////////////////////////
 
 Adwin::Adwin(int MAXB, int MINLEN, double DELTA)
-    : MINTCLOCK(10),
+    : MINTCLOCK(1),
       MINLENGTHWINDOW(MINLEN),
       DELTA(DELTA),
       MAXBUCKETS(MAXB),

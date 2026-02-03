@@ -57,6 +57,7 @@ struct ModeContext {
     // CSV output streams
     std::ofstream* csv_tuples;
     std::ofstream* csv_adwin_distribution;
+    std::ofstream* csv_memory;
     
     // Configuration values
     long long size;

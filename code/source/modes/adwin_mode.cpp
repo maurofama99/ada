@@ -43,12 +43,12 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
 
 
     // if (adwin.update(cost)) {
-    if (*ctx.cost_norm > 0 && adwin->update(*ctx.cost_norm) && *ctx.warmup > 2700) {
+    if (*ctx.cost_norm > 0 && adwin->update(*ctx.cost_norm) && *ctx.warmup > 0) {
     // if (adwin->update(*ctx.avg_deg) && *ctx.warmup > 2700) {
 
-        std::cout << "\n>>> DRIFT DETECTED " << std::endl;
-        std::cout << "    Current estimation: " << adwin->getEstimation() << std::endl;
-        std::cout << "    Window length: " << adwin->length() << std::endl;
+        // std::cout << "\n>>> DRIFT DETECTED " << std::endl;
+        // std::cout << "    Current estimation: " << adwin->getEstimation() << std::endl;
+        // std::cout << "    Window length: " << adwin->length() << std::endl;
 
         (*ctx.windows)[*ctx.resizings].t_close = time;
         (*ctx.windows)[*ctx.resizings].latency = static_cast<double>(clock() - (*ctx.windows)[*ctx.resizings].start_time) / CLOCKS_PER_SEC;
