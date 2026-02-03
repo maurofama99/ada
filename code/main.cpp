@@ -164,13 +164,13 @@ int main(int argc, char *argv[]) {
             cout << "Min window size: " << min_size << endl;
             cout << "Max window size: " << max_size << endl;
             break;
-        case 14: mode = "ad_latency";
+        case 14: mode = "maxdeg";
             cout << "Window size: " << size << endl;
             cout << "Window slide: " << slide << endl;
             cout << "Min window size: " << min_size << endl;
             cout << "Max window size: " << max_size << endl;
             break;
-        case 15: mode = "ad_stupid";
+        case 15: mode = "ad_complexity";
             cout << "Window size: " << size << endl;
             cout << "Window slide: " << slide << endl;
             cout << "Min window size: " << min_size << endl;
