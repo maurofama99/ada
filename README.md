@@ -1,4 +1,8 @@
-# ADA:  Adaptive Windowing for Continuous Regular Path Queries over Streaming Graphs
+# Robust Regular Path Queries over Streaming Graphs via Load-Aware Windowing
+
+## Additional materials
+
+The appendix of the paper submitted to VLDB '26 can be found in this file: [Appendix](appendix.pdf)
 
 ## Build
 
@@ -77,10 +81,11 @@ The `adaptive` parameter controls which windowing strategy is used:
 | Value | Mode Name | Description |
 |-------|-----------|-------------|
 | `10` | `sl` | **Sliding Window** - Fixed-size sliding window with constant size and slide parameters. |
-| `11` | `ad_function` | **Adaptive Function** - Adaptive windowing based on a cost function. |
-| `12` | `ad_degree` | **Adaptive Degree** - Adaptive windowing that adjusts based on node degree metrics. |
-| `13` | `ad_einit` | **Adaptive EINIT** - Adaptive windowing using EINIT (Edge Initialization) count heuristics. |
-| `14` | `ad_freeman` | **Adaptive Freeman** - Adaptive windowing using Freeman centrality-based metrics. |
+| `11` | `ad_function` | **Adaptive ALEF** - Adaptive windowing based on an amortized load estimation function. |
+| `12` | `ad_degree` | **Adaptive Degree** - Adaptive windowing based on nodes' out-degree centrality average. |
+| `13` | `ad_einit` | **Adaptive LEF** - Adaptive windowing using a load estimation function. |
+| `14` | `ad_freeman` | **Adaptive Max Degree** - Adaptive windowing based on the max nodes' out-degree centrality. |
+| `15` | `ad_complexity` | **Adaptive Complexity** - Adaptive windowing based on the algorithmic complexity of RPQs. |
 | `2` | `adwin` | **ADWIN** - Adaptive Windowing algorithm for detecting change and adjusting window size dynamically. |
 | `3` | `lshed` | **Load Shedding** - Probabilistic load shedding mode that drops edges based on system load. |
 
@@ -92,18 +97,14 @@ Standard sliding window approach where:
 - Windows slide by `slide` units
 - No adaptive behavior
 
-#### Adaptive Modes (`adaptive=11, 12, 13, 14`)
-These modes dynamically adjust the window size between `min_size` and `max_size` based on different heuristics:
-- **Function-based (11)**: Uses a computed cost function
-- **Degree-based (12)**: Adapts based on average node degree in the graph
-- **EINIT-based (13)**: Adjusts based on edge initialization patterns
-- **Freeman-based (14)**: Uses Freeman centrality measures
+#### Adaptive Modes (`adaptive=11, 12, 13, 14, 15`)
+These modes dynamically adjust the window size between `min_size` and `max_size` based on different heuristics.
 
 #### ADWIN (`adaptive=2`)
 Implements the ADWIN (ADaptive WINdowing) algorithm:
 - Automatically detects concept drift
 - Adjusts window size based on detected changes
-- Uses configurable parameters:  `maxBuckets=8`, `minLen=size`, `delta=0.001`
+- Uses configurable parameters:  `maxBuckets`, `minLen`, `delta`
 
 #### Load Shedding (`adaptive=3`)
 Probabilistic edge dropping mode:
@@ -181,14 +182,6 @@ Output files are named with the dataset folder name as prefix, followed by type 
 | `used_ram` | Used RAM |
 | `data_mem` | Memory used by main data structures |
 
-### 5. ADWIN Distribution (`_adwin_dist_...csv`)
-
-| Column | Description |
-|--------|-------------|
-| `avg_deg` | Average degree |
-| `cost` | Cost value |
-| `cost_norm` | Normalized cost |
-
 ---
 
 ## Important Notes
@@ -198,55 +191,3 @@ Output files are named with the dataset folder name as prefix, followed by type 
 3. **Timestamps should be non-decreasing** for predictable behavior.
 4. **`max_size` must be ≥ `min_size`** - the program will exit with an error if this constraint is violated.
 5. **Memory profiling** is only supported on Linux and is disabled by default (`MEMORY_PROFILER false` in `main.cpp`).
-
----
-
-## Example Configurations
-
-### Basic Sliding Window
-```ini
-adaptive=10
-input_data_path=code/dataset/sample/edges.txt
-size=1000
-slide=200
-query_type=1
-labels=1
-max_size=1000
-min_size=1000
-```
-
-### Adaptive Degree-Based Window
-```ini
-adaptive=12
-input_data_path=code/dataset/sample/edges.txt
-size=2000
-slide=400
-query_type=5
-labels=1,2,3
-max_size=4000
-min_size=500
-```
-
-### ADWIN Mode
-```ini
-adaptive=2
-input_data_path=code/dataset/sample/edges.txt
-size=1500
-slide=300
-query_type=2
-labels=10,11
-max_size=3000
-min_size=750
-```
-
-### Load Shedding Mode
-```ini
-adaptive=3
-input_data_path=code/dataset/sample/edges.txt
-size=2400
-slide=200
-query_type=1
-labels=1
-max_size=4800
-min_size=1200
-```
