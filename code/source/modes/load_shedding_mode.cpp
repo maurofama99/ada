@@ -5,16 +5,21 @@
 #include <iostream>
 
 bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long long time, ModeContext& ctx, sg_edge** new_sgt_out) {
+    long long window_close;
+    double o_i = std::floor(static_cast<double>(time) / ctx.slide) * ctx.slide;
+
+    if (o_i > (*ctx.windows)[ctx.windows->size()-1].t_open) {
+        ctx.beta_latency_end = (double) (clock() - ctx.beta_latency_start) / CLOCKS_PER_SEC;
+        ctx.beta_latency_start = clock();
+        ctx.beta_id++;
+    }
+
     if ((*dist)(*gen) < *ctx.p_shed) { // load shedding
         *new_sgt_out = nullptr; // no edge created when load shedding
         return true; // continue to next edge
     }
-
     (*ctx.edge_number)++;
 
-    long long window_close;
-    double base = std::floor(static_cast<double>(time) / ctx.slide) * ctx.slide;
-    double o_i = base;
     bool new_window = true;
     do {
         auto window_open = static_cast<long long>(o_i);
@@ -196,15 +201,21 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
         }
 
         *ctx.p_shed = std::max(std::min(*ctx.p_shed, ctx.max_shed), 0.0);
+
+        (*ctx.windows)[(*ctx.window_offset)].cost = *ctx.cost_norm;
     }
 
     (*ctx.csv_tuples)
+        << ctx.windows->size() << ","
+        << ctx.beta_id << ","
+        << time << ","
         << *ctx.cost << ","
         << *ctx.cost_norm << ","
         << (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].latency << ","
-        << *ctx.p_shed << ","
+        << ctx.beta_latency_end << ","
         << (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].elements_count << ","
-        << (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].t_close - (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].t_open << std::endl;
+        << (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].t_close - (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].t_open << std::endl << ","
+        << *ctx.p_shed << std::endl;
 
     return true;
 }

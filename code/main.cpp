@@ -234,7 +234,7 @@ int main(int argc, char *argv[]) {
     }
 
     // output folder for csvs
-    fs::path output_folder = "results_adwin";
+    fs::path output_folder = "results";
     if (!fs::exists(output_folder)) {
         fs::create_directories(output_folder);
     }
@@ -254,10 +254,10 @@ int main(int argc, char *argv[]) {
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
 
     std::ofstream csv_windows(windows_path.string());
-    csv_windows << "index,t_open,t_close,window_results,incremental_matches,latency,window_cardinality,window_size\n";
+    csv_windows << "window_id,t_open,t_close,normalized_estimated_cost,window_results,incremental_matches,latency,window_cardinality,window_size\n";
 
     std::ofstream csv_tuples(tuples_path.string());
-    csv_tuples << "estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,window_size\n";
+    csv_tuples << "window_id,beta_id,timestamp,estimated_cost,normalized_estimated_cost,latency,beta_latency,window_cardinality,window_size,shedding\n";
 
     std::ofstream csv_memory(memory_path.string());
     csv_memory << "alef,avg_deg,lef,max_deg,nm\n";
@@ -311,6 +311,7 @@ int main(int argc, char *argv[]) {
     ctx.cumulative_window_latency = &cumulative_window_latency;
 
     clock_t start = clock();
+    ctx.beta_latency_start = clock();
     windows.emplace_back(0, size, nullptr, nullptr);
     long long s, d, l, t;
     while (fin >> s >> d >> l >> t) {
@@ -364,6 +365,7 @@ int main(int argc, char *argv[]) {
                 << i << ","
                 << windows[i].t_open << ","
                 << windows[i].t_close << ","
+                << windows[i].cost << ","
                 << windows[i].emitted_results << ","
                 << windows[i].total_matched_results << ","
                 << windows[i].latency << ","

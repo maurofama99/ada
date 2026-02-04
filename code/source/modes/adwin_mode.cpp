@@ -95,12 +95,16 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
 
     // estimated_cost,normalized_estimated_cost,latency,normalized_latency,window_cardinality,window_size
     (*ctx.csv_tuples)
+        << ctx.windows->size() << ","
+        << (*ctx.resizings) << ","
+        << time << ","
         << *ctx.cost << ","
         << *ctx.cost_norm << ","
-        << (*ctx.windows)[*ctx.resizings].latency << ","
+        << (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].latency << ","
         << 0 << ","
-        << (*ctx.windows)[*ctx.resizings].elements_count << ","
-        << (*ctx.windows)[*ctx.resizings].t_close - (*ctx.windows)[*ctx.resizings].t_open << std::endl;
+        << (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].elements_count << ","
+        << (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].t_close - (*ctx.windows)[*ctx.window_offset >= 1 ? *ctx.window_offset - 1 : 0].t_open << std::endl << ","
+        << 0 << std::endl;
     
     return true;
 }

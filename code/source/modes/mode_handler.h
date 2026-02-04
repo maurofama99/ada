@@ -25,6 +25,8 @@ public:
     double latency = 0.0; // latency of the window
     double normalized_latency = 0.0; // normalized latency of the window
 
+    double cost = 0.0;
+
     double max_degree = 0.0;
 
     long long elements_count = 0;
@@ -107,6 +109,9 @@ struct ModeContext {
     int* total_elements_count;
 
     double* cumulative_window_latency;
+    unsigned long beta_latency_start = 0;
+    unsigned long beta_latency_end = 0;
+    int beta_id = 0;
 };
 
 // Abstract base class for mode handlers
