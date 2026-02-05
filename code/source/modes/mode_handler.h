@@ -104,6 +104,9 @@ struct ModeContext {
     double* p_shed;
     double granularity;
     double max_shed;
+    double average_processing_time = 0.0;
+    double latency_max;
+
     
     // Other
     int* total_elements_count;

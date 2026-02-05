@@ -27,7 +27,7 @@ public:
             }
             return std::make_unique<AdwinMode>(adwin_instance);
         }
-        if (mode == 3) {
+        if (mode == 3 || mode == 4) {
             if (!generator || !distribution) {
                 std::cerr << "ERROR: Load shedding mode requires generator and distribution" << std::endl;
                 exit(4);

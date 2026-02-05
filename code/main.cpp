@@ -34,6 +34,7 @@ typedef struct Config {
     std::vector<long long> labels;
     int max_size{};
     int min_size{};
+    double l_max{};
 } config;
 
 config readConfig(const std::string &filename) {
@@ -70,6 +71,16 @@ config readConfig(const std::string &filename) {
     std::string arg;
     while (std::getline(extraArgsStream, arg, ',')) {
         config.labels.push_back(std::stoi(arg));
+    }
+
+    if (config.adaptive == 4) {
+        if (configMap.find("l_max") == configMap.end()) {
+            cerr << "Error: l_max should be set" << endl;
+            exit(1);
+        }
+        config.l_max = std::stod(configMap["l_max"]);
+    } else {
+        config.l_max = -1;
     }
 
     return config;
@@ -182,11 +193,16 @@ int main(int argc, char *argv[]) {
             cout << "  - minLen: " << minLen << endl;
             cout << "  - delta: " << delta << endl;
             break;
-        case 3: mode = "lshed";
+        case 3: mode = "lshedprob";
             cout << "Load shedding mode activated." << endl;
             cout << "Window size: " << size << endl;
             cout << "Window slide: " << slide << endl;
-
+            break;
+        case 4: mode = "lshedlatency";
+            cout << "Load shedding mode activated." << endl;
+            cout << "Window size: " << size << endl;
+            cout << "Window slide: " << slide << endl;
+            cout << "Max latency: " << config.l_max << endl;
             break;
         default:
             cerr << "ERROR: Unknown mode" << endl;
@@ -309,7 +325,10 @@ int main(int argc, char *argv[]) {
     ctx.max_shed = max_shed;
     ctx.total_elements_count = &total_elements_count;
     ctx.cumulative_window_latency = &cumulative_window_latency;
+    ctx.latency_max = config.l_max;
 
+    int elements_processed = 0;
+    double cumulative_processing_time = 0;
     clock_t start = clock();
     ctx.beta_latency_start = clock();
     windows.emplace_back(0, size, nullptr, nullptr);
@@ -328,17 +347,22 @@ int main(int argc, char *argv[]) {
             continue;
 
         sg_edge *new_sgt = nullptr;
-        
+
         // Process edge using the appropriate mode handler
         mode_handler->process_edge(s, d, l, time, ctx, &new_sgt);
 
+        elements_processed++;
+        clock_t processing_time_start = clock();
         /* QUERY */
         if (new_sgt) {  // Only process query if an edge was created (not shed in load shedding mode)
             query->pattern_matching_tc(new_sgt);
         }
+        double processing_time_used = static_cast<double>(clock() - processing_time_start) / CLOCKS_PER_SEC;
+        cumulative_processing_time += processing_time_used;
+        ctx.average_processing_time = cumulative_processing_time / elements_processed;
 
-        if (edge_number % checkpoint == 0) {
-            printf("processed edges: %lld\n", edge_number);
+        if (elements_processed % checkpoint == 0) {
+            printf("processed edges: %d\n", elements_processed);
             printf("avg degree: %f\n", *ctx.avg_deg);
             cout << "matched paths: " << sink->matched_paths << "\n\n";
         }

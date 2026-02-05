@@ -14,7 +14,21 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
         ctx.beta_id++;
     }
 
-    if ((*dist)(*gen) < *ctx.p_shed) { // load shedding
+    bool shedding_condition = false;
+    switch (ctx.mode) {
+        case 3:
+            shedding_condition = (*dist)(*gen) < *ctx.p_shed;
+            break;
+        case 4:
+            shedding_condition = ctx.average_processing_time > ctx.latency_max;
+            // if (shedding_condition) cout << "Average processing time: " << ctx.average_processing_time << "s, Latency max: " << ctx.latency_max << "s, Shedding condition: " << shedding_condition << endl;
+            break;
+        default:
+            std::cerr << "ERROR: Unknown load shedding mode." << std::endl;
+            exit(1);
+    }
+
+    if (shedding_condition){
         *new_sgt_out = nullptr; // no edge created when load shedding
         return true; // continue to next edge
     }

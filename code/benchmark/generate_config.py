@@ -23,8 +23,6 @@ def generate_config_files(datasets, algorithms, window_slide_pairs, query_label_
                             print(f"Generated {config_filepath}")
 
 def main():
-    # SO
-    # query_label_pairs = [(1,[1]), (5,[2,1,3]), (7,[3,2,1]), (2,[2,1]), (10,[3,2,1]), (6,[1,2]), (3,[3,1,2]), (4,[3,1,2])]
 
     # LDBC
     ldbc_dataset = ["code/dataset/ldbc/social-graph12_14v7_bursted.txt"]
@@ -41,21 +39,25 @@ def main():
 
     ADWIN = [(0, 0, 0, 10), (0, 0, 0, 5), (0, 0, 0, 3)]
 
-    algorithms = [11, 12, 13, 15]
-    query_label_pairs =  ldbc_query_label_pairs
-    datasets = ldbc_dataset
-    window_slide_pairs = LDBC_COST
-    output = "completeness/ldbc"
+    # SO
+    so_dataset = ["code/dataset/so/so-stream_labelled_modified.txt"]
+    so_query_label_pairs = [(1,[3]), (5,[2,1,3]), (7,[3,2,1]), (2,[2,1]), (10,[3,2,1]), (6,[1,2]), (3,[3,1,2]), (4,[3,1,2])]
 
-    # Query	        LDBC	HIGGS	SO
-    # 1) a*	        14	    1	    1
-    # 5) ab*c	    8,14,9	1,2,3	2,1,3
-    # 7) abc*	    8,9,0	2,3,1	3,2,1
-    # 2) ab*	    8,14	    2,1	    2,1
-    # 10) (a|b)c*	9,3,0	2,3,1	3,2,1
-    # 6) a*b*	            2,1	    1,2
-    # 3) ab*c*	            3,2,1	3,1,2
-    # 4) (abc)+	    0,8,9   2,1,3 	3,1,2
+    algorithms = [11, 10]
+    query_label_pairs =  so_query_label_pairs
+    datasets = so_dataset
+    window_slide_pairs = LDBC_LATENCY
+    output = "lat_tput/so"
+
+    # Query	        LDBC	            HIGGS	                    SO
+    # 1) a*	        14	                1	                        3
+    # 2) ab*	    8,14	            2,1	                        2,1
+    # 3) ab*c*	    x                   3,2,1	                    3,1,2
+    # 4) (abc)+	    0,8,9               2,1,3 	                    3,1,2
+    # 5) ab*c	    8,14,9	            1,2,3 (l_max=0.000002)	    2,1,3
+    # 6) a*b*	    x                   2,1	                        1,2
+    # 7) abc*	    8,9,0	            2,3,1	                    3,2,1
+    # 10) (a|b)c*	9,3,0	            2,3,1	                    3,2,1
 
     generate_config_files(datasets, algorithms, window_slide_pairs, query_label_pairs, output)
 
