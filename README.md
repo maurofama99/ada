@@ -9,6 +9,8 @@ The appendix of the paper submitted to VLDB '26 can be found in this file: [Appe
 We report the experiments of latency, throughput and completeness for all the mentioned Regular Path Queries and for the additional dataset [StackOverflow](https://snap.stanford.edu/data/sx-stackoverflow.html). 
 
 #### StackOverflow
+We execute the experiments on the first 800 days of the dataset and we introuce syntetic peaks. We maintain the same edges to preserve the real-world dataset relationships, but we increase the input rate by 3x between 200 and 300 days, and 2x between 500 and 600 days. We decrease the input rate in the remaining temporal ranges to maitain a total time span of 800 days.
+
 ##### Throughput
 <img width="4480" height="3200" alt="Throughput_so_tuples_full" src="https://github.com/user-attachments/assets/6f85f09c-d6cb-4a71-80ab-149bc3735963" />
 
