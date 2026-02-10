@@ -185,15 +185,14 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
 
             // cost function
             double n = 0;
-            for (int i = 0; i < ctx.sg->EINIT_count; i++) {
-                n += ctx.sg->edge_num - i;
-            }
-
-            if (n==0) cout << "WARNING: n is 0." << std::endl;
-
-            // if (ctx.mode == 11) {
-            //     n = (ctx.sg->EINIT_count+1)*(2*ctx.sg->edge_num - ctx.sg->EINIT_count) / 2.0;
+            // for (int i = 0; i < ctx.sg->EINIT_count; i++) {
+            //     n += ctx.sg->edge_num - i;
             // }
+            //
+            // if (n==0) cout << "WARNING: n is 0." << std::endl;
+
+            n = (ctx.sg->EINIT_count+1)*(2*ctx.sg->edge_num - ctx.sg->EINIT_count) / 2.0;
+
 
             switch (ctx.mode) {
                 case 11:

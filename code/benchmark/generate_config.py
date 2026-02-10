@@ -41,13 +41,13 @@ def main():
 
     # SO
     so_dataset = ["code/dataset/so/so-stream_labelled_modified.txt"]
-    so_query_label_pairs = [(1,[3]), (5,[2,1,3]), (7,[3,2,1]), (2,[2,1]), (10,[3,2,1]), (6,[1,2]), (3,[3,1,2]), (4,[3,1,2])]
+    so_query_label_pairs = [(1,[1]), (5,[2,1,3]), (7,[3,2,1]), (2,[2,1]), (10,[3,2,1]), (6,[1,2]), (3,[3,1,2]), (4,[3,1,2])]
 
-    algorithms = [11, 10]
-    query_label_pairs =  so_query_label_pairs
-    datasets = so_dataset
-    window_slide_pairs = LDBC_LATENCY
-    output = "lat_tput/so"
+    algorithms = [11,10]
+    query_label_pairs =  [(10, [9,3,0]), (7, [8,9,0])]
+    datasets = ldbc_dataset
+    window_slide_pairs = [(259200, 10800, 259200, 194400), (345600, 10800, 345600, 259200)]
+    output = "lat_tput/ldbc"
 
     # Query	        LDBC	            HIGGS	                    SO
     # 1) a*	        14	                1	                        3

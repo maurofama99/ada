@@ -28,7 +28,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
             exit(1);
     }
 
-    if (shedding_condition){
+    if (shedding_condition && (*ctx.windows)[ctx.windows->size()-1].elements_count > 0) {
         *new_sgt_out = nullptr; // no edge created when load shedding
         return true; // continue to next edge
     }
