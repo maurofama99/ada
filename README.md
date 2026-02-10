@@ -2,7 +2,35 @@
 
 ## Additional materials
 
+### Appendix
 The appendix of the paper submitted to VLDB '26 can be found in this file: [Appendix](appendix.pdf)
+
+### Extensive Experiments
+We report the experiments of latency, throughput and completeness for all the mentioned Regular Path Queries and for the additional dataset [StackOverflow](https://snap.stanford.edu/data/sx-stackoverflow.html). 
+
+#### StackOverflow
+We execute the experiments on the first 800 days of the dataset and we introuce syntetic peaks. We maintain the same edges to preserve the real-world dataset relationships, but we increase the input rate by 3x between 200 and 300 days, and 2x between 500 and 600 days. We decrease the input rate in the remaining temporal ranges to maitain a total time span of 800 days.
+
+##### Throughput
+<img width="4480" height="3200" alt="Throughput_so_tuples_full" src="https://github.com/user-attachments/assets/6f85f09c-d6cb-4a71-80ab-149bc3735963" />
+
+##### Latency
+<img width="4480" height="3200" alt="Latency_so_tuples_full" src="https://github.com/user-attachments/assets/8b3456da-2992-4ffa-9d24-0f8ca63b77b7" />
+
+#### LDBC
+##### Throughput
+<img width="4480" height="2400" alt="Throughput_ldbc_tuples_full" src="https://github.com/user-attachments/assets/9a875845-7632-436c-8873-718803050e36" />
+
+##### Latency
+<img width="4480" height="2400" alt="Latency_ldbc_tuples_full" src="https://github.com/user-attachments/assets/7751d982-7898-419f-b40e-650beb421571" />
+
+#### Twitter-Higgs
+##### Throughput
+<img width="4480" height="4000" alt="Throughput_higgs_tuples_full" src="https://github.com/user-attachments/assets/bcf8c3a7-401a-4a25-8475-40dea562626b" />
+
+##### Latency
+<img width="4480" height="4000" alt="Latency_higgs_tuples_full" src="https://github.com/user-attachments/assets/feb2f3d1-f50b-4dc5-aea5-f400b152d902" />
+
 
 ## Build
 
