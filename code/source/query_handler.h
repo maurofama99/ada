@@ -78,7 +78,7 @@ public:
                     if (!vj_sj_node) {
                         // if tree does not contain <vj,sj>
                         // add <vj,sj> into tree with parent vi_si
-                        if (!forest.addChildToParentTimestamped(tree.rootVertex, vb_sb_node, element->vd, element->sd, element->edge_timestamp)) continue;
+                        if (!forest.addChildToParentTimestamped(tree.rootVertex, vb_sb_node, element->vd, element->sd, element->edge_timestamp, edge->timestamp)) continue;
                     } else if (vb_sb_node && vj_sj_node->timestamp < (element->edge_timestamp < vb_sb_node->timestamp ? element->edge_timestamp : vb_sb_node->timestamp)) {
                         // if tree already contains <vj,sj>
                         // change parent to vi_si if the timestamp is smaller

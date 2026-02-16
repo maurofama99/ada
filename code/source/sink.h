@@ -39,9 +39,15 @@ public:
     // add entry in result set
     void addEntry(long long source, long long destination, long long timestamp) {
         result res = {destination, timestamp};
-        result_set[source].insert(res);
-        matched_paths++;
+        auto& destinations = result_set[source];
+
+        // insert restituisce una coppia: iterator e bool (true se inserito, false se esisteva già)
+        if (auto [it, inserted] = destinations.insert(res); inserted) {
+            // Nuova coppia distinta, incrementa il contatore
+            matched_paths++;
+        }// Se non inserito, la coppia esisteva già: non fa nulla, mantiene il timestamp originale
     }
+
 
     void refresh_resultSet(long long timestamp) {
         // delete all the entries with timestamp less than the given timestamp

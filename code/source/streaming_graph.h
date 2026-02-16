@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <set>
 #include <cmath>
+#include <iostream>
 
 using namespace std;
 
@@ -127,6 +128,97 @@ public:
     unordered_map<long long, int> out_degree;
     long long vertex_num = 0; // number of vertices in the window
 
+    // Edge importance ranking: edge_id -> rank (in_degree[dst] * out_degree[src])
+    std::unordered_map<long long, double> edge_rank;
+    // Sorted set for fast top-k edge queries: (rank, edge_id) sorted by rank descending
+    std::set<std::pair<double, long long>, std::greater<>> ranked_edges;
+    // Map edge_id to (src, dst) for rank updates when degrees change
+    std::unordered_map<long long, std::pair<long long, long long>> edge_endpoints;
+    // Lookup from the edge_id to the edge in the adjacency list
+    std::unordered_map<long long, sg_edge *> edge_id_to_edge;
+
+    // Compute edge rank based on in-degree of destination and out-degree of source
+    [[nodiscard]] double computeEdgeRank(long long src, long long dst, long long id, long long current_time) const {
+        const int src_out = out_degree.count(src) ? out_degree.at(src) : 1;
+        const int dst_in = in_degree.count(dst) ? in_degree.at(dst) : 1;
+
+        double time_deviation = 1 - static_cast<double>(current_time - edge_id_to_edge.at(id)->timestamp)/static_cast<double>(current_time);
+
+        return static_cast<double>(src_out) * static_cast<double>(dst_in) * time_deviation;
+    }
+
+    // Update rank for a single edge
+    void updateEdgeRank(long long edge_id, long long src, long long dst, long long current_time) {
+        // Remove old rank entry if exists
+        if (edge_rank.count(edge_id)) {
+            double old_rank = edge_rank[edge_id];
+            ranked_edges.erase({old_rank, edge_id});
+        }
+
+        // Compute and insert new rank
+        double new_rank = computeEdgeRank(src, dst, edge_id, current_time);
+        edge_rank[edge_id] = new_rank;
+        ranked_edges.insert({new_rank, edge_id});
+    }
+
+    // Remove edge from ranking
+    void removeEdgeFromRanking(long long edge_id) {
+        if (edge_rank.count(edge_id)) {
+            double old_rank = edge_rank[edge_id];
+            ranked_edges.erase({old_rank, edge_id});
+            edge_rank.erase(edge_id);
+        }
+        edge_endpoints.erase(edge_id);
+    }
+
+    // Update ranks for all edges incident to a vertex (called when degree changes)
+    void updateRanksForVertex(long long vertex, long long current_time) {
+        // Update all edges where this vertex is the source (out-degree matters)
+        if (adjacency_list.count(vertex)) {
+            for (const auto& [dst, edge] : adjacency_list.at(vertex)) {
+                updateEdgeRank(edge->id, vertex, dst, current_time);
+            }
+        }
+        // Update all edges where this vertex is the destination (in-degree matters)
+        for (const auto& [src, edges] : adjacency_list) {
+            for (const auto& [dst, edge] : edges) {
+                if (dst == vertex) {
+                    updateEdgeRank(edge->id, src, dst, current_time);
+                }
+            }
+        }
+    }
+
+    // Get the rank of a specific edge
+    [[nodiscard]] double getEdgeRank(long long edge_id) const {
+        auto it = edge_rank.find(edge_id);
+        return (it != edge_rank.end()) ? it->second : 0;
+    }
+
+    // Get top-k most important edges
+    [[nodiscard]] std::vector<std::pair<long long, double>> getTopKEdges(size_t k) const {
+        std::vector<std::pair<long long, double>> result;
+        result.reserve(std::min(k, ranked_edges.size()));
+        size_t count = 0;
+        for (const auto& [rank, edge_id] : ranked_edges) {
+            if (count++ >= k) break;
+            result.emplace_back(edge_id, rank);
+        }
+        return result;
+    }
+
+    // Get bottom-k least important edges (lowest rank first)
+    [[nodiscard]] std::vector<std::pair<long long, double>> getBottomKEdges(size_t k) const {
+        std::vector<std::pair<long long, double>> result;
+        result.reserve(std::min(k, ranked_edges.size()));
+        size_t count = 0;
+        // Iterate in reverse order (ascending rank)
+        for (auto it = ranked_edges.rbegin(); it != ranked_edges.rend() && count < k; ++it, ++count) {
+            result.emplace_back(it->second, it->first); // (edge_id, rank)
+        }
+        return result;
+    }
+
     explicit streaming_graph(const int first_transition) : first_transition(first_transition) {
         time_list_head = nullptr;
         time_list_tail = nullptr;
@@ -201,6 +293,7 @@ public:
             if (existing_edge->label == label && to_vertex == to) {
                 // if (existing_edge->expiration_time < expiration_time) existing_edge->expiration_time = expiration_time;
                 if (existing_edge->timestamp < timestamp) existing_edge->timestamp = timestamp;
+                delete_timed_edge(existing_edge->time_pos); // remove the old timed edge from the time list
                 return existing_edge;
             }
         }
@@ -209,6 +302,7 @@ public:
         if (label == first_transition) EINIT_count++;
 
         auto *edge = new sg_edge(edge_id, from, to, label, timestamp, expiration_time);
+        edge_id_to_edge[edge_id] = edge;
 
         // Add the edge to the adjacency list if it doesn't exist
         if (adjacency_list[from].empty()) {
@@ -217,12 +311,16 @@ public:
         adjacency_list.at(from).emplace_back(to, edge);
 
         // Track vertex count and degrees
+        bool from_is_new = false;
+        bool to_is_new = false;
+
         if (out_degree.find(from) == out_degree.end()) {
             out_degree[from] = 0;
             if (in_degree.find(from) == in_degree.end()) {
                 in_degree[from] = 0;
             }
             vertex_num++;
+            from_is_new = true;
         }
         if (in_degree.find(to) == in_degree.end()) {
             in_degree[to] = 0;
@@ -230,14 +328,30 @@ public:
                 out_degree[to] = 0;
             }
             vertex_num++;
+            to_is_new = true;
         }
         out_degree[from]++;
         in_degree[to]++;
 
+        // Store edge endpoints for future rank updates
+        edge_endpoints[edge_id] = {from, to};
+
+        // Update ranks for all edges incident to 'from' (out-degree changed)
+        // and all edges incident to 'to' (in-degree changed)
+        if (!from_is_new) {
+            updateRanksForVertex(from, timestamp);
+        }
+        if (!to_is_new) {
+            updateRanksForVertex(to, timestamp);
+        }
+
+        // Add the new edge to the ranking
+        updateEdgeRank(edge_id, from, to, timestamp);
+
         return edge;
     }
 
-    bool remove_edge(long long from, long long to, long long label) {
+    bool remove_edge(long long from, long long to, long long label, long long current_time) {
         // delete an edge from the snapshot graph
 
         // Check if the vertex exists in the adjacency list
@@ -249,6 +363,9 @@ public:
         for (auto it = edges.begin(); it != edges.end(); ++it) {
             // Check if this is the edge to remove
             if (sg_edge *edge = it->second; it->first == to && edge->label == label) {
+                // Remove the edge from ranking first (before modifying degrees)
+                removeEdgeFromRanking(edge->id);
+
                 // Remove the edge from the adjacency list
                 edges.erase(it);
                 edge_num--;
@@ -257,15 +374,23 @@ public:
                     adjacency_list.erase(from);
                 }
 
+                // remove the entry from the edge id to edge map
+                edge_id_to_edge.erase(edge->id);
+
                 // Update degrees
                 out_degree[from]--;
                 in_degree[to]--;
+
+                // Update ranks for edges incident to these vertices (degrees changed)
+                bool from_removed = false;
+                bool to_removed = false;
 
                 // Remove 'from' vertex if it has no incident edges
                 if (out_degree[from] == 0 && in_degree[from] == 0) {
                     out_degree.erase(from);
                     in_degree.erase(from);
                     vertex_num--;
+                    from_removed = true;
                 }
 
                 // Remove 'to' vertex if it has no incident edges
@@ -276,6 +401,15 @@ public:
                         adjacency_list.erase(to);
                     }
                     vertex_num--;
+                    to_removed = true;
+                }
+
+                // Update ranks for remaining edges incident to 'from' and 'to'
+                if (!from_removed) {
+                    updateRanksForVertex(from, current_time);
+                }
+                if (!to_removed) {
+                    updateRanksForVertex(to, current_time);
                 }
 
                 return true; // Successfully removed

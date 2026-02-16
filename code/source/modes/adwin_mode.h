@@ -1,10 +1,10 @@
 #ifndef ADWIN_MODE_H
 #define ADWIN_MODE_H
 
-#include "mode_handler.h"
+#include "mode_handler_base.h"
 #include "../adwin/Adwin.h"
 
-class AdwinMode : public ModeHandler {
+class AdwinMode : public ModeHandlerBase {
 private:
     Adwin* adwin;
     

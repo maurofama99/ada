@@ -178,10 +178,98 @@ public:
     std::unordered_map<std::pair<long long, long long>, std::set<long long>, pair_hash> vertex_state_tree_map; // Maps a pair (vertex, state) to the tree (root vertex) it belongs to
     std::unordered_map<long long, long long> tree_reference_counting; // Maps a tree (root vertex) to the number of references it has in the vertex tree map
 
+    // Vertex importance ranking: vertex -> number of trees containing it
+    std::unordered_map<long long, double> vertex_rank;
+    // Sorted set for fast top-k queries: (rank, vertex) sorted by rank descending
+    std::set<std::pair<double, long long>, std::greater<>> ranked_vertices;
+
     long long node_count = 0;
     int trees_count = 0;
+    long long current_time = 1;
 
     int possible_states; // possible states in the FSA
+
+    // Update rank when a vertex is added to a tree
+    void incrementVertexRank(long long vertex, long long timestamp) {
+        double old_rank = vertex_rank[vertex];
+        if (old_rank > 0) {
+            ranked_vertices.erase({old_rank, vertex});
+        }
+
+        double rank;
+        if (current_time <= 0 || timestamp > current_time) {
+            rank = old_rank + 1; // Nessun decadimento temporale
+        } else {
+            rank = (old_rank + 1) * (1.0 - static_cast<double>(current_time - timestamp) / static_cast<double>(current_time));
+        }
+
+        //cout << "Incrementing rank of vertex " << vertex << " from " << old_rank << " to " << rank << " at time " << current_time << endl;
+        vertex_rank[vertex] = rank;
+        ranked_vertices.insert({rank, vertex});
+    }
+
+    // Update rank when a vertex is removed from a tree
+    void decrementVertexRank(long long vertex, long long timestamp) {
+        auto it = vertex_rank.find(vertex);
+        if (it == vertex_rank.end() || it->second == 0) return;
+
+        double old_rank = it->second;
+        ranked_vertices.erase({old_rank, vertex});
+
+        double rank;
+        if (current_time <= 0 || timestamp > current_time) {
+            rank = old_rank - 1; // Nessun decadimento temporale
+        } else {
+            rank = (old_rank - 1) * (1.0 - static_cast<double>(current_time - timestamp) / static_cast<double>(current_time));
+        }
+
+        if (old_rank > 0) {
+            vertex_rank[vertex] = rank;
+            ranked_vertices.insert({rank, vertex});
+        } else {
+            vertex_rank.erase(vertex);
+        }
+    }
+
+    // Get the rank of a specific vertex (0 if not in any tree)
+    [[nodiscard]] double getVertexRank(long long vertex) const {
+        auto it = vertex_rank.find(vertex);
+        return (it != vertex_rank.end()) ? it->second : 0;
+    }
+
+    // Get top-k most important vertices
+    [[nodiscard]] std::vector<std::pair<long long, double>> getTopKVertices(size_t k) const {
+        std::vector<std::pair<long long, double>> result;
+        result.reserve(std::min(k, ranked_vertices.size()));
+        size_t count = 0;
+        for (const auto& [rank, vertex] : ranked_vertices) {
+            if (count++ >= k) break;
+            result.emplace_back(vertex, rank);
+        }
+        return result;
+    }
+
+    // Get all vertices with rank >= threshold
+    [[nodiscard]] std::vector<std::pair<long long, double>> getVerticesAboveThreshold(double threshold) const {
+        std::vector<std::pair<long long, double>> result;
+        for (const auto& [rank, vertex] : ranked_vertices) {
+            if (rank < threshold) break;
+            result.emplace_back(vertex, rank);
+        }
+        return result;
+    }
+
+    // Get bottom-k least important vertices (lowest rank first)
+    [[nodiscard]] std::vector<std::pair<long long, double>> getBottomKVertices(size_t k) const {
+        std::vector<std::pair<long long, double>> result;
+        result.reserve(std::min(k, ranked_vertices.size()));
+        size_t count = 0;
+        // Iterate in reverse order (ascending rank)
+        for (auto it = ranked_vertices.rbegin(); it != ranked_vertices.rend() && count < k; ++it, ++count) {
+            result.emplace_back(it->second, it->first); // (vertex, rank)
+        }
+        return result;
+    }
 
     // a vertex can be root of only one tree
     // proof: since we have only one initial state and the tree has an initial state as root
@@ -200,6 +288,9 @@ public:
             trees.at(rootVertex).rootNode->isRoot = true;
             trees.at(rootVertex).rootNode->timestampRoot = timestamp;
 
+            // Update vertex rank
+            incrementVertexRank(rootVertex, timestamp);
+
             node_count++;
             trees_count++;
         } else {
@@ -208,7 +299,7 @@ public:
         }
     }
 
-    bool addChildToParentTimestamped(long long rootVertex, Node* parent, long long childVertex, long long childState, long long timestamp) {
+    bool addChildToParentTimestamped(long long rootVertex, Node* parent, long long childVertex, long long childState, long long timestamp, long long current_time) {
         if (parent) {
             auto child = new Node(parent->id, childVertex, childState, parent);
             child->timestamp = timestamp < parent->timestamp ? timestamp : parent->timestamp;
@@ -221,6 +312,10 @@ public:
             vertex_tree_map[child->vertex].insert(&trees.at(rootVertex));
             vertex_state_tree_map[pair(childVertex, childState)].insert(rootVertex);
             tree_reference_counting[rootVertex]++;
+
+            // Update vertex rank
+            incrementVertexRank(childVertex, timestamp);
+
             return true;
         }
         return false;
@@ -491,6 +586,8 @@ private:
                 if ((*it)->rootVertex == rootVertex) {
                     tree_reference_counting.at(rootVertex)--;
                     treeSet.erase(it);
+                    // Decrement vertex rank when removed from a tree
+                    decrementVertexRank(node->vertex, node->timestamp);
                     break;
                 }
             }
@@ -515,6 +612,8 @@ private:
             if ((*it)->rootVertex == rootVertex) {
                 tree_reference_counting.at(rootVertex)--;
                 treeSet.erase(it);
+                // Decrement vertex rank when removed from a tree
+                decrementVertexRank(node->vertex, node->timestamp);
                 break;
             }
         }

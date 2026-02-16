@@ -25,79 +25,12 @@ using namespace std;
 
 // struct sysinfo memInfo;
 
-typedef struct Config {
-    std::string input_data_path;
-    int adaptive{};
-    long long size{};
-    long long slide{};
-    long long query_type{};
-    std::vector<long long> labels;
-    int max_size{};
-    int min_size{};
-    double l_max{};
-} config;
-
-config readConfig(const std::string &filename) {
-    config config;
-    std::ifstream file(filename);
-    std::string line;
-
-    if (!file) {
-        std::cerr << "Error opening configuration file: " << filename << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    std::unordered_map<std::string, std::string> configMap;
-
-    while (std::getline(file, line)) {
-        std::istringstream ss(line);
-        std::string key, value;
-        if (std::getline(ss, key, '=') && std::getline(ss, value)) {
-            configMap[key] = value;
-        }
-    }
-
-    // Convert values from the map
-    config.input_data_path = configMap["input_data_path"];
-    config.adaptive = std::stoi(configMap["adaptive"]);
-
-    config.size = std::stoi(configMap["size"]);
-    config.slide = std::stoi(configMap["slide"]);
-    config.max_size = std::stoi(configMap["max_size"]);
-    config.min_size = std::stoi(configMap["min_size"]);
-    config.query_type = std::stoi(configMap["query_type"]);
-
-    std::istringstream extraArgsStream(configMap["labels"]);
-    std::string arg;
-    while (std::getline(extraArgsStream, arg, ',')) {
-        config.labels.push_back(std::stoi(arg));
-    }
-
-    if (config.adaptive == 4) {
-        if (configMap.find("l_max") == configMap.end()) {
-            cerr << "Error: l_max should be set" << endl;
-            exit(1);
-        }
-        config.l_max = std::stod(configMap["l_max"]);
-    } else {
-        config.l_max = -1;
-    }
-
-    return config;
-}
-
 int main(int argc, char *argv[]) {
     fs::path exe_path = fs::canonical(fs::absolute(argv[0]));
     fs::path exe_dir = exe_path.parent_path();
 
     string config_path = argv[1];
     config config = readConfig(config_path);
-
-    long long size = config.size;
-    long long slide = config.slide;
-    long long max_size = config.max_size;
-    long long min_size = config.min_size;
-    long long query_type = config.query_type;
 
     fs::path data_path = fs::current_path() / config.input_data_path;
     std::string data_folder = data_path.parent_path().filename().string();
@@ -111,97 +44,94 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     // if max size < min size, exit
-    if (max_size < min_size) {
+    if (config.max_size < config.min_size) {
         cerr << "ERROR: max_size < min_size" << endl;
         exit(1);
     }
 
-    auto *f = new Forest();
-    auto *sink = new Sink();
-    auto *aut = new FiniteStateAutomaton();
+    ModeContext ctx;
+    ctx.size = config.size;
+    ctx.slide = config.slide;
+    ctx.max_size = config.max_size;
+    ctx.min_size = config.min_size;
+    ctx.mode = config.adaptive;
+    ctx.latency_max = config.l_max;
+    if (config.size >0 && config.slide >0) ctx.overlap = config.size / config.slide;
+    ctx.granularity = static_cast<double>(ctx.min_size) / 100.0;
+    ctx.max_shed = static_cast<double>(ctx.max_size) / 100.0;
 
-    int maxBuckets = 5;
-    int minLen = 1;
-    double delta = 1.0 / static_cast<double>(min_size);
-    if (config.adaptive == 15) delta = 0.15;
-    Adwin adwin(maxBuckets, minLen, delta);
+    ctx.f = new Forest();
+    ctx.sink = new Sink();
+    ctx.aut = new FiniteStateAutomaton();
 
-    f->possible_states = aut->setup_automaton(query_type, config.labels);
+    ctx.f->possible_states = ctx.aut->setup_automaton(config.query_type, config.labels);
 
-    auto *sg = new streaming_graph(config.labels[0]);
+    ctx.sg = new streaming_graph(config.labels[0]);
 
-    auto query = new QueryHandler(*aut, *f, *sg, *sink); // Density-based Retention
+    auto query = new QueryHandler(*ctx.aut, *ctx.f, *ctx.sg, *ctx.sink);
 
-    vector<window> windows;
-    int total_elements_count = 0;
-
-    long long t0 = 0;
-    long long edge_number = 0;
-    long long time;
-    long long timestamp;
-
-    long long window_offset = 0;
-
-    bool evict = false;
-    vector<size_t> to_evict;
-    long long last_t_open = -1;
-
-    // long long checkpoint = 9223372036854775807L;
-    long long checkpoint = 500000;
-
-    vector<long long> node_count;
+    // Create mode handler using factory
+    std::mt19937 gen(std::random_device{}());
+    std::uniform_real_distribution<double> dist(0.0, 1.0);
+    double delta = 1.0 / static_cast<double>(config.min_size);
+    Adwin adwin(5, 1, delta);
+    auto mode_handler = ModeFactory::create_mode_handler(config.adaptive, &adwin, &gen, &dist);
 
     std::string mode;
     switch (config.adaptive) {
         case 10: mode = "sl";
-            cout << "Window size: " << size << endl;
-            cout << "Window slide: " << slide << endl;
+            cout << "Window size: " << config.size << endl;
+            cout << "Window slide: " << config.slide << endl;
             break;
         case 11: mode = "ad_function";
-            cout << "Window size: " << size << endl;
-            cout << "Window slide: " << slide << endl;
-            cout << "Min window size: " << min_size << endl;
-            cout << "Max window size: " << max_size << endl;
+            cout << "Window size: " << config.size << endl;
+            cout << "Window slide: " << config.slide << endl;
+            cout << "Min window size: " << config.min_size << endl;
+            cout << "Max window size: " << config.max_size << endl;
             break;
         case 12: mode = "ad_degree";
-            cout << "Window size: " << size << endl;
-            cout << "Window slide: " << slide << endl;
-            cout << "Min window size: " << min_size << endl;
-            cout << "Max window size: " << max_size << endl;
+            cout << "Window size: " << config.size << endl;
+            cout << "Window slide: " << config.slide << endl;
+            cout << "Min window size: " << config.min_size << endl;
+            cout << "Max window size: " << config.max_size << endl;
             break;
         case 13: mode = "ad_einit";
-            cout << "Window size: " << size << endl;
-            cout << "Window slide: " << slide << endl;
-            cout << "Min window size: " << min_size << endl;
-            cout << "Max window size: " << max_size << endl;
+            cout << "Window size: " << config.size << endl;
+            cout << "Window slide: " << config.slide << endl;
+            cout << "Min window size: " << config.min_size << endl;
+            cout << "Max window size: " << config.max_size << endl;
             break;
         case 14: mode = "maxdeg";
-            cout << "Window size: " << size << endl;
-            cout << "Window slide: " << slide << endl;
-            cout << "Min window size: " << min_size << endl;
-            cout << "Max window size: " << max_size << endl;
+            cout << "Window size: " << config.size << endl;
+            cout << "Window slide: " << config.slide << endl;
+            cout << "Min window size: " << config.min_size << endl;
+            cout << "Max window size: " << config.max_size << endl;
             break;
         case 15: mode = "ad_complexity";
-            cout << "Window size: " << size << endl;
-            cout << "Window slide: " << slide << endl;
-            cout << "Min window size: " << min_size << endl;
-            cout << "Max window size: " << max_size << endl;
+            cout << "Window size: " << config.size << endl;
+            cout << "Window slide: " << config.slide << endl;
+            cout << "Min window size: " << config.min_size << endl;
+            cout << "Max window size: " << config.max_size << endl;
             break;
         case 2: mode = "adwin";
             cout << "ADWIN configuration: " << endl;
-            cout << "  - maxBuckets: " << maxBuckets << endl;
-            cout << "  - minLen: " << minLen << endl;
             cout << "  - delta: " << delta << endl;
             break;
         case 3: mode = "lshedprob";
             cout << "Load shedding mode activated." << endl;
-            cout << "Window size: " << size << endl;
-            cout << "Window slide: " << slide << endl;
+            cout << "Window size: " << config.size << endl;
+            cout << "Window slide: " << config.slide << endl;
             break;
         case 4: mode = "lshedlatency";
             cout << "Load shedding mode activated." << endl;
-            cout << "Window size: " << size << endl;
-            cout << "Window slide: " << slide << endl;
+            cout << "Window size: " << config.size << endl;
+            cout << "Window slide: " << config.slide << endl;
+            cout << "Max latency: " << config.l_max << endl;
+            break;
+        case 5: mode = "lshedrank";
+            cout << "Load shedding mode activated." << endl;
+            cout << "Window size: " << config.size << endl;
+            cout << "Window slide: " << config.slide << endl;
             cout << "Max latency: " << config.l_max << endl;
             break;
         default:
@@ -211,44 +141,6 @@ int main(int argc, char *argv[]) {
 
     cout << "Modalità: " << mode << " (config. " << config.adaptive << ")" << endl;
 
-
-    // ADAPTIVE WINDOW
-    static double cumulative_size = 0.0;
-    static long long size_count = 0;
-    double avg_size = 0;
-    double cost_max = 0.0;
-    double cost_min = 922337203685470;
-    double lat_max = 0.0;
-    double lat_min = 922337203685470;
-    double cost = 0;
-    double cost_norm;
-    double last_cost = 0.0;
-    double last_diff = 0.0;
-    double max_deg = 1;
-    int overlap = -1;
-    if (size >0 && slide >0) overlap = size / slide;
-    std::deque<double> cost_window;
-    std::deque<double> normalization_window;
-    double cumulative_window_latency = 0.0;
-
-    // ADWIN
-    int warmup = 0;
-    double cumulative_degree = 0.0;
-    double avg_deg = 0.0;
-    int resizings = 0;
-    int window_cardinality = 0;
-
-    // LOAD SHEDDING
-    double p_shed = 0.0;
-    std::mt19937 gen(std::random_device{}());
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
-    double granularity = min_size / 100.0;
-    double max_shed = max_size / 100.0;
-    if (config.adaptive == 3) {
-        cout << "Load shedding granularity: " << granularity << endl;
-        cout << "Max shedding step: " << max_shed << endl;
-    }
-
     // output folder for csvs
     fs::path output_folder = "results";
     if (!fs::exists(output_folder)) {
@@ -257,8 +149,8 @@ int main(int argc, char *argv[]) {
 
     // Base filename (without folder)
     const std::string base =
-        data_folder + "_" + std::to_string(query_type) + "_" + std::to_string(size) + "_" +
-        std::to_string(slide) + "_" + mode + "_" + std::to_string(min_size) + "_" + std::to_string(max_size);
+        data_folder + "_" + std::to_string(config.query_type) + "_" + std::to_string(config.size) + "_" +
+        std::to_string(config.slide) + "_" + mode + "_" + std::to_string(config.min_size) + "_" + std::to_string(config.max_size);
 
     // Build full paths under output_folder
     const fs::path summary_path = output_folder / (base + "_summary_results.csv");
@@ -278,72 +170,27 @@ int main(int argc, char *argv[]) {
     std::ofstream csv_memory(memory_path.string());
     csv_memory << "alef,avg_deg,lef,max_deg,nm\n";
 
-    // Create mode handler using factory
-    auto mode_handler = ModeFactory::create_mode_handler(config.adaptive, &adwin, &gen, &dist);
-    
-    // Setup context for mode handlers
-    ModeContext ctx;
-    ctx.windows = &windows;
-    ctx.sg = sg;
-    ctx.f = f;
-    ctx.sink = sink;
-    ctx.aut = aut;
     ctx.csv_tuples = &csv_tuples;
     ctx.csv_memory = &csv_memory;
-    ctx.size = size;
-    ctx.slide = slide;
-    ctx.max_size = max_size;
-    ctx.min_size = min_size;
-    ctx.edge_number = &edge_number;
-    ctx.window_offset = &window_offset;
-    ctx.to_evict = &to_evict;
-    ctx.evict = &evict;
-    ctx.last_t_open = &last_t_open;
-    ctx.mode = config.adaptive;
-    ctx.cumulative_size = &cumulative_size;
-    ctx.size_count = &size_count;
-    ctx.avg_size = &avg_size;
-    ctx.cost_max = &cost_max;
-    ctx.cost_min = &cost_min;
-    ctx.lat_max = &lat_max;
-    ctx.lat_min = &lat_min;
-    ctx.cost = &cost;
-    ctx.cost_norm = &cost_norm;
-    ctx.last_cost = &last_cost;
-    ctx.last_diff = &last_diff;
-    ctx.max_deg = &max_deg;
-    ctx.overlap = overlap;
-    ctx.cost_window = &cost_window;
-    ctx.normalization_window = &normalization_window;
-    ctx.warmup = &warmup;
-    ctx.cumulative_degree = &cumulative_degree;
-    ctx.avg_deg = &avg_deg;
-    ctx.resizings = &resizings;
-    ctx.window_cardinality = &window_cardinality;
-    ctx.p_shed = &p_shed;
-    ctx.granularity = granularity;
-    ctx.max_shed = max_shed;
-    ctx.total_elements_count = &total_elements_count;
-    ctx.cumulative_window_latency = &cumulative_window_latency;
-    ctx.latency_max = config.l_max;
+    long long checkpoint = 500000;
 
     int elements_processed = 0;
     double cumulative_processing_time = 0;
     clock_t start = clock();
     ctx.beta_latency_start = clock();
-    windows.emplace_back(0, size, nullptr, nullptr);
+
+    long long t0 = 0;
+    long long time;
+    ctx.windows.emplace_back(0, config.size, nullptr, nullptr);
     long long s, d, l, t;
     while (fin >> s >> d >> l >> t) {
-        if (t0 == 0) {
-            t0 = t;
-            timestamp = 1;
-        } else timestamp = t - t0;
-
-        if (timestamp < 0) continue;
-        time = timestamp;
+        if (t0 == 0) t0 = t;
+        time = t - t0;
+        if (time < 0) continue;
+        if (time == 0) time = 1;
 
         // process the edge if the label is part of the query
-        if (!aut->hasLabel(l))
+        if (!ctx.aut->hasLabel(l))
             continue;
 
         sg_edge *new_sgt = nullptr;
@@ -363,47 +210,47 @@ int main(int argc, char *argv[]) {
 
         if (elements_processed % checkpoint == 0) {
             printf("processed edges: %d\n", elements_processed);
-            printf("avg degree: %f\n", *ctx.avg_deg);
-            cout << "matched paths: " << sink->matched_paths << "\n\n";
+            printf("avg degree: %f\n", ctx.avg_deg);
+            cout << "matched paths: " << ctx.sink->matched_paths << "\n\n";
         }
     }
 
-    cout << "Created windows: " << windows.size() << endl;
+    cout << "Created windows: " << ctx.windows.size() << endl;
 
     clock_t finish = clock();
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
 
-    double avg_window_size = static_cast<double>(total_elements_count) / windows.size();
+    double avg_window_size = static_cast<double>(ctx.total_elements_count) / ctx.windows.size();
 
     csv_summary
-            << edge_number << ","
-            << sink->matched_paths << ","
+            << ctx.edge_number << ","
+            << ctx.sink->matched_paths << ","
             << time_used << ","
-            << windows.size() << ","
+            << ctx.windows.size() << ","
             << avg_window_size << ","
-            << avg_size << "\n";
+            << ctx.avg_size << "\n";
 
     // index,t_open,t_close,window_results,incremental_matches,latency,window_cardinality,window_size
-    for (size_t i = 0; i < windows.size(); ++i) {
+    for (size_t i = 0; i < ctx.windows.size(); ++i) {
         csv_windows
                 << i << ","
-                << windows[i].t_open << ","
-                << windows[i].t_close << ","
-                << windows[i].cost << ","
-                << windows[i].emitted_results << ","
-                << windows[i].total_matched_results << ","
-                << windows[i].latency << ","
-                << windows[i].elements_count << ","
-                << windows[i].t_close - windows[i].t_open << "\n";
+                << ctx.windows[i].t_open << ","
+                << ctx.windows[i].t_close << ","
+                << ctx.windows[i].cost << ","
+                << ctx.windows[i].emitted_results << ","
+                << ctx.windows[i].total_matched_results << ","
+                << ctx.windows[i].latency << ","
+                << ctx.windows[i].elements_count << ","
+                << ctx.windows[i].t_close - ctx.windows[i].t_open << "\n";
     }
 
-    sink->exportResultSet(base + "_result_set.csv");
+    ctx.sink->exportResultSet(base + "_result_set.csv");
 
     if (mode == "adwin") {
         // print maximum and minimum window sizes
         int max = 0;
         int min = 922337368;
-        for (auto & window : windows) {
+        for (auto & window : ctx.windows) {
             if (window.t_close - window.t_open > max) {
                 max = window.t_close - window.t_open;
             }
@@ -421,10 +268,10 @@ int main(int argc, char *argv[]) {
     csv_memory.close();
 
     // cleanup
-    delete sg;
-    delete f;
-    delete sink;
-    delete aut;
+    delete ctx.sg;
+    delete ctx.f;
+    delete ctx.sink;
+    delete ctx.aut;
     delete query;
 
     return 0;

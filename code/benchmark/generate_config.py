@@ -15,9 +15,10 @@ def generate_config_files(datasets, algorithms, window_slide_pairs, query_label_
                                 f"labels={','.join(map(str, labels))}\n"
                                 f"max_size={max_size}\n"
                                 f"min_size={min_size}\n"
+                                f"l_max=1.5\n"
                             )
                             config_filename = f"config_a{algorithm}_S{size}_s{slide}_q{query_type}_M{max_size}_m{min_size}.txt"
-                            config_filepath = os.path.join("config/vldb/" + output, config_filename)
+                            config_filepath = os.path.join("config/" + output, config_filename)
                             with open(config_filepath, 'w') as config_file:
                                 config_file.write(config_content)
                             print(f"Generated {config_filepath}")
@@ -43,11 +44,11 @@ def main():
     so_dataset = ["code/dataset/so/so-stream_labelled_modified.txt"]
     so_query_label_pairs = [(1,[1]), (5,[2,1,3]), (7,[3,2,1]), (2,[2,1]), (10,[3,2,1]), (6,[1,2]), (3,[3,1,2]), (4,[3,1,2])]
 
-    algorithms = [11,10]
-    query_label_pairs =  [(10, [9,3,0]), (7, [8,9,0])]
-    datasets = ldbc_dataset
-    window_slide_pairs = [(259200, 10800, 259200, 194400), (345600, 10800, 345600, 259200)]
-    output = "lat_tput/ldbc"
+    algorithms = [10]
+    query_label_pairs =  [(3,[3,1,2]), (5,[2,1,3])]
+    datasets = so_dataset
+    window_slide_pairs = [(86400, 10800, 86400, 43200)]
+    output = "load_shed/so"
 
     # Query	        LDBC	            HIGGS	                    SO
     # 1) a*	        14	                1	                        3

@@ -1,14 +1,13 @@
 #ifndef SLIDING_WINDOW_MODE_H
 #define SLIDING_WINDOW_MODE_H
 
-#include "mode_handler.h"
+#include "mode_handler_base.h"
 #include "../adwin/Adwin.h"
 
-class SlidingWindowMode : public ModeHandler {
+class SlidingWindowMode : public ModeHandlerBase {
 private:
     Adwin* adwin;
     double last_adwin_estimation = 0.0;
-    int accumulator = 1;
 
 public:
     explicit SlidingWindowMode(Adwin* adwin_instance) : adwin(adwin_instance) {
