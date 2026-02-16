@@ -38,6 +38,12 @@ int main(int argc, char *argv[]) {
 
     cout << "Dataset: " << data_folder << endl;
 
+
+    std::filesystem::path config_path_folder = std::filesystem::absolute(argv[1]).lexically_normal();
+    std::string config_folder_name = config_path_folder.parent_path().filename().string();
+    std::cout << "Config folder: " << config_folder_name << std::endl;
+
+
     std::ifstream fin(data_path);
     if (!fin.is_open()) {
         std::cerr << "Error: Failed to open " << data_path << std::endl;
@@ -150,7 +156,8 @@ int main(int argc, char *argv[]) {
     // Base filename (without folder)
     const std::string base =
         data_folder + "_" + std::to_string(config.query_type) + "_" + std::to_string(config.size) + "_" +
-        std::to_string(config.slide) + "_" + mode + "_" + std::to_string(config.min_size) + "_" + std::to_string(config.max_size);
+        std::to_string(config.slide) + "_" + mode + "_" + std::to_string(config.min_size) + "_" + std::to_string(config.max_size)
+        + "_" + config_folder_name;
 
     // Build full paths under output_folder
     const fs::path summary_path = output_folder / (base + "_summary_results.csv");
