@@ -9,13 +9,16 @@ The appendix of the paper submitted to VLDB '26 can be found in this file: [Appe
 We report the experiments of latency, throughput and completeness for all the mentioned Regular Path Queries and for the additional dataset [StackOverflow](https://snap.stanford.edu/data/sx-stackoverflow.html). 
 
 #### StackOverflow
-We execute the experiments on the first 800 days of the dataset and we introuce syntetic peaks. We maintain the same edges to preserve the real-world dataset relationships, but we increase the input rate by 3x between 200 and 300 days, and 2x between 500 and 600 days. We decrease the input rate in the remaining temporal ranges to maitain a total time span of 800 days.
+We execute the experiments on the first 800 days of the dataset and we introuce syntetic peaks. We maintain the same edges to preserve the real-world dataset relationships, but we increase the input rate by 4x between 200 and 300 days, and 3x between 500 and 600 days. We decrease the input rate in the remaining temporal ranges to maitain a total time span of 800 days.
 
 ##### Throughput
-<img width="4480" height="3200" alt="Throughput_so_tuples_full" src="https://github.com/user-attachments/assets/6f85f09c-d6cb-4a71-80ab-149bc3735963" />
+<img width="4480" height="3200" alt="Throughput_so_tuples_full" src="https://github.com/user-attachments/assets/564fdfb8-edb9-42d1-8dc2-f6cd3702691e" />
 
 ##### Latency
-<img width="4480" height="3200" alt="Latency_so_tuples_full" src="https://github.com/user-attachments/assets/8b3456da-2992-4ffa-9d24-0f8ca63b77b7" />
+<img width="4480" height="3200" alt="Latency_so_tuples_full" src="https://github.com/user-attachments/assets/d0e86c19-8853-4ae9-9451-a6985ed3bb4a" />
+
+##### Completeness
+<img width="3194" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/assets/10f58e4a-526b-43a3-bee9-6af0ca4c59e5" />
 
 #### LDBC
 ##### Throughput
