@@ -18,7 +18,7 @@ We execute the experiments on the first 800 days of the dataset and we introuce 
 <img width="4480" height="3200" alt="Latency_so_tuples_full" src="https://github.com/user-attachments/assets/d0e86c19-8853-4ae9-9451-a6985ed3bb4a" />
 
 ##### Completeness
-<img width="3194" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/assets/10f58e4a-526b-43a3-bee9-6af0ca4c59e5" />
+<img width="3616" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/assets/c243b91f-68bc-44ac-9eea-7f5094dae579" />
 
 #### LDBC
 ##### Throughput
