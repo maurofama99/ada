@@ -56,18 +56,31 @@ public:
                     auto vj_sj_node = forest.findNodeInTree(tree.rootVertex, element->vd, element->sd);
                     auto vb_sb_node = forest.findNodeInTree(tree.rootVertex, element->vb, element->sb);
 
+                    // FIX: compute the candidate interval with root guard
+                    // If parent is root, interval = edge interval (root has dummy [INT64_MAX, INT64_MAX])
+                    // Otherwise, interval = intersect(edge_interval, parent_interval)
+                    long long candidate_expiry, candidate_ts;
+                    if (vb_sb_node && vb_sb_node->isRoot) {
+                        candidate_ts = element->edge_timestamp;
+                        candidate_expiry = element->edge_expiration_time;
+                    } else if (vb_sb_node) {
+                        candidate_ts = std::max(element->edge_timestamp, vb_sb_node->timestamp);
+                        candidate_expiry = std::min(element->edge_expiration_time, vb_sb_node->expiration_time);
+                    } else {
+                        delete element;
+                        continue;
+                    }
+
                     if (!vj_sj_node) {
                         // Case 1: node does not exist → add it
-                        if (!forest.addChildToParentTimestamped(tree.rootVertex, vb_sb_node, element->vd, element->sd, element->edge_timestamp, std::min(element->edge_expiration_time, vb_sb_node->expiration_time))) {
+                        if (!forest.addChildToParentTimestamped(tree.rootVertex, vb_sb_node, element->vd, element->sd, element->edge_timestamp, candidate_expiry)) {
                             delete element;
                             continue;
                         }
-                    } else if (vb_sb_node && vj_sj_node->expiration_time < std::min(element->edge_expiration_time, vb_sb_node->expiration_time)) {
+                    } else if (vj_sj_node->expiration_time < candidate_expiry) {
                         // Case 2: node exists but new path offers later expiry → re-parent
                         long long old_expiry = vj_sj_node->expiration_time;
-                        long long new_ts = std::max(element->edge_timestamp, vb_sb_node->timestamp);
-                        long long new_expiry = std::min(element->edge_expiration_time, vb_sb_node->expiration_time);
-                        if (!forest.changeParentTimestamped(vj_sj_node, vb_sb_node, new_ts, tree.rootVertex, new_expiry)) {
+                        if (!forest.changeParentTimestamped(vj_sj_node, vb_sb_node, candidate_ts, tree.rootVertex, candidate_expiry)) {
                             delete element;
                             continue;
                         }
@@ -78,7 +91,6 @@ public:
                         }
 
                         // Only enqueue successors whose expiry exceeds the OLD expiry
-                        // (these are the edges that now become reachable thanks to the improved path)
                         for (auto successors : sg.get_all_suc(element->vd)) {
                             if (auto sq = fsa.getNextState(element->sd, successors.label); sq != -1) {
                                 if (successors.expiration_time > old_expiry) {
@@ -96,7 +108,6 @@ public:
                     }
 
                     // This code only runs for Case 1 (new node added)
-                    // Emit result if final state
                     if (fsa.isFinalState(element->sd)) {
                         sink.addEntry(tree.rootVertex, element->vd, edge->timestamp);
                     }
@@ -106,7 +117,6 @@ public:
                     if (current_node) {
                         for (auto successors : sg.get_all_suc(element->vd)) {
                             if (auto sq = fsa.getNextState(element->sd, successors.label); sq != -1) {
-                                // Only if the successor edge's interval overlaps the current node's interval
                                 if (successors.expiration_time > current_node->timestamp
                                     && successors.timestamp < current_node->expiration_time) {
                                     Q.push_back(new tree_expansion(element->vd, element->sd, successors.d, sq, successors.timestamp, element->d_timestamp, successors.timestamp, successors.expiration_time));

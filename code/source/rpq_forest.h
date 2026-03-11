@@ -288,8 +288,12 @@ public:
     bool addChildToParentTimestamped(long long rootVertex, Node* parent, long long childVertex, long long childState, long long timestamp, long long newExpiry) {
         if (parent) {
             auto child = new Node(parent->id, childVertex, childState, parent);
-            //child->timestamp = timestamp < parent->timestamp ? timestamp : parent->timestamp;
-            child->timestamp = std::max(timestamp, parent->timestamp);
+            // FIX: If parent is root, child's start-time = edge start-time (root has dummy INT64_MAX)
+            if (parent->isRoot) {
+                child->timestamp = timestamp;
+            } else {
+                child->timestamp = std::max(timestamp, parent->timestamp);
+            }
             child->expiration_time = newExpiry;
             parent->children.emplace_back(child);
             node_count++;
@@ -345,10 +349,14 @@ public:
             cout << "ERROR: Could not find parent in tree" << endl;
             exit(1);
         }
-        
+
         // Set the new parent
         child->parent = newParent;
-        child->timestamp = std::max(timestamp, newParent->timestamp);
+        if (newParent->isRoot) {
+            child->timestamp = timestamp;
+        } else {
+            child->timestamp = std::max(timestamp, newParent->timestamp);
+        }
         child->expiration_time = newExpiry;
         newParent->children.push_back(child);
 
@@ -420,14 +428,28 @@ public:
     //     return result;
     // }
 
+    // std::vector<Tree> findTreesWithNode(long long vertex, long long state) {
+    //     std::vector<Tree> result;
+    //
+    //     if (vertex_tree_map.count(vertex)) {
+    //         for (auto &tree : vertex_tree_map.at(vertex)) {
+    //             if (!tree->rootNode->isValid) continue;
+    //             if (searchNode(tree->rootNode, vertex, state))
+    //                 result.emplace_back(tree->rootVertex, tree->rootNode, tree->expired);
+    //         }
+    //     }
+    //     return result;
+    // }
+
     std::vector<Tree> findTreesWithNode(long long vertex, long long state) {
         std::vector<Tree> result;
-
-        if (vertex_tree_map.count(vertex)) {
-            for (auto &tree : vertex_tree_map.at(vertex)) {
-                if (!tree->rootNode->isValid) continue;
-                if (searchNode(tree->rootNode, vertex, state))
-                    result.emplace_back(tree->rootVertex, tree->rootNode, tree->expired);
+        auto key = std::pair<long long, long long>(vertex, state);
+        if (vertex_state_tree_map.count(key)) {
+            for (auto rootVertex : vertex_state_tree_map.at(key)) {
+                if (trees.count(rootVertex) && trees.at(rootVertex).rootNode->isValid) {
+                    auto& t = trees.at(rootVertex);
+                    result.emplace_back(t.rootVertex, t.rootNode, t.expired);
+                }
             }
         }
         return result;
