@@ -288,7 +288,8 @@ public:
     bool addChildToParentTimestamped(long long rootVertex, Node* parent, long long childVertex, long long childState, long long timestamp, long long newExpiry) {
         if (parent) {
             auto child = new Node(parent->id, childVertex, childState, parent);
-            child->timestamp = timestamp < parent->timestamp ? timestamp : parent->timestamp;
+            //child->timestamp = timestamp < parent->timestamp ? timestamp : parent->timestamp;
+            child->timestamp = std::max(timestamp, parent->timestamp);
             child->expiration_time = newExpiry;
             parent->children.emplace_back(child);
             node_count++;
@@ -347,7 +348,7 @@ public:
         
         // Set the new parent
         child->parent = newParent;
-        child->timestamp = timestamp;
+        child->timestamp = std::max(timestamp, newParent->timestamp);
         child->expiration_time = newExpiry;
         newParent->children.push_back(child);
 
@@ -456,7 +457,7 @@ public:
                      for (auto current: searchAllNodesNoState(tree->rootNode, vertex)) {
                          if (!current->parent && !current->isRoot)
                              cerr << "WARNING: root node has null parent" << endl;
-                         if (current->expiration_time < eviction_time || (current->isRoot && current->expiration_time < eviction_time)) {
+                         if (current->expiration_time < eviction_time || (current->isRoot && current->timestampRoot < eviction_time)) {
                              if (!current->isRoot) {
                                  sub_to_delete.emplace(current, tree->rootNode);
                              } else { // current vertex is the root node
