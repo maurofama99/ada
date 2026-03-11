@@ -6,12 +6,12 @@
 #include <fstream>
 #include <ctime>
 #include <sstream>
-#include <unordered_set>
 
 #include "../streaming_graph.h"
 #include "../rpq_forest.h"
 #include "../sink.h"
 #include "../fsa.h"
+#include "../ranking/buckets.h"
 
 typedef struct Config {
     std::string input_data_path;
@@ -63,7 +63,7 @@ inline config readConfig(const std::string &filename) {
 
     if (config.adaptive == 5) {
         if (configMap.find("l_max") == configMap.end()) {
-            cerr << "Error: l_max should be set" << endl;
+            std::cerr << "Error: l_max should be set" << std::endl;
             exit(1);
         }
         config.l_max = std::stod(configMap["l_max"]);
@@ -168,6 +168,7 @@ struct ModeContext {
     double beta_latency_start = 0;
     double beta_latency_end = 0;
     int beta_id = 0;
+
 };
 
 // Abstract base class for mode handlers

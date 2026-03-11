@@ -1,9 +1,9 @@
 adaptive=10
 input_data_path=code/dataset/so/so-stream_labelled_modified_v2.txt
-size=60000
+size=80000
 slide=10000
-query_type=2
-labels=2,1
+query_type=5
+labels=2,1,3
 max_size=60000
 min_size=60000
-l_max=0.1
+l_max=0.09

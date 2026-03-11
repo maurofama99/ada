@@ -66,14 +66,10 @@ int main(int argc, char *argv[]) {
     ctx.granularity = static_cast<double>(ctx.min_size) / 100.0;
     ctx.max_shed = static_cast<double>(ctx.max_size) / 100.0;
 
-    ctx.f = new Forest();
     ctx.sink = new Sink();
-    ctx.aut = new FiniteStateAutomaton();
-
-    ctx.f->possible_states = ctx.aut->setup_automaton(config.query_type, config.labels);
-
+    ctx.aut = new FiniteStateAutomaton(config.query_type, config.labels);
+    ctx.f = new Forest(*ctx.aut);
     ctx.sg = new streaming_graph(config.labels[0]);
-
     auto query = new QueryHandler(*ctx.aut, *ctx.f, *ctx.sg, *ctx.sink);
 
     // Create mode handler using factory
@@ -226,6 +222,8 @@ int main(int argc, char *argv[]) {
 
     clock_t finish = clock();
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
+
+    cout << "Total execution time: " << time_used << " seconds" << endl;
 
     double avg_window_size = static_cast<double>(ctx.total_elements_count) / ctx.windows.size();
 

@@ -19,77 +19,9 @@ public:
     std::unordered_map<long long, std::vector<Transition> > transitions;
     long long initialState;
     std::unordered_set<long long> finalStates;
+    int states_count = 0;
     
-    FiniteStateAutomaton() : initialState(0) {}
-    
-    void addTransition(long long fromState, long long toState, long long label) {
-        transitions[fromState].push_back((Transition){fromState, toState, label});
-    }
-    
-    void addFinalState(long long state) {
-        finalStates.insert(state);
-    }
-    
-    [[nodiscard]] std::vector<std::pair<long long, long long> > getStatePairsWithTransition(long long label) const {
-        std::vector<std::pair<long long, long long> > statePairs;
-        for (const auto& pair : transitions) {
-            for (const auto& transition : pair.second) {
-                if (transition.label == label) {
-                    statePairs.emplace_back(transition.fromState, transition.toState);
-                }
-            }
-        }
-        return statePairs;
-    }
-    
-    long long getNextState(const long long currentState, const long long label) {
-        for (const auto& transition : transitions[currentState]) {
-            if (transition.label == label) {
-                return transition.toState;
-            }
-        }
-        return -1; // No valid transition
-    }
-    
-    std::map<long long, long long> getAllSuccessors(const long long state) {
-        std::map<long long, long long> successors;
-        for (const auto& transition : transitions[state]) {
-            successors[transition.label] = transition.toState;
-        }
-        return successors;
-    }
-
-    [[nodiscard]] bool hasLabel(const long long label) const {
-        for (const auto&[fst, snd] : transitions) {
-            for (const auto& transition : snd) {
-                if (transition.label == label) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    [[nodiscard]] bool isFinalState(const long long state) const {
-        return finalStates.find(state) != finalStates.end();
-    }
-    
-    void printTransitions() const {
-        for (const auto& pair : transitions) {
-            for (const auto& transition : pair.second) {
-                std::cout << "From State " << transition.fromState << " to State " << transition.toState << " on Label '" << transition.label << "'\n";
-            }
-        }
-    }
-
-    // Set up the automaton correspondant for each query
-    int setup_automaton(long long query_type, const std::vector<long long> &labels) {
-        int states_count = 0;
-        /*
-         * 0 - initial state
-         * 0 -> 1 - first transition
-         * Always enumerate the states starting from 0 and incrementing by 1.
-         */
+    FiniteStateAutomaton(long long query_type, const std::vector<long long> &labels) : initialState(0) {
         switch (query_type) {
             case 1: // a+
                 addFinalState(1);
@@ -155,7 +87,78 @@ public:
                 std::cerr << "ERROR: Wrong query type" << std::endl;
                 exit(1);
         }
-        return states_count;
+    }
+    
+    void addTransition(long long fromState, long long toState, long long label) {
+        transitions[fromState].push_back((Transition){fromState, toState, label});
+    }
+    
+    void addFinalState(long long state) {
+        finalStates.insert(state);
+    }
+
+    [[nodiscard]] std::vector<long long> getKleeneStarLabels() const {
+        std::vector<long long> kleeneStarLabels;
+        for (const auto& pair : transitions) {
+            for (const auto& transition : pair.second) {
+                if (transition.fromState == transition.toState) {
+                    kleeneStarLabels.push_back(transition.label);
+                }
+            }
+        }
+        return kleeneStarLabels;
+    }
+    
+    [[nodiscard]] std::vector<std::pair<long long, long long> > getStatePairsWithTransition(long long label) const {
+        std::vector<std::pair<long long, long long> > statePairs;
+        for (const auto& pair : transitions) {
+            for (const auto& transition : pair.second) {
+                if (transition.label == label) {
+                    statePairs.emplace_back(transition.fromState, transition.toState);
+                }
+            }
+        }
+        return statePairs;
+    }
+    
+    long long getNextState(const long long currentState, const long long label) {
+        for (const auto& transition : transitions[currentState]) {
+            if (transition.label == label) {
+                return transition.toState;
+            }
+        }
+        return -1; // No valid transition
+    }
+    
+    std::map<long long, long long> getAllSuccessors(const long long state) {
+        std::map<long long, long long> successors;
+        for (const auto& transition : transitions[state]) {
+            successors[transition.label] = transition.toState;
+        }
+        return successors;
+    }
+
+    [[nodiscard]] bool hasLabel(const long long label) const {
+        for (const auto&[fst, snd] : transitions) {
+            for (const auto& transition : snd) {
+                if (transition.label == label) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    [[nodiscard]] bool isFinalState(const long long state) const {
+        return finalStates.find(state) != finalStates.end();
+    }
+    
+    void printTransitions() const {
+        for (const auto& pair : transitions) {
+            for (const auto& transition : pair.second) {
+                std::cout << "From State " << transition.fromState << " to State " << transition.toState << " on Label '" << transition.label << "'\n";
+            }
+        }
     }
 };
 

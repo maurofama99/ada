@@ -35,7 +35,7 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
             ctx.cost = ctx.sg->EINIT_count * ctx.sg->edge_num;
             break;
         default:
-            cerr << "ERROR: unknown cost mode." << endl;
+            std::cerr << "ERROR: unknown cost mode." << std::endl;
             exit(1);
     }
 

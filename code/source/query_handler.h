@@ -28,21 +28,6 @@ struct time_comparator
     }
 };
 
-struct visited_pair {
-    long long vertex;
-    long long state;
-
-    bool operator==(const visited_pair &other) const {
-        return vertex == other.vertex && state == other.state;
-    }
-};
-
-struct visitedpairHash {
-    size_t operator()(const visited_pair &p) const {
-        return hash<long long>()(p.vertex) ^ hash<long long>()(p.state);
-    }
-};
-
 class QueryHandler {
 public:
     FiniteStateAutomaton &fsa;
@@ -101,6 +86,10 @@ public:
                         }
                     }
                     delete element;
+                }
+                while (!Q.empty()) {
+                    delete Q.top();
+                    Q.pop();
                 }
             }
         }

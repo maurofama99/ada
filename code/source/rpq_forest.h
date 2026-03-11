@@ -8,8 +8,13 @@
 #include <utility>
 #include <stack>
 #include <algorithm>
-#include <queue>
-#include "streaming_graph.h"
+#include <set>
+
+#include "fsa.h"
+#include "ranking/buckets.h"
+#include "ranking/vertex_cost_manager.h"
+
+using namespace std;
 
 struct Node {
     long long id;
@@ -24,7 +29,10 @@ struct Node {
     bool isRoot = false;
     long long timestampRoot = -1;
 
-    Node(long long child_id, long long child_vertex, long long child_state, Node *node) : id(child_id), vertex(child_vertex), state(child_state), parent(node) {}
+    int final_state_descendants = 0;
+    int insertion_cost = 0;
+
+    Node(long long child_id, long long child_vertex, long long child_state, Node *parent) : id(child_id), vertex(child_vertex), state(child_state), parent(parent) {}
 };
 
 struct Tree {
@@ -66,6 +74,15 @@ struct NodePtrEqual {
                a.first->state == b.first->state &&
                a.second->vertex == b.second->vertex &&
                a.second->state == b.second->state;
+    }
+};
+
+struct pair_hash {
+    template<class T1, class T2>
+    std::size_t operator()(const std::pair<T1, T2> &p) const {
+        auto hash1 = std::hash<T1>()(p.first);
+        auto hash2 = std::hash<T2>()(p.second);
+        return hash1 ^ (hash2 << 1); // Combine the two hash values
     }
 };
 
@@ -178,104 +195,71 @@ public:
     std::unordered_map<std::pair<long long, long long>, std::set<long long>, pair_hash> vertex_state_tree_map; // Maps a pair (vertex, state) to the tree (root vertex) it belongs to
     std::unordered_map<long long, long long> tree_reference_counting; // Maps a tree (root vertex) to the number of references it has in the vertex tree map
 
-    // Vertex importance ranking: vertex -> number of trees containing it
-    std::unordered_map<long long, double> vertex_rank;
-    // Sorted set for fast top-k queries: (rank, vertex) sorted by rank descending
-    std::set<std::pair<double, long long>, std::greater<>> ranked_vertices;
+    VertexCostManager vertex_cost_manager;
+    std::unordered_map<long long, double> vertex_contribution;
 
     long long node_count = 0;
     int trees_count = 0;
     long long current_time = 1;
 
-    int possible_states; // possible states in the FSA
+    RankBuckets rank;
 
-    // Update rank when a vertex is added to a tree
-    void incrementVertexRank(long long vertex, long long timestamp) {
-        double old_rank = vertex_rank[vertex];
-        if (old_rank > 0) {
-            ranked_vertices.erase({old_rank, vertex});
-        }
+    // Deferred deletion: nodes are marked invalid and collected here,
+    // then actually freed at the end of expire_timestamped.
+    std::vector<Node*> pending_deletes;
 
-        double rank;
-        if (current_time <= 0 || timestamp > current_time) {
-            rank = old_rank + 1; // Nessun decadimento temporale
-        } else {
-            rank = (old_rank + 1) * (1.0 - static_cast<double>(current_time - timestamp) / static_cast<double>(current_time));
-        }
+    FiniteStateAutomaton &fsa;
 
-        //cout << "Incrementing rank of vertex " << vertex << " from " << old_rank << " to " << rank << " at time " << current_time << endl;
-        vertex_rank[vertex] = rank;
-        ranked_vertices.insert({rank, vertex});
+    Forest(FiniteStateAutomaton &fsa) : rank(RankBuckets(2601977, 36233450)), fsa(fsa) {}
+
+    [[nodiscard]] double computeVertexRank(long long vertex_id) const {
+        double contribution = vertex_contribution.count(vertex_id) ? vertex_contribution.at(vertex_id) : 0;
+        double cost = vertex_cost_manager.getAverageCost(vertex_id);
+        return contribution/cost+1;
     }
 
-    // Update rank when a vertex is removed from a tree
-    void decrementVertexRank(long long vertex, long long timestamp) {
-        auto it = vertex_rank.find(vertex);
-        if (it == vertex_rank.end() || it->second == 0) return;
+    // Try to insert or update an edge in the capped bottom-K set
+    void updateVertexRank(long long vertex_id) {
+        rank.set_rank(vertex_id, computeVertexRank(vertex_id));
+    }
 
-        double old_rank = it->second;
-        ranked_vertices.erase({old_rank, vertex});
+    // Remove from ranking
+    void removeVertexFromRanking(long long vertex_id) {
+        rank.remove(vertex_id);
+        // remove the entry from vertex cost
+        vertex_cost_manager.removeEntry(vertex_id);
+        // erase entry from vertex contribution
+        vertex_contribution.erase(vertex_id);
+    }
 
-        double rank;
-        if (current_time <= 0 || timestamp > current_time) {
-            rank = old_rank - 1; // Nessun decadimento temporale
-        } else {
-            rank = (old_rank - 1) * (1.0 - static_cast<double>(current_time - timestamp) / static_cast<double>(current_time));
-        }
+    [[nodiscard]] vector<RankBuckets::Id> getTopKVertices(size_t k) const {
+        return rank.top_k(k);
+    }
 
-        if (old_rank > 0) {
-            vertex_rank[vertex] = rank;
-            ranked_vertices.insert({rank, vertex});
-        } else {
-            vertex_rank.erase(vertex);
+    void propagateFinalStateCount(Node* node, int delta) {
+        Node* current = node->parent;
+        while (current) {
+            current->final_state_descendants += delta;
+            vertex_contribution[current->vertex] += delta;
+            updateVertexRank(current->vertex);
+            current = current->parent;
         }
     }
 
-    // Get the rank of a specific vertex (0 if not in any tree)
-    [[nodiscard]] double getVertexRank(long long vertex) const {
-        auto it = vertex_rank.find(vertex);
-        return (it != vertex_rank.end()) ? it->second : 0;
-    }
-
-    // Get top-k most important vertices
-    [[nodiscard]] std::vector<std::pair<long long, double>> getTopKVertices(size_t k) const {
-        std::vector<std::pair<long long, double>> result;
-        result.reserve(std::min(k, ranked_vertices.size()));
-        size_t count = 0;
-        for (const auto& [rank, vertex] : ranked_vertices) {
-            if (count++ >= k) break;
-            result.emplace_back(vertex, rank);
+    int countFinalStatesInSubtree(Node* node, long long rootVertex) {
+        if (!node) return 0;
+        int count = fsa.isFinalState(node->state) ? 1 : 0;
+        for (Node* child : node->children) {
+            child->insertion_cost = child->parent->insertion_cost+1;
+            vertex_cost_manager.insertCost(child->vertex, rootVertex, child->insertion_cost);
+            updateVertexRank(child->vertex);
+            count += countFinalStatesInSubtree(child, rootVertex);
         }
-        return result;
+        return count;
     }
 
-    // Get all vertices with rank >= threshold
-    [[nodiscard]] std::vector<std::pair<long long, double>> getVerticesAboveThreshold(double threshold) const {
-        std::vector<std::pair<long long, double>> result;
-        for (const auto& [rank, vertex] : ranked_vertices) {
-            if (rank < threshold) break;
-            result.emplace_back(vertex, rank);
-        }
-        return result;
-    }
-
-    // Get bottom-k least important vertices (lowest rank first)
-    [[nodiscard]] std::vector<std::pair<long long, double>> getBottomKVertices(size_t k) const {
-        std::vector<std::pair<long long, double>> result;
-        result.reserve(std::min(k, ranked_vertices.size()));
-        size_t count = 0;
-        // Iterate in reverse order (ascending rank)
-        for (auto it = ranked_vertices.rbegin(); it != ranked_vertices.rend() && count < k; ++it, ++count) {
-            result.emplace_back(it->second, it->first); // (vertex, rank)
-        }
-        return result;
-    }
-
-    // a vertex can be root of only one tree
-    // proof: since we have only one initial state and the tree has an initial state as root
     // it exists only one pair vertex-state that can be root of a tree
     void addTree(const long long rootId, long long rootVertex, long long rootState, long long timestamp) {
-
         if (trees.find(rootVertex) == trees.end()) {
             trees.emplace(rootVertex, Tree(rootVertex, new Node(rootId, rootVertex, rootState, nullptr), false));
 
@@ -287,9 +271,9 @@ public:
             trees.at(rootVertex).rootNode->timestamp = INT64_MAX;
             trees.at(rootVertex).rootNode->isRoot = true;
             trees.at(rootVertex).rootNode->timestampRoot = timestamp;
-
-            // Update vertex rank
-            incrementVertexRank(rootVertex, timestamp);
+            trees.at(rootVertex).rootNode->insertion_cost = 0;
+            vertex_cost_manager.insertCost(rootVertex, rootVertex, 0);
+            updateVertexRank(rootVertex);
 
             node_count++;
             trees_count++;
@@ -305,6 +289,11 @@ public:
             child->timestamp = timestamp < parent->timestamp ? timestamp : parent->timestamp;
             parent->children.emplace_back(child);
             node_count++;
+
+            if (fsa.isFinalState(childState)) {
+                propagateFinalStateCount(child, +1);
+            }
+
             if (trees.find(rootVertex) == trees.end()) {
                 cout << "ERROR: Tree with root vertex " << rootVertex << " not found" << endl;
                 exit(1);
@@ -313,8 +302,9 @@ public:
             vertex_state_tree_map[pair(childVertex, childState)].insert(rootVertex);
             tree_reference_counting[rootVertex]++;
 
-            // Update vertex rank
-            incrementVertexRank(childVertex, timestamp);
+            child->insertion_cost = parent->insertion_cost+1;
+            vertex_cost_manager.insertCost(child->vertex, rootVertex, child->insertion_cost);
+            updateVertexRank(child->vertex);
 
             return true;
         }
@@ -323,8 +313,20 @@ public:
 
     bool changeParentTimestamped(Node *child, Node *newParent, long long timestamp, long long rootVertex) {
 
-        if (!newParent->isValid) {
-            return false;
+        if (!newParent->isValid) return false;
+
+        child->insertion_cost = newParent->insertion_cost+1;
+        vertex_cost_manager.insertCost(child->vertex, rootVertex, child->insertion_cost);
+        updateVertexRank(child->vertex);
+
+        int finalCount = countFinalStatesInSubtree(child, rootVertex);
+
+        Node* old = child->parent;
+        while (finalCount>0 && old) {
+            old->final_state_descendants -= finalCount;
+            vertex_contribution[old->vertex] -= finalCount;
+            updateVertexRank(old->vertex);
+            old = old->parent;
         }
 
         // remove the child from its current parent's children list
@@ -345,6 +347,14 @@ public:
         child->timestamp = timestamp;
         newParent->children.push_back(child);
 
+        Node* cur = newParent;
+        while (cur) {
+            cur->final_state_descendants += finalCount;
+            vertex_contribution[cur->vertex] += finalCount;
+            updateVertexRank(cur->vertex);
+            cur = cur->parent;
+        }
+
         return true;
     }
 
@@ -354,44 +364,66 @@ public:
 
     Node *findNodeInTree(long long rootVertex, long long vertex, long long state) {
         Node *root = trees.at(rootVertex).rootNode;
-        return searchNode(root, vertex, state);
+        auto [node, hops] = searchNodeWithDepth(root, vertex, state);
+        if (node) {
+            if (hops != node->insertion_cost) {
+                cerr << "WARNING: node " << node->vertex << " has insertion cost " << node->insertion_cost << " but is found at depth " << hops << endl;
+                vertex_cost_manager.insertCost(node->vertex, rootVertex, node->insertion_cost);
+                updateVertexRank(node->vertex);
+            }
+        }
+        return node;
+        // return searchNode(root, vertex, state);
     }
 
     /**
-     * @param vertex id of the vertex in the AL
+     * @param vertex id of the vertex in the Adj. List
      * @param state state associated to the vertex node
      * @return the set of trees to which the node @param vertex @param state belongs to
      */
+    // std::vector<Tree> findTreesWithNode(long long vertex, long long state) {
+    //     std::vector<Tree> result;
+    //     std::vector<Tree*> treesEntryToDelete;
+    //     std::vector<long long> treesRootEntryToDelete;
+    //
+    //      if (vertex_tree_map.count(vertex)) {
+    //         for (auto &tree: vertex_tree_map.at(vertex)) {
+    //             // catch a dangling tree, decrease reference counter
+    //             if (!tree->rootNode->isValid) {
+    //                 // remove the tree from the vertex tree map
+    //                 treesEntryToDelete.push_back(tree);
+    //                 tree_reference_counting.at(tree->rootVertex)--;
+    //             } else if (searchNode(tree->rootNode, vertex, state))
+    //                 result.emplace_back(tree->rootVertex, tree->rootNode, tree->expired);
+    //         }
+    //     }
+    //     for (auto tree : treesEntryToDelete) {
+    //         vertex_tree_map.at(vertex).erase(tree);
+    //     }
+    //
+    //     if (vertex_state_tree_map.count(pair(vertex,state))) {
+    //         for (auto tree_root: vertex_state_tree_map.at(pair(vertex,state))) {
+    //             // catch a dangling tree, decrease reference counter
+    //             if (trees.count(tree_root) && !trees.at(tree_root).rootNode->isValid){
+    //                 treesRootEntryToDelete.push_back(tree_root);
+    //             }
+    //         }
+    //     }
+    //     for (auto tree : treesRootEntryToDelete) {
+    //         vertex_state_tree_map.at(pair(vertex,state)).erase(tree);
+    //     }
+    //     return result;
+    // }
+
     std::vector<Tree> findTreesWithNode(long long vertex, long long state) {
         std::vector<Tree> result;
-        std::vector<Tree*> treesEntryToDelete;
-        std::vector<long long> treesRootEntryToDelete;
 
-         if (vertex_tree_map.count(vertex)) {
-            for (auto &tree: vertex_tree_map.at(vertex)) {
-                // catch a dangling tree, decrease reference counter
-                if (!tree->rootNode->isValid) {
-                    // remove the tree from the vertex tree map
-                    treesEntryToDelete.push_back(tree);
-                    tree_reference_counting.at(tree->rootVertex)--;
-                } else if (searchNode(tree->rootNode, vertex, state))
+        if (vertex_tree_map.count(vertex)) {
+            for (auto &tree : vertex_tree_map.at(vertex)) {
+                if (!tree->rootNode->isValid) continue;
+                if (searchNode(tree->rootNode, vertex, state))
                     result.emplace_back(tree->rootVertex, tree->rootNode, tree->expired);
             }
-        }
-        for (auto tree : treesEntryToDelete) {
-            vertex_tree_map.at(vertex).erase(tree);
-        }
-
-        if (vertex_state_tree_map.count(pair(vertex,state))) {
-            for (auto tree_root: vertex_state_tree_map.at(pair(vertex,state))) {
-                // catch a dangling tree, decrease reference counter
-                if (trees.count(tree_root) && !trees.at(tree_root).rootNode->isValid){
-                    treesRootEntryToDelete.push_back(tree_root);
-                }
-            }
-        }
-        for (auto tree : treesRootEntryToDelete) {
-            vertex_state_tree_map.at(pair(vertex,state)).erase(tree);
         }
         return result;
     }
@@ -403,7 +435,7 @@ public:
             for (auto vertex: vertexes) {
                 if (vertex_tree_map.find(vertex) == vertex_tree_map.end()) continue;
                 auto treesSet = vertex_tree_map.at(vertex);
-                for (int i = 0; i < possible_states; ++i) {
+                for (int i = 0; i < fsa.states_count; ++i) {
                     auto suppl_treesSet = vertex_state_tree_map.count(pair(vertex, i)) ? vertex_state_tree_map.at(pair(vertex, i)) : std::set<long long>();
                     for (auto tree : suppl_treesSet) {
                         if (trees.find(tree) == trees.end()) {
@@ -455,6 +487,16 @@ public:
             }
         }
         treesToDelete.clear();
+
+        // Flush deferred deletions now that all traversals are complete
+        flushPendingDeletes();
+    }
+
+    void flushPendingDeletes() {
+        for (Node* node : pending_deletes) {
+            delete node;
+        }
+        pending_deletes.clear();
     }
 
     void printTree(Node *node, const std::string& prefix = "", bool isLast = true) const {
@@ -523,12 +565,38 @@ private:
 
     Node *searchNode(Node *node, long long vertex, long long state) {
         if (!node) return nullptr;
+        if (!node->isValid) return nullptr;
         if (node->vertex == vertex && node->state == state) return node;
         for (Node *child: node->children) {
             Node *found = searchNode(child, vertex, state);
             if (found) return found;
         }
         return nullptr;
+    }
+
+    std::pair<Node *, int> searchNodeWithDepth(Node *root, long long vertex, long long state) {
+        if (!root) return {nullptr, -1};
+
+        std::stack<std::pair<Node *, int> > stack; // (node, depth)
+        stack.emplace(root, 0);
+
+        while (!stack.empty()) {
+            auto [current, depth] = stack.top();
+            stack.pop();
+
+            if (!current) continue;
+            //if (!current->isValid) continue;
+
+            if (current->vertex == vertex && current->state == state) {
+                return {current, depth};
+            }
+
+            for (Node *child: current->children) {
+                stack.emplace(child, depth + 1);
+            }
+        }
+
+        return {nullptr, -1};
     }
 
     Node *searchNodeNoState(Node *node, long long vertex) {
@@ -555,6 +623,8 @@ private:
 
     void deleteSubTreeFromRootIterative(Node *root, Node *target) {
         if (!root || !target) return;
+        if (!target->isValid) return; // already invalidated by a previous deletion
+
         std::stack<Node*> stack;
         stack.push(root);
 
@@ -562,6 +632,7 @@ private:
             Node* current = stack.top();
             stack.pop();
 
+            if (!current->isValid) continue;
             if (current == target) {
                 deleteSubTree(current, root->vertex);
                 return;
@@ -586,12 +657,10 @@ private:
                 if ((*it)->rootVertex == rootVertex) {
                     tree_reference_counting.at(rootVertex)--;
                     treeSet.erase(it);
-                    // Decrement vertex rank when removed from a tree
-                    decrementVertexRank(node->vertex, node->timestamp);
                     break;
                 }
             }
-            auto treeRootsSet = vertex_state_tree_map[pair(node->vertex, node->state)];
+            auto &treeRootsSet = vertex_state_tree_map[pair(node->vertex, node->state)];
             for (auto it = treeRootsSet.begin(); it != treeRootsSet.end(); ++it) {
                 if (*it == rootVertex) {
                     treeRootsSet.erase(it);
@@ -604,7 +673,11 @@ private:
 
     void deleteSubTreeRecursive(Node *node, long long rootVertex) {
         if (!node) return;
-        for (Node *child: node->children) {
+
+        std::vector<Node*> childrenCopy = node->children;
+        node->children.clear();
+
+        for (Node *child: childrenCopy) {
             deleteSubTreeRecursive(child, rootVertex);
         }
         auto& treeSet = vertex_tree_map[node->vertex];
@@ -612,12 +685,11 @@ private:
             if ((*it)->rootVertex == rootVertex) {
                 tree_reference_counting.at(rootVertex)--;
                 treeSet.erase(it);
-                // Decrement vertex rank when removed from a tree
-                decrementVertexRank(node->vertex, node->timestamp);
                 break;
             }
         }
-        auto treeRootsSet = vertex_state_tree_map[pair(node->vertex, node->state)];
+        //auto treeRootsSet = vertex_state_tree_map[pair(node->vertex, node->state)];
+        auto &treeRootsSet = vertex_state_tree_map[pair(node->vertex, node->state)];
         for (auto it = treeRootsSet.begin(); it != treeRootsSet.end(); ++it) {
             if (*it == rootVertex) {
                 treeRootsSet.erase(it);
@@ -625,19 +697,18 @@ private:
             }
         }
 
-        // if the vertex_tree_map at current->vertex is empty, remove the entry
-        /*
-        if (vertex_tree_map[node->vertex].empty()) {
-            vertex_tree_map.erase(node->vertex);
+        if (fsa.isFinalState(node->state)) {
+            propagateFinalStateCount(node, -1);
         }
-        */
+        vertex_cost_manager.removeCost(node->vertex, rootVertex);
+
+        node->isValid = false;
         if (!node->isRoot) {
             node_count--;
-            delete node;
+            // Deferred delete: collect for later freeing
+            pending_deletes.push_back(node);
         } else {
-            // if the node is root, just mark it as invalid
-            node->isValid = false;
-            node->parent = nullptr; // detach from parent
+            node->parent = nullptr;
         }
     }
 };

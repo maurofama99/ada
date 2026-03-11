@@ -1,8 +1,9 @@
 #include "load_shedding_mode.h"
 #include <cmath>
 #include <algorithm>
-#include <numeric>
 #include <iostream>
+
+using namespace std;
 
 bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long long time, ModeContext& ctx, sg_edge** new_sgt_out) {
     ctx.f->current_time = time;
@@ -45,28 +46,27 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
         // to compute window cost, we take the size of the snapshot graph of the window here, since no more elements will be added and it can be considered complete and closed
         std::vector<std::pair<long long, long long> > candidate_for_deletion = evict(ctx, time);
 
-        if (ctx.mode == 5 && ctx.beta_latency_end > ctx.latency_max) { // if there exists a beta slice after the oldest one and load shedding is triggered
+        if (ctx.mode == 5 && ctx.beta_latency_end > ctx.latency_max) { // if measured latency exceeds threshold
 
             double reduce_percentage = 1 - ctx.latency_max / ctx.beta_latency_end; // the higher the latency, the more we reduce
 
-            // cout << "Load shedding triggered at time " << time
-            // << " and beta latency " << ctx.beta_latency_end
-            // << ". Reducing window cardinality by " << reduce_percentage * 100
-            // << "%, current edges: " << ctx.window_cardinality
-            // << ", target: " << ctx.window_cardinality - static_cast<int>(ctx.window_cardinality * reduce_percentage)
-            // << " edges to remove: " << static_cast<int>(ctx.window_cardinality * reduce_percentage) << endl;
-
             size_t edges_to_shed = static_cast<int>(ctx.window_cardinality * reduce_percentage); // number of edges to shed to reduce the latency by the reduce_percentage
+            size_t edges_to_keep = ctx.window_cardinality - edges_to_shed;
+            cout << "edges to shed: " << edges_to_shed << std::endl;
+            cout << "edges to keep: " << edges_to_keep << std::endl;
 
-            // cout << "Load shedding triggered at time " << time << " and beta latency " << ctx.beta_latency_end << ". Violations streak: " << violations_streak << endl;
-
-            std::vector<std::pair<long long, double>> top_k_vertices = ctx.f->getTopKVertices(edges_to_shed); // (vertex, rank)
-            std::vector<std::pair<long long, double>> bottom_k_edges = ctx.sg->getBottomKEdges(edges_to_shed); // (edge_id, rank)
+            std::vector<long long> top_k_vertices = ctx.f->getTopKVertices(edges_to_keep); // (vertex, rank)
+            std::vector<std::int64_t> bottom_k_edges = ctx.sg->getBottomKEdges(edges_to_shed); // (edge_id, rank)
 
             // retrieve the last rank in the topK vertices, i.e. the lowest rank in the top k
-            double shedding_threshold = top_k_vertices.empty() ? 0 : top_k_vertices.back().second;
+            double shedding_threshold = top_k_vertices.empty() ? 0 : ctx.f->computeVertexRank(top_k_vertices.back());
+            cout << "shedding threshold: " << shedding_threshold << endl;
+            cout << "higest rank: " << ctx.f->computeVertexRank(top_k_vertices.front()) << endl;
 
-            for (const auto& [edge_id, rank] : bottom_k_edges) {
+            cout << "window cardinality before: " << ctx.window_cardinality << endl;
+            int counter = 0;
+            int recent_counter = 0;
+            for (const auto& edge_id : bottom_k_edges) {
                 auto* cur_edge = ctx.sg->edge_id_to_edge[edge_id];
                 if (cur_edge == nullptr) {
                     std::cerr << "ERROR: Edge with ID " << edge_id << " not found for shedding." << std::endl;
@@ -74,7 +74,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
                 }
 
                 // if any of the two vertices of the edge has higher rank than the shedding threshold, do not shed
-                if (ctx.f->getVertexRank(cur_edge->s) > shedding_threshold || ctx.f->getVertexRank(cur_edge->d) > shedding_threshold) {
+                if (ctx.f->computeVertexRank(cur_edge->s) > shedding_threshold || ctx.f->computeVertexRank(cur_edge->d) > shedding_threshold) {
                     //cout << "Edge " << edge_id << " not shed because vertex " << cur_edge->s << " has rank " << ctx.f->getVertexRank(cur_edge->s) << " and vertex " << cur_edge->d << " has rank " << ctx.f->getVertexRank(cur_edge->d) << ", shedding threshold is " << shedding_threshold << endl;
                     continue; // Skip this edge and continue with the next one
                 }
@@ -82,13 +82,17 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
                 ctx.cumulative_degree -= ctx.sg->out_degree[cur_edge->s];
                 (ctx.window_cardinality)--;
 
-                candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // schedule for deletion from RPQ forest
-                ctx.sg->delete_timed_edge(cur_edge->time_pos); // delete from time list
-                ctx.sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label, time); // delete from adjacency list
+                if (cur_edge->timestamp >= (ctx.windows)[ctx.windows.size()-2].t_open) recent_counter++;
+                else {
+                    candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // schedule for deletion from RPQ forest
+                    ctx.sg->delete_timed_edge(cur_edge->time_pos); // delete from time list
+                    ctx.sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label, time); // delete from adjacency list
+                    counter++;
+                }
 
-                //cout << "Edge " << edge_id << " shed with rank " << rank << ", vertex " << cur_edge->s << " has rank " << ctx.f->getVertexRank(cur_edge->s) << " and vertex " << cur_edge->d << " has rank " << ctx.f->getVertexRank(cur_edge->d) << ", shedding threshold is " << shedding_threshold << endl;
             }
-            //cout << "new window cardinality: " << ctx.window_cardinality << endl;
+            cout << "shed edges: " << counter << endl;
+            cout << "recent edges: " << recent_counter << endl;
         }
 
         ctx.f->expire_timestamped((ctx.windows)[ctx.to_evict.back() + 1].t_open, candidate_for_deletion);

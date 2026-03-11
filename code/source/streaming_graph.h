@@ -1,51 +1,16 @@
-#pragma once
+#ifndef STREAMING_GRAPH_H
+#define STREAMING_GRAPH_H
+
 #include <vector>
-#include <map>
 #include <unordered_map>
-#include <set>
-#include <cmath>
 #include <iostream>
 
-using namespace std;
+#include "rpq_forest.h"
+#include "ranking/buckets.h"
 
-// this streaming graph class suppose that there may be duplicate edges in the streaming graph. It means the same edge (s, d, label) may appear multiple times in the stream.
+struct timed_edge;
 
-class sg_edge;
-
-struct timed_edge
-        // this is the structure to maintain the time sequence list. It stores the tuples in the stream with time order, each tuple is an edge;
-{
-    timed_edge *next;
-    timed_edge *prev; // the two pointers to maintain the double linked list;
-    sg_edge *edge_pt; // pointer to the sg edge;
-    explicit timed_edge(sg_edge *edge) {
-        edge_pt = edge;
-        next = nullptr;
-        prev = nullptr;
-    }
-};
-
-struct edge_info // the structure as query result, include all the information of an edge;
-{
-    long long s, d;
-    long long label;
-    long long timestamp;
-    long long expiration_time;
-    long long id;
-
-    edge_info(long long src, long long dst, long long time, long long label_, long long expiration_time_,
-              long long id_) {
-        s = src;
-        d = dst;
-        timestamp = time;
-        expiration_time = expiration_time_;
-        label = label_;
-        id = id_;
-    }
-};
-
-class sg_edge {
-public:
+struct sg_edge {
     long long label;
     long long timestamp;
     long long expiration_time;
@@ -64,17 +29,18 @@ public:
     }
 };
 
-struct pair_hash_aj {
-    template<class T1, class T2>
-    std::size_t operator()(const std::pair<T1, T2> &p) const {
-        auto hash1 = std::hash<T1>()(p.first);
-        auto hash2 = std::hash<T2>()(p.second);
-        return hash1 ^ (hash2 << 1); // Combine the two hash values
+struct timed_edge {
+    timed_edge *next;
+    timed_edge *prev; // the two pointers to maintain the double linked list;
+    sg_edge *edge_pt; // pointer to the sg edge;
+    explicit timed_edge(sg_edge *edge) {
+        edge_pt = edge;
+        next = nullptr;
+        prev = nullptr;
     }
 };
 
-// Custom hash function for std::pair<double, long long>
-struct pair_hash {
+struct pair_hash_aj {
     template<class T1, class T2>
     std::size_t operator()(const std::pair<T1, T2> &p) const {
         auto hash1 = std::hash<T1>()(p.first);
@@ -114,7 +80,11 @@ struct MemoryEstimatorAdjL {
 
 class streaming_graph {
 public:
-    unordered_map<long long, vector<pair<long long, sg_edge *> > > adjacency_list;
+    std::unordered_map<long long, std::vector<std::pair<long long, sg_edge *> > > adjacency_list;
+
+    // Inverted adjacency list: for each vertex, stores incoming edges
+    // Key: destination vertex, Value: vector of (source vertex, edge pointer)
+    std::unordered_map<long long, std::vector<std::pair<long long, sg_edge *>>> inverted_adjacency_list;
 
     double edge_num = 0; // number of edges in the window
     int EINIT_count = 0;
@@ -124,102 +94,19 @@ public:
 
     int first_transition; // the first label in the query
 
-    unordered_map<long long, int> in_degree;
-    unordered_map<long long, int> out_degree;
+    std::unordered_map<long long, int> in_degree;
+    std::unordered_map<long long, int> out_degree;
     long long vertex_num = 0; // number of vertices in the window
 
-    // Edge importance ranking: edge_id -> rank (in_degree[dst] * out_degree[src])
-    std::unordered_map<long long, double> edge_rank;
-    // Sorted set for fast top-k edge queries: (rank, edge_id) sorted by rank descending
-    std::set<std::pair<double, long long>, std::greater<>> ranked_edges;
-    // Map edge_id to (src, dst) for rank updates when degrees change
-    std::unordered_map<long long, std::pair<long long, long long>> edge_endpoints;
     // Lookup from the edge_id to the edge in the adjacency list
     std::unordered_map<long long, sg_edge *> edge_id_to_edge;
 
-    // Compute edge rank based on in-degree of destination and out-degree of source
-    [[nodiscard]] double computeEdgeRank(long long src, long long dst, long long id, long long current_time) const {
-        const int src_out = out_degree.count(src) ? out_degree.at(src) : 1;
-        const int dst_in = in_degree.count(dst) ? in_degree.at(dst) : 1;
+    RankBuckets rank;
 
-        double time_deviation = 1 - static_cast<double>(current_time - edge_id_to_edge.at(id)->timestamp)/static_cast<double>(current_time);
+    // edge_id -> (src, dst)
+    std::unordered_map<long long, std::pair<long long, long long> > edge_endpoints;
 
-        return static_cast<double>(src_out) * static_cast<double>(dst_in) * time_deviation;
-    }
-
-    // Update rank for a single edge
-    void updateEdgeRank(long long edge_id, long long src, long long dst, long long current_time) {
-        // Remove old rank entry if exists
-        if (edge_rank.count(edge_id)) {
-            double old_rank = edge_rank[edge_id];
-            ranked_edges.erase({old_rank, edge_id});
-        }
-
-        // Compute and insert new rank
-        double new_rank = computeEdgeRank(src, dst, edge_id, current_time);
-        edge_rank[edge_id] = new_rank;
-        ranked_edges.insert({new_rank, edge_id});
-    }
-
-    // Remove edge from ranking
-    void removeEdgeFromRanking(long long edge_id) {
-        if (edge_rank.count(edge_id)) {
-            double old_rank = edge_rank[edge_id];
-            ranked_edges.erase({old_rank, edge_id});
-            edge_rank.erase(edge_id);
-        }
-        edge_endpoints.erase(edge_id);
-    }
-
-    // Update ranks for all edges incident to a vertex (called when degree changes)
-    void updateRanksForVertex(long long vertex, long long current_time) {
-        // Update all edges where this vertex is the source (out-degree matters)
-        if (adjacency_list.count(vertex)) {
-            for (const auto& [dst, edge] : adjacency_list.at(vertex)) {
-                updateEdgeRank(edge->id, vertex, dst, current_time);
-            }
-        }
-        // Update all edges where this vertex is the destination (in-degree matters)
-        for (const auto& [src, edges] : adjacency_list) {
-            for (const auto& [dst, edge] : edges) {
-                if (dst == vertex) {
-                    updateEdgeRank(edge->id, src, dst, current_time);
-                }
-            }
-        }
-    }
-
-    // Get the rank of a specific edge
-    [[nodiscard]] double getEdgeRank(long long edge_id) const {
-        auto it = edge_rank.find(edge_id);
-        return (it != edge_rank.end()) ? it->second : 0;
-    }
-
-    // Get top-k most important edges
-    [[nodiscard]] std::vector<std::pair<long long, double>> getTopKEdges(size_t k) const {
-        std::vector<std::pair<long long, double>> result;
-        result.reserve(std::min(k, ranked_edges.size()));
-        size_t count = 0;
-        for (const auto& [rank, edge_id] : ranked_edges) {
-            if (count++ >= k) break;
-            result.emplace_back(edge_id, rank);
-        }
-        return result;
-    }
-
-    // Get bottom-k least important edges (lowest rank first)
-    [[nodiscard]] std::vector<std::pair<long long, double>> getBottomKEdges(size_t k) const {
-        std::vector<std::pair<long long, double>> result;
-        result.reserve(std::min(k, ranked_edges.size()));
-        size_t count = 0;
-        // Iterate in reverse order (ascending rank)
-        for (auto it = ranked_edges.rbegin(); it != ranked_edges.rend() && count < k; ++it, ++count) {
-            result.emplace_back(it->second, it->first); // (edge_id, rank)
-        }
-        return result;
-    }
-
-    explicit streaming_graph(const int first_transition) : first_transition(first_transition) {
+    streaming_graph(const int first_transition) : first_transition(first_transition), rank(RankBuckets(2601977, 36233450)) {
         time_list_head = nullptr;
         time_list_tail = nullptr;
     }
@@ -238,6 +125,48 @@ public:
             time_list_head = time_list_head->next;
             delete temp;
         }
+    }
+
+    // Compute edge rank based on in-degree of destination and out-degree of source
+    [[nodiscard]] int computeEdgeRank(long long src, long long dst) const {
+        const int src_out = out_degree.count(src) ? out_degree.at(src) : 0;
+        const int dst_in = in_degree.count(dst) ? in_degree.at(dst) : 0;
+
+        return (src_out) + (dst_in);
+    }
+
+    // Try to insert or update an edge in the capped bottom-K set
+    void updateEdgeRank(long long edge_id, long long src, long long dst) {
+        rank.set_rank(edge_id, computeEdgeRank(src, dst));
+    }
+
+    // Remove edge from ranking
+    void removeEdgeFromRanking(long long edge_id) {
+        this->rank.remove(edge_id);
+        edge_endpoints.erase(edge_id);
+    }
+
+    // Update ranks only for edges incident to a vertex that are already in the ranked set
+    void updateRanksForVertex(long long vertex, long long current_time) {
+        // Update all edges where this vertex is the source (out-degree matters)
+        if (adjacency_list.count(vertex)) {
+            for (const auto& [dst, edge] : adjacency_list.at(vertex)) {
+                updateEdgeRank(edge->id, vertex, dst);
+            }
+        }
+
+        // Update all edges where this vertex is the destination (in-degree matters)
+        if (inverted_adjacency_list.count(vertex)) {
+            for (const auto& [src, edge] : inverted_adjacency_list.at(vertex)) {
+                updateEdgeRank(edge->id, src, vertex);
+            }
+        }
+
+    }
+
+    // Get bottom-k least important edges (already sorted ascending)
+    [[nodiscard]] std::vector<RankBuckets::Id> getBottomKEdges(size_t k) const {
+        return rank.bottom_k(k);
     }
 
     void add_timed_edge(timed_edge *cur) // append an edge to the time sequence list
@@ -293,6 +222,13 @@ public:
             if (existing_edge->label == label && to_vertex == to) {
                 // if (existing_edge->expiration_time < expiration_time) existing_edge->expiration_time = expiration_time;
                 if (existing_edge->timestamp < timestamp) existing_edge->timestamp = timestamp;
+                // update the timestamp of the existing edge also in the inverted adjacency list
+                for (auto &[src_vertex, inv_edge]: inverted_adjacency_list[to]) {
+                    if (inv_edge == existing_edge) {
+                        inv_edge->timestamp = existing_edge->timestamp;
+                        break;
+                    }
+                }
                 delete_timed_edge(existing_edge->time_pos); // remove the old timed edge from the time list
                 return existing_edge;
             }
@@ -306,9 +242,15 @@ public:
 
         // Add the edge to the adjacency list if it doesn't exist
         if (adjacency_list[from].empty()) {
-            adjacency_list[from] = vector<pair<long long, sg_edge *> >();
+            adjacency_list[from] = std::vector<std::pair<long long, sg_edge *> >();
         }
         adjacency_list.at(from).emplace_back(to, edge);
+
+        // Add to inverted adjacency list (incoming edges for 'to')
+        if (inverted_adjacency_list[to].empty()) {
+            inverted_adjacency_list[to] = std::vector<std::pair<long long, sg_edge *>>();
+        }
+        inverted_adjacency_list.at(to).emplace_back(from, edge);
 
         // Track vertex count and degrees
         bool from_is_new = false;
@@ -346,54 +288,64 @@ public:
         }
 
         // Add the new edge to the ranking
-        updateEdgeRank(edge_id, from, to, timestamp);
+        updateEdgeRank(edge_id, from, to);
 
         return edge;
     }
 
     bool remove_edge(long long from, long long to, long long label, long long current_time) {
-        // delete an edge from the snapshot graph
-
-        // Check if the vertex exists in the adjacency list
-        if (adjacency_list[from].empty()) {
-            return false; // Edge doesn't exist
+        if (adjacency_list.find(from) == adjacency_list.end() || adjacency_list[from].empty()) {
+            return false;
         }
 
         auto &edges = adjacency_list[from];
         for (auto it = edges.begin(); it != edges.end(); ++it) {
-            // Check if this is the edge to remove
             if (sg_edge *edge = it->second; it->first == to && edge->label == label) {
-                // Remove the edge from ranking first (before modifying degrees)
+                // Remove the edge from ranking first
                 removeEdgeFromRanking(edge->id);
 
+                // Remove from edge_id_to_edge map
+                edge_id_to_edge.erase(edge->id);
+
                 // Remove the edge from the adjacency list
+                bool should_erase_from = false;
                 edges.erase(it);
                 edge_num--;
                 if (label == first_transition) EINIT_count--;
                 if (edges.empty()) {
-                    adjacency_list.erase(from);
+                    should_erase_from = true;
                 }
 
-                // remove the entry from the edge id to edge map
-                edge_id_to_edge.erase(edge->id);
+                // Remove from inverted adjacency list
+                auto inv_it_map = inverted_adjacency_list.find(to);
+                if (inv_it_map != inverted_adjacency_list.end()) {
+                    auto &inv_edges = inv_it_map->second;
+                    for (auto inv_it = inv_edges.begin(); inv_it != inv_edges.end(); ++inv_it) {
+                        if (inv_it->first == from && inv_it->second == edge) {
+                            inv_edges.erase(inv_it);
+                            break;
+                        }
+                    }
+                    if (inv_edges.empty()) {
+                        inverted_adjacency_list.erase(inv_it_map);
+                    }
+                }
 
                 // Update degrees
                 out_degree[from]--;
                 in_degree[to]--;
 
-                // Update ranks for edges incident to these vertices (degrees changed)
                 bool from_removed = false;
                 bool to_removed = false;
 
-                // Remove 'from' vertex if it has no incident edges
                 if (out_degree[from] == 0 && in_degree[from] == 0) {
                     out_degree.erase(from);
                     in_degree.erase(from);
                     vertex_num--;
+                    //forest.removeVertexFromRanking(from);
                     from_removed = true;
                 }
 
-                // Remove 'to' vertex if it has no incident edges
                 if (out_degree[to] == 0 && in_degree[to] == 0) {
                     out_degree.erase(to);
                     in_degree.erase(to);
@@ -401,10 +353,11 @@ public:
                         adjacency_list.erase(to);
                     }
                     vertex_num--;
+                    //forest.removeVertexFromRanking(to);
                     to_removed = true;
                 }
 
-                // Update ranks for remaining edges incident to 'from' and 'to'
+                // Update ranks AFTER all structural changes are complete
                 if (!from_removed) {
                     updateRanksForVertex(from, current_time);
                 }
@@ -412,14 +365,22 @@ public:
                     updateRanksForVertex(to, current_time);
                 }
 
-                return true; // Successfully removed
+                if (should_erase_from) {
+                    adjacency_list.erase(from);
+                }
+
+                // Now safe to delete the edge object
+                delete edge;
+
+                return true;
             }
         }
-        return false; // Edge not found
+        return false;
     }
 
-    std::vector<edge_info> get_all_suc(long long s) {
-        std::vector<edge_info> sucs;
+
+    std::vector<sg_edge> get_all_suc(long long s) {
+        std::vector<sg_edge> sucs;
         if (adjacency_list[s].empty()) {
             return sucs; // No outgoing edges for vertex s
         }
@@ -488,3 +449,5 @@ public:
         }
     }
 };
+
+#endif //STREAMING_GRAPH_H

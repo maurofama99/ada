@@ -5,7 +5,6 @@
 #include <random>
 
 class LoadSheddingMode : public ModeHandlerBase {
-private:
     std::mt19937* gen;
     std::uniform_real_distribution<double>* dist;
 

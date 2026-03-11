@@ -1,5 +1,3 @@
-
-
 #ifndef ADA_MODE_HANDLER_BASE_H
 #define ADA_MODE_HANDLER_BASE_H
 
@@ -21,7 +19,5 @@ protected:
     void mark_windows_evicted(ModeContext &ctx);
 
 };
-
-
 
 #endif //ADA_MODE_HANDLER_BASE_H
