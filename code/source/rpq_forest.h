@@ -26,6 +26,7 @@ struct Node {
     bool isCandidateParent = false;
     bool isValid = true;
     long long timestamp;
+    long long expiration_time;
     bool isRoot = false;
     long long timestampRoot = -1;
 
@@ -269,6 +270,7 @@ public:
             tree_reference_counting[rootVertex] = 1;
 
             trees.at(rootVertex).rootNode->timestamp = INT64_MAX;
+            trees.at(rootVertex).rootNode->expiration_time = INT64_MAX;
             trees.at(rootVertex).rootNode->isRoot = true;
             trees.at(rootVertex).rootNode->timestampRoot = timestamp;
             trees.at(rootVertex).rootNode->insertion_cost = 0;
@@ -283,10 +285,11 @@ public:
         }
     }
 
-    bool addChildToParentTimestamped(long long rootVertex, Node* parent, long long childVertex, long long childState, long long timestamp, long long current_time) {
+    bool addChildToParentTimestamped(long long rootVertex, Node* parent, long long childVertex, long long childState, long long timestamp, long long newExpiry) {
         if (parent) {
             auto child = new Node(parent->id, childVertex, childState, parent);
             child->timestamp = timestamp < parent->timestamp ? timestamp : parent->timestamp;
+            child->expiration_time = newExpiry;
             parent->children.emplace_back(child);
             node_count++;
 
@@ -311,7 +314,7 @@ public:
         return false;
     }
 
-    bool changeParentTimestamped(Node *child, Node *newParent, long long timestamp, long long rootVertex) {
+    bool changeParentTimestamped(Node *child, Node *newParent, long long timestamp, long long rootVertex, long long newExpiry) {
 
         if (!newParent->isValid) return false;
 
@@ -345,6 +348,7 @@ public:
         // Set the new parent
         child->parent = newParent;
         child->timestamp = timestamp;
+        child->expiration_time = newExpiry;
         newParent->children.push_back(child);
 
         Node* cur = newParent;
@@ -452,7 +456,7 @@ public:
                      for (auto current: searchAllNodesNoState(tree->rootNode, vertex)) {
                          if (!current->parent && !current->isRoot)
                              cerr << "WARNING: root node has null parent" << endl;
-                         if (current->timestamp < eviction_time || (current->isRoot && current->timestampRoot < eviction_time)) {
+                         if (current->expiration_time < eviction_time || (current->isRoot && current->expiration_time < eviction_time)) {
                              if (!current->isRoot) {
                                  sub_to_delete.emplace(current, tree->rootNode);
                              } else { // current vertex is the root node

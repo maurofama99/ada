@@ -13,11 +13,12 @@ struct tree_expansion {
     long long vd;
     long long sd;
     long long edge_timestamp;
+    long long edge_expiration_time;
     long long s_timestamp;
     long long d_timestamp;
 
-    tree_expansion(long long vb, long long sb, long long vd, long long sd, long long edge_timestamp, long long s_timestamp, long long d_timestamp)
-        : vb(vb), sb(sb), vd(vd), sd(sd), edge_timestamp(edge_timestamp), s_timestamp(s_timestamp), d_timestamp(d_timestamp) {}
+    tree_expansion(long long vb, long long sb, long long vd, long long sd, long long edge_timestamp, long long s_timestamp, long long d_timestamp, long long edge_expiration_time)
+        : vb(vb), sb(sb), vd(vd), sd(sd), edge_timestamp(edge_timestamp), s_timestamp(s_timestamp), d_timestamp(d_timestamp), edge_expiration_time(edge_expiration_time) {}
 };
 
 struct time_comparator
@@ -52,22 +53,32 @@ public:
                 if (tree.expired) continue; // skip expired trees
                 // for all Trees that contain ⟨vb,sb⟩
                 // push (⟨vb,sb⟩, <vd,sd>, edge_id) into Q
-                priority_queue<tree_expansion*, vector<tree_expansion*>, time_comparator> Q; // (⟨vb,sb⟩, <vd,sd>, edge_id, edge_timestamp) // (⟨vb,sb⟩, <vd,sd>, edge_id, edge_timestamp)
-                Q.push(new tree_expansion(edge->s, sb_sd.first, edge->d, sb_sd.second, edge->timestamp, edge->timestamp, edge->timestamp));
+                //priority_queue<tree_expansion*, vector<tree_expansion*>, time_comparator> Q; // (⟨vb,sb⟩, <vd,sd>, edge_id, edge_timestamp) // (⟨vb,sb⟩, <vd,sd>, edge_id, edge_timestamp)
+                std::deque<tree_expansion*> Q;
+                Q.push_back(new tree_expansion(edge->s, sb_sd.first, edge->d, sb_sd.second, edge->timestamp, edge->timestamp, edge->timestamp, edge->expiration_time));
                 while (!Q.empty()) {
-                    auto element = Q.top();
-                    Q.pop(); // (⟨vi,si⟩, <vj,sj>, edge_id)
+                    auto element = Q.front();
+                    Q.pop_front(); // (⟨vi,si⟩, <vj,sj>, edge_id)
                     auto vj_sj_node = forest.findNodeInTree(tree.rootVertex, element->vd, element->sd);
                     auto vb_sb_node = forest.findNodeInTree(tree.rootVertex, element->vb, element->sb);
 
                     if (!vj_sj_node) {
                         // if tree does not contain <vj,sj>
                         // add <vj,sj> into tree with parent vi_si
-                        if (!forest.addChildToParentTimestamped(tree.rootVertex, vb_sb_node, element->vd, element->sd, element->edge_timestamp, edge->timestamp)) continue;
-                    } else if (vb_sb_node && vj_sj_node->timestamp < (element->edge_timestamp < vb_sb_node->timestamp ? element->edge_timestamp : vb_sb_node->timestamp)) {
+                        if (!forest.addChildToParentTimestamped(tree.rootVertex, vb_sb_node, element->vd, element->sd, element->edge_timestamp, std::min(element->edge_expiration_time, vb_sb_node->expiration_time))) continue;
+                    //} else if (vb_sb_node && vj_sj_node->timestamp < (element->edge_timestamp < vb_sb_node->timestamp ? element->edge_timestamp : vb_sb_node->timestamp)) {
+                    } else if (vb_sb_node && vj_sj_node->expiration_time < std::min(element->edge_expiration_time, vb_sb_node->expiration_time)) {
                         // if tree already contains <vj,sj>
                         // change parent to vi_si if the timestamp is smaller
-                        if (!forest.changeParentTimestamped(vj_sj_node, vb_sb_node, (element->edge_timestamp < vb_sb_node->timestamp ? element->edge_timestamp : vb_sb_node->timestamp), tree.rootVertex)) continue;
+                        long long old_expiry = vj_sj_node->expiration_time;  // save before re-parenting
+                        if (!forest.changeParentTimestamped(vj_sj_node, vb_sb_node, (element->edge_timestamp < vb_sb_node->timestamp ? element->edge_timestamp : vb_sb_node->timestamp), tree.rootVertex, std::min(element->edge_expiration_time, vb_sb_node->expiration_time))) continue;
+                        for (auto successors : sg.get_all_suc(element->vd)) {
+                            if (auto sq = fsa.getNextState(element->sd, successors.label); sq != -1) {
+                                if (successors.expiration_time > old_expiry) {
+                                    Q.push_back(new tree_expansion(element->vd, element->sd, successors.d, sq, successors.timestamp, element->d_timestamp, successors.timestamp, successors.expiration_time));
+                                }
+                            }
+                        }
                     } else
                         continue;
 
@@ -78,18 +89,28 @@ public:
                         sink.addEntry(tree.rootVertex, element->vd, edge->timestamp);
                     }
                     // for all vertex <vq,sq> where exists a successor vertex in the snapshot graph where the label the same as the transition in the automaton from the state sj to state sq, push into Q
-                    for (auto successors: sg.get_all_suc(element->vd)) {
-                        // if the transition exits in the automaton from sj to sq
+                    // for (auto successors: sg.get_all_suc(element->vd)) {
+                    //     // if the transition exits in the automaton from sj to sq
+                    //     if (auto sq = fsa.getNextState(element->sd, successors.label); sq != -1) {
+                    //         // if <vq,sq> is not in visited
+                    //         Q.push_back(new tree_expansion(element->vd, element->sd, successors.d, sq, successors.timestamp, element->d_timestamp, successors.timestamp, successors.expiration_time));
+                    //     }
+                    // }
+                    for (auto successors : sg.get_all_suc(element->vd)) {
                         if (auto sq = fsa.getNextState(element->sd, successors.label); sq != -1) {
-                            // if <vq,sq> is not in visited
-                            Q.push(new tree_expansion(element->vd, element->sd, successors.d, sq, successors.timestamp, element->d_timestamp, successors.timestamp));
+                            // ADD: only if the successor edge's interval overlaps the current node's interval
+                            Node* current_node = forest.findNodeInTree(tree.rootVertex, element->vd, element->sd);
+                            if (current_node && successors.expiration_time > current_node->timestamp
+                                && successors.timestamp < current_node->expiration_time) {
+                                    Q.push_back(new tree_expansion(element->vd, element->sd, successors.d, sq, successors.timestamp, element->d_timestamp, successors.timestamp, successors.expiration_time));
+                                }
                         }
                     }
                     delete element;
                 }
                 while (!Q.empty()) {
-                    delete Q.top();
-                    Q.pop();
+                    delete Q.front();
+                    Q.pop_front();
                 }
             }
         }
