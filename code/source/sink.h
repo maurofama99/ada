@@ -38,6 +38,7 @@ public:
 
     // add entry in result set
     void addEntry(long long source, long long destination, long long timestamp) {
+        if (source == destination) return; // avoid self loops
         result res = {destination, timestamp};
         auto& destinations = result_set[source];
 
@@ -81,10 +82,9 @@ public:
     void exportResultSet(const std::string &filename) {
         std::ofstream file(filename);
         // insert header
-        file << "source,destination,timestamp" << std::endl;
         for (const auto &[source, destinations]: result_set) {
             for (const auto &destination: destinations) {
-                file << source << "," << destination.destination << "," << destination.timestamp << std::endl;
+                file << source << " " << destination.destination << " " << destination.timestamp << std::endl;
             }
         }
         file.close();

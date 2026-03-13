@@ -5,7 +5,6 @@
 #include <unordered_map>
 #include <iostream>
 
-#include "rpq_forest.h"
 #include "ranking/buckets.h"
 
 struct timed_edge;
@@ -80,6 +79,10 @@ struct MemoryEstimatorAdjL {
 
 class streaming_graph {
 public:
+    struct expired_edge_info {
+        long long src, dst, label;
+    };
+
     std::unordered_map<long long, std::vector<std::pair<long long, sg_edge *> > > adjacency_list;
 
     // Inverted adjacency list: for each vertex, stores incoming edges
@@ -129,6 +132,7 @@ public:
 
     // Compute edge rank based on in-degree of destination and out-degree of source
     [[nodiscard]] int computeEdgeRank(long long src, long long dst) const {
+        return 0;
         const int src_out = out_degree.count(src) ? out_degree.at(src) : 0;
         const int dst_in = in_degree.count(dst) ? in_degree.at(dst) : 0;
 
@@ -137,17 +141,20 @@ public:
 
     // Try to insert or update an edge in the capped bottom-K set
     void updateEdgeRank(long long edge_id, long long src, long long dst) {
+        return;
         rank.set_rank(edge_id, computeEdgeRank(src, dst));
     }
 
     // Remove edge from ranking
     void removeEdgeFromRanking(long long edge_id) {
+        return;
         this->rank.remove(edge_id);
         edge_endpoints.erase(edge_id);
     }
 
     // Update ranks only for edges incident to a vertex that are already in the ranked set
     void updateRanksForVertex(long long vertex, long long current_time) {
+        return;
         // Update all edges where this vertex is the source (out-degree matters)
         if (adjacency_list.count(vertex)) {
             for (const auto& [dst, edge] : adjacency_list.at(vertex)) {
@@ -280,15 +287,15 @@ public:
 
         // Update ranks for all edges incident to 'from' (out-degree changed)
         // and all edges incident to 'to' (in-degree changed)
-        if (!from_is_new) {
-            updateRanksForVertex(from, timestamp);
-        }
-        if (!to_is_new) {
-            updateRanksForVertex(to, timestamp);
-        }
-
-        // Add the new edge to the ranking
-        updateEdgeRank(edge_id, from, to);
+        // if (!from_is_new) {
+        //     updateRanksForVertex(from, timestamp);
+        // }
+        // if (!to_is_new) {
+        //     updateRanksForVertex(to, timestamp);
+        // }
+        //
+        // // Add the new edge to the ranking
+        // updateEdgeRank(edge_id, from, to);
 
         return edge;
     }
@@ -358,12 +365,12 @@ public:
                 }
 
                 // Update ranks AFTER all structural changes are complete
-                if (!from_removed) {
-                    updateRanksForVertex(from, current_time);
-                }
-                if (!to_removed) {
-                    updateRanksForVertex(to, current_time);
-                }
+                // if (!from_removed) {
+                //     updateRanksForVertex(from, current_time);
+                // }
+                // if (!to_removed) {
+                //     updateRanksForVertex(to, current_time);
+                // }
 
                 if (should_erase_from) {
                     adjacency_list.erase(from);
@@ -378,6 +385,34 @@ public:
         return false;
     }
 
+    // Add this method to streaming_graph
+    void expire(long long eviction_time, std::vector<expired_edge_info>& deleted_edges) {
+        while (time_list_head) {
+            sg_edge* cur = time_list_head->edge_pt;
+            // edges are ordered oldest-first; stop when the front edge is still alive
+            if (cur->timestamp >= eviction_time)
+                break;
+
+            deleted_edges.push_back({cur->s, cur->d, cur->label});
+
+            // Detach and delete the timed_edge node from the list
+            timed_edge* te = time_list_head;
+            time_list_head = time_list_head->next;
+            if (time_list_head)
+                time_list_head->prev = nullptr;
+            else
+                time_list_tail = nullptr;
+            te->edge_pt = nullptr;
+            delete te;
+
+            // Null out time_pos before remove_edge so the adjacency-list
+            // removal does not try to touch the already-deleted timed_edge
+            cur->time_pos = nullptr;
+
+            // remove_edge handles adjacency list, degrees, ranking, and deletes cur
+            remove_edge(cur->s, cur->d, cur->label, eviction_time);
+        }
+    }
 
     std::vector<sg_edge> get_all_suc(long long s) {
         std::vector<sg_edge> sucs;
@@ -386,7 +421,7 @@ public:
         }
 
         for (const auto &[to, edge]: adjacency_list[s]) {
-            sucs.emplace_back(s, to, edge->timestamp, edge->label, edge->expiration_time, edge->id);
+            sucs.emplace_back(edge->id, s, to, edge->label, edge->timestamp, edge->expiration_time);
         }
         return sucs;
     }

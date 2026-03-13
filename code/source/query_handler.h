@@ -46,7 +46,8 @@ public:
             if (sb_sd.first == 0 && !forest.hasTree(edge->s)) {
                 forest.addTree(edge->id, edge->s, 0, edge->timestamp);
             }
-            for (auto tree: forest.findTreesWithNode(edge->s, sb_sd.first)) {
+            for (auto rootVertex : forest.findTreeRootsWithNode(edge->s, sb_sd.first)) {
+                auto& tree = forest.trees.at(rootVertex);
                 if (tree.expired) continue;
                 std::deque<tree_expansion*> Q;
                 Q.push_back(new tree_expansion(edge->s, sb_sd.first, edge->d, sb_sd.second, edge->timestamp, edge->timestamp, edge->timestamp, edge->expiration_time));
@@ -56,14 +57,21 @@ public:
                     auto vj_sj_node = forest.findNodeInTree(tree.rootVertex, element->vd, element->sd);
                     auto vb_sb_node = forest.findNodeInTree(tree.rootVertex, element->vb, element->sb);
 
-                    // FIX: compute the candidate interval with root guard
                     // If parent is root, interval = edge interval (root has dummy [INT64_MAX, INT64_MAX])
                     // Otherwise, interval = intersect(edge_interval, parent_interval)
                     long long candidate_expiry, candidate_ts;
                     if (vb_sb_node && vb_sb_node->isRoot) {
+                        if (element->edge_timestamp == INT64_MAX || element->edge_expiration_time == INT64_MAX) {
+                            cout << "ERROR: Edge with timestamp or expiration time equal to INT64_MAX is not allowed" << endl;
+                            exit(1);
+                        }
                         candidate_ts = element->edge_timestamp;
                         candidate_expiry = element->edge_expiration_time;
                     } else if (vb_sb_node) {
+                        if (element->edge_timestamp == INT64_MAX || element->edge_expiration_time == INT64_MAX || vb_sb_node->timestamp == INT64_MAX || vb_sb_node->expiration_time == INT64_MAX) {
+                            cout << "ERROR: Edge with timestamp or expiration time equal to INT64_MAX is not allowed" << endl;
+                            exit(1);
+                        }
                         candidate_ts = std::max(element->edge_timestamp, vb_sb_node->timestamp);
                         candidate_expiry = std::min(element->edge_expiration_time, vb_sb_node->expiration_time);
                     } else {
@@ -87,7 +95,7 @@ public:
 
                         // Emit result if final state
                         if (fsa.isFinalState(element->sd)) {
-                            sink.addEntry(tree.rootVertex, element->vd, edge->timestamp);
+                            sink.addEntry(tree.rootVertex, element->vd, candidate_expiry);
                         }
 
                         // Only enqueue successors whose expiry exceeds the OLD expiry
@@ -109,7 +117,7 @@ public:
 
                     // This code only runs for Case 1 (new node added)
                     if (fsa.isFinalState(element->sd)) {
-                        sink.addEntry(tree.rootVertex, element->vd, edge->timestamp);
+                        sink.addEntry(tree.rootVertex, element->vd, candidate_expiry);
                     }
 
                     // Enqueue all valid successors

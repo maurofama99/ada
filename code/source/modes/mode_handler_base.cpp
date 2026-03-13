@@ -3,6 +3,7 @@
 //
 
 #include "mode_handler_base.h"
+#include "source/streaming_graph.h"
 #include <iostream>
 #include <numeric>
 
@@ -158,32 +159,39 @@ bool ModeHandlerBase::update_window(ModeContext &ctx, sg_edge* new_sgt, long lon
 }
 
 std::vector<std::pair<long long, long long> > ModeHandlerBase::evict (ModeContext &ctx, long long time) {
+
+    long long eviction_time = (ctx.windows)[ctx.to_evict.back() + 1].t_open;
+
+    std::vector<streaming_graph::expired_edge_info> deleted_edges;
+    ctx.sg->expire(eviction_time, deleted_edges);
+    ctx.f->expire_forest(eviction_time, deleted_edges);
+
     std::vector<std::pair<long long, long long> > candidate_for_deletion;
-    long long to_evict_timestamp = (ctx.windows)[ctx.to_evict.back() + 1].t_open;
-
-    if (!ctx.sg->time_list_head) {
-        std::cerr << "ERROR: Evict start point is null." << std::endl;
-        exit(1);
-    }
-
-    timed_edge *current = ctx.sg->time_list_head;
-    while (current && current->edge_pt->timestamp < to_evict_timestamp) {
-        auto cur_edge = current->edge_pt;
-        auto next = current->next;
-
-        ctx.cumulative_degree -= ctx.sg->out_degree[cur_edge->s];
-        (ctx.window_cardinality)--;
-
-        candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // schedule for deletion from RPQ forest
-        ctx.sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label, time); // delete from adjacency list
-        ctx.sg->delete_timed_edge(current); // delete from time list
-
-        current = next;
-    }
-    // reset time list pointers
-    ctx.sg->time_list_head->prev = nullptr;
-    ctx.sg->time_list_head = current;
-    
+    // long long to_evict_timestamp = (ctx.windows)[ctx.to_evict.back() + 1].t_open;
+    //
+    // if (!ctx.sg->time_list_head) {
+    //     std::cerr << "ERROR: Evict start point is null." << std::endl;
+    //     exit(1);
+    // }
+    //
+    // timed_edge *current = ctx.sg->time_list_head;
+    // while (current && current->edge_pt->timestamp < to_evict_timestamp) {
+    //     auto cur_edge = current->edge_pt;
+    //     auto next = current->next;
+    //
+    //     ctx.cumulative_degree -= ctx.sg->out_degree[cur_edge->s];
+    //     (ctx.window_cardinality)--;
+    //
+    //     candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // schedule for deletion from RPQ forest
+    //     ctx.sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label, time); // delete from adjacency list
+    //     ctx.sg->delete_timed_edge(current); // delete from time list
+    //
+    //     current = next;
+    // }
+    // // reset time list pointers
+    // ctx.sg->time_list_head->prev = nullptr;
+    // ctx.sg->time_list_head = current;
+    //
     return candidate_for_deletion;
 }
 

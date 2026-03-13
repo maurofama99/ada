@@ -11,6 +11,7 @@
 #include <set>
 
 #include "fsa.h"
+#include "streaming_graph.h"
 #include "ranking/buckets.h"
 #include "ranking/vertex_cost_manager.h"
 
@@ -20,9 +21,10 @@ struct Node {
     long long id;
     long long vertex;
     long long state;
-    std::vector<Node *> children;
-    Node *parent;
-    std::vector<Node *> candidate_parents;
+    Node* child = nullptr;    // first child
+    Node* brother = nullptr;  // next sibling (next child of same parent)
+    Node* parent = nullptr;
+    //std::vector<Node *> children;
     bool isCandidateParent = false;
     bool isValid = true;
     long long timestamp;
@@ -40,6 +42,7 @@ struct Tree {
     long long rootVertex;
     Node *rootNode;
     bool expired;
+    std::unordered_map<long long, std::unordered_map<long long, Node*>> node_map; // node_map[state][vertex] = Node*
 
     bool operator==(const Tree &other) const {
         return rootVertex == other.rootVertex;
@@ -87,107 +90,6 @@ struct pair_hash {
     }
 };
 
-struct MemoryEstimator {
-    // assume 64-bit system
-    static constexpr size_t ptr_size = sizeof(void*);
-    static constexpr size_t node_overhead = 2 * sizeof(void*); // ~next + bucket pointer
-    static constexpr size_t rb_node_overhead = 3 * sizeof(void*) + sizeof(bool); // set/map node
-
-    template <typename T>
-    static size_t estimate_unordered_map_ll_tree(
-        const std::unordered_map<long long, T>& m)
-    {
-        size_t total = 0;
-        for (const auto& kv : m) {
-            total += sizeof(long long);     // key
-            total += sizeof(T);             // value object
-            total += node_overhead;         // node overhead
-        }
-        // bucket array
-        total += m.bucket_count() * ptr_size;
-        return total;
-    }
-
-    static size_t estimate_vertex_tree_map(
-        const std::unordered_map<long long,
-                                 std::unordered_set<Tree*, TreeHash, TreeEqual>>& m)
-    {
-        size_t total = 0;
-        for (const auto& kv : m) {
-            total += sizeof(long long);               // key
-            total += sizeof(std::unordered_set<Tree*>); // set object
-            total += node_overhead;                   // outer node overhead
-
-            // now cost of inner set
-            const auto& inner = kv.second;
-            for (Tree* ptr : inner) {
-                (void)ptr;
-                total += sizeof(Tree*);  // payload
-                total += node_overhead;  // node overhead
-            }
-            total += inner.bucket_count() * ptr_size;
-        }
-        total += m.bucket_count() * ptr_size;
-        return total;
-    }
-
-    static size_t estimate_vertex_state_tree_map(
-        const std::unordered_map<std::pair<long long,long long>,
-                                 std::set<long long>,
-                                 pair_hash>& m)
-    {
-        size_t total = 0;
-        for (const auto& kv : m) {
-            total += sizeof(std::pair<long long,long long>); // key
-            total += sizeof(std::set<long long>);            // set object
-            total += node_overhead;                         // outer node overhead
-
-            const auto& inner = kv.second;
-            for (long long val : inner) {
-                (void)val;
-                total += sizeof(long long);     // payload
-                total += rb_node_overhead;      // pointers in RB-tree node
-            }
-        }
-        total += m.bucket_count() * ptr_size;
-        return total;
-    }
-
-    // Stima ricorsiva della memoria occupata dal sotto-albero di un Node:
-    // include:
-    //  - sizeof(Node) (contenitore + oggetti vector)
-    //  - memoria dinamica dei vector children e candidate_parents
-    //  - ricorsione sui figli
-    static size_t estimate_node_subtree(const Node* node) {
-        if (!node) return 0;
-        size_t total = 0;
-        total += sizeof(Node);
-        total += node->children.capacity() * sizeof(Node*);
-        for (const auto child : node->children) {
-            total += estimate_node_subtree(child);
-        }
-        return total;
-    }
-
-    // Stima della unordered_map<long long, Tree>:
-    // per ogni entry:
-    //  - key (long long)
-    //  - oggetto Tree
-    //  - overhead nodo hash
-    //  - intero sotto-albero a partire da rootNode
-    // + bucket array finale
-    static size_t estimate_trees(const std::unordered_map<long long, Tree>& m) {
-        size_t total = 0;
-        for (const auto& kv : m) {
-            total += sizeof(long long); // key
-            total += sizeof(Tree);      // value
-            total += node_overhead;     // nodo della hash table
-            total += estimate_node_subtree(kv.second.rootNode);
-        }
-        total += m.bucket_count() * ptr_size;
-        return total;
-    }
-};
 
 class Forest {
 public:
@@ -221,11 +123,13 @@ public:
 
     // Try to insert or update an edge in the capped bottom-K set
     void updateVertexRank(long long vertex_id) {
+        return;
         rank.set_rank(vertex_id, computeVertexRank(vertex_id));
     }
 
     // Remove from ranking
     void removeVertexFromRanking(long long vertex_id) {
+        return;
         rank.remove(vertex_id);
         // remove the entry from vertex cost
         vertex_cost_manager.removeEntry(vertex_id);
@@ -238,6 +142,7 @@ public:
     }
 
     void propagateFinalStateCount(Node* node, int delta) {
+        return;
         Node* current = node->parent;
         while (current) {
             current->final_state_descendants += delta;
@@ -248,9 +153,11 @@ public:
     }
 
     int countFinalStatesInSubtree(Node* node, long long rootVertex) {
+
         if (!node) return 0;
         int count = fsa.isFinalState(node->state) ? 1 : 0;
-        for (Node* child : node->children) {
+        //for (Node* child : node->children) {
+        for (Node* child = node->child; child != nullptr; child = child->brother){
             child->insertion_cost = child->parent->insertion_cost+1;
             vertex_cost_manager.insertCost(child->vertex, rootVertex, child->insertion_cost);
             updateVertexRank(child->vertex);
@@ -269,11 +176,15 @@ public:
 
             tree_reference_counting[rootVertex] = 1;
 
-            trees.at(rootVertex).rootNode->timestamp = INT64_MAX;
-            trees.at(rootVertex).rootNode->expiration_time = INT64_MAX;
-            trees.at(rootVertex).rootNode->isRoot = true;
-            trees.at(rootVertex).rootNode->timestampRoot = timestamp;
-            trees.at(rootVertex).rootNode->insertion_cost = 0;
+            Node* rootNode = trees.at(rootVertex).rootNode;
+            rootNode->timestamp = INT64_MAX;
+            rootNode->expiration_time = INT64_MAX;
+            rootNode->isRoot = true;
+            rootNode->timestampRoot = timestamp;
+            rootNode->insertion_cost = 0;
+
+            trees.at(rootVertex).node_map[rootState][rootVertex] = rootNode;
+
             vertex_cost_manager.insertCost(rootVertex, rootVertex, 0);
             updateVertexRank(rootVertex);
 
@@ -286,65 +197,71 @@ public:
     }
 
     bool addChildToParentTimestamped(long long rootVertex, Node* parent, long long childVertex, long long childState, long long timestamp, long long newExpiry) {
-        if (parent) {
-            auto child = new Node(parent->id, childVertex, childState, parent);
-            // FIX: If parent is root, child's start-time = edge start-time (root has dummy INT64_MAX)
-            if (parent->isRoot) {
-                child->timestamp = timestamp;
-            } else {
-                child->timestamp = std::max(timestamp, parent->timestamp);
-            }
-            child->expiration_time = newExpiry;
-            parent->children.emplace_back(child);
-            node_count++;
+        if (!parent) return false;
 
-            if (fsa.isFinalState(childState)) {
-                propagateFinalStateCount(child, +1);
-            }
-
-            if (trees.find(rootVertex) == trees.end()) {
-                cout << "ERROR: Tree with root vertex " << rootVertex << " not found" << endl;
-                exit(1);
-            }
-            vertex_tree_map[child->vertex].insert(&trees.at(rootVertex));
-            vertex_state_tree_map[pair(childVertex, childState)].insert(rootVertex);
-            tree_reference_counting[rootVertex]++;
-
-            child->insertion_cost = parent->insertion_cost+1;
-            vertex_cost_manager.insertCost(child->vertex, rootVertex, child->insertion_cost);
-            updateVertexRank(child->vertex);
-
-            return true;
+        auto child = new Node(parent->id, childVertex, childState, parent);
+        if (parent->isRoot) {
+            child->timestamp = timestamp;
+        } else {
+            child->timestamp = std::max(timestamp, parent->timestamp);
         }
-        return false;
+        child->expiration_time = newExpiry;
+        //parent->children.emplace_back(child);
+        // attach new_node as a child of parent
+        child->parent = parent;
+        child->brother = parent->child;  // new node's brother = old first child
+        parent->child = child;           // parent now points to new node
+        node_count++;
+
+        // if (fsa.isFinalState(childState)) {
+        //     propagateFinalStateCount(child, +1);
+        // }
+
+        if (trees.find(rootVertex) == trees.end()) {
+            cout << "ERROR: Tree with root vertex " << rootVertex << " not found" << endl;
+            exit(1);
+        }
+
+        trees.at(rootVertex).node_map[childState][childVertex] = child;
+
+        vertex_tree_map[child->vertex].insert(&trees.at(rootVertex));
+        vertex_state_tree_map[pair(childVertex, childState)].insert(rootVertex);
+        tree_reference_counting[rootVertex]++;
+
+        // child->insertion_cost = parent->insertion_cost + 1;
+        // vertex_cost_manager.insertCost(child->vertex, rootVertex, child->insertion_cost);
+        //updateVertexRank(child->vertex);
+
+        return true;
     }
 
     bool changeParentTimestamped(Node *child, Node *newParent, long long timestamp, long long rootVertex, long long newExpiry) {
 
         if (!newParent->isValid) return false;
 
-        child->insertion_cost = newParent->insertion_cost+1;
-        vertex_cost_manager.insertCost(child->vertex, rootVertex, child->insertion_cost);
-        updateVertexRank(child->vertex);
+        //child->insertion_cost = newParent->insertion_cost+1;
+        // vertex_cost_manager.insertCost(child->vertex, rootVertex, child->insertion_cost);
+        // updateVertexRank(child->vertex);
 
-        int finalCount = countFinalStatesInSubtree(child, rootVertex);
-
-        Node* old = child->parent;
-        while (finalCount>0 && old) {
-            old->final_state_descendants -= finalCount;
-            vertex_contribution[old->vertex] -= finalCount;
-            updateVertexRank(old->vertex);
-            old = old->parent;
-        }
+        // int finalCount = countFinalStatesInSubtree(child, rootVertex);
+        //
+        // Node* old = child->parent;
+        // while (finalCount>0 && old) {
+        //     old->final_state_descendants -= finalCount;
+        //     vertex_contribution[old->vertex] -= finalCount;
+        //     updateVertexRank(old->vertex);
+        //     old = old->parent;
+        // }
 
         // remove the child from its current parent's children list
         if (child->parent) {
-            auto &siblings = child->parent->children;
-            auto it = std::remove(siblings.begin(), siblings.end(), child);
-            if (it == siblings.end()) {
-                throw std::runtime_error("ERROR: Child not found in parent's children list");
-            }
-            siblings.erase(it, siblings.end());
+            detachFromParent(child);
+            // auto &siblings = child->parent->children;
+            // auto it = std::remove(siblings.begin(), siblings.end(), child);
+            // if (it == siblings.end()) {
+            //     throw std::runtime_error("ERROR: Child not found in parent's children list");
+            // }
+            // siblings.erase(it, siblings.end());
         } else {
             cout << "ERROR: Could not find parent in tree" << endl;
             exit(1);
@@ -358,15 +275,19 @@ public:
             child->timestamp = std::max(timestamp, newParent->timestamp);
         }
         child->expiration_time = newExpiry;
-        newParent->children.push_back(child);
 
-        Node* cur = newParent;
-        while (cur) {
-            cur->final_state_descendants += finalCount;
-            vertex_contribution[cur->vertex] += finalCount;
-            updateVertexRank(cur->vertex);
-            cur = cur->parent;
-        }
+        //newParent->children.push_back(child);
+        child->parent = newParent;
+        child->brother = newParent->child;  // new node's brother = old first child
+        newParent->child = child;
+
+        // Node* cur = newParent;
+        // while (cur) {
+        //     cur->final_state_descendants += finalCount;
+        //     vertex_contribution[cur->vertex] += finalCount;
+        //     updateVertexRank(cur->vertex);
+        //     cur = cur->parent;
+        // }
 
         return true;
     }
@@ -375,7 +296,26 @@ public:
         return trees.find(rootVertex) != trees.end();
     }
 
-    Node *findNodeInTree(long long rootVertex, long long vertex, long long state) {
+    void detachFromParent(Node* node) {
+        if (!node->parent) return;
+
+        Node* parent = node->parent;
+        if (parent->child == node) {
+            // node is the first child — just advance the head
+            parent->child = node->brother;
+        } else {
+            // scan siblings to find the predecessor
+            Node* prev = parent->child;
+            while (prev && prev->brother != node)
+                prev = prev->brother;
+            if (prev)
+                prev->brother = node->brother;
+        }
+        node->parent = nullptr;
+        node->brother = nullptr;
+    }
+
+    Node *findNodeInTreeBFS(long long rootVertex, long long vertex, long long state) {
         Node *root = trees.at(rootVertex).rootNode;
         auto [node, hops] = searchNodeWithDepth(root, vertex, state);
         if (node) {
@@ -389,59 +329,23 @@ public:
         // return searchNode(root, vertex, state);
     }
 
-    /**
-     * @param vertex id of the vertex in the Adj. List
-     * @param state state associated to the vertex node
-     * @return the set of trees to which the node @param vertex @param state belongs to
-     */
-    // std::vector<Tree> findTreesWithNode(long long vertex, long long state) {
-    //     std::vector<Tree> result;
-    //     std::vector<Tree*> treesEntryToDelete;
-    //     std::vector<long long> treesRootEntryToDelete;
-    //
-    //      if (vertex_tree_map.count(vertex)) {
-    //         for (auto &tree: vertex_tree_map.at(vertex)) {
-    //             // catch a dangling tree, decrease reference counter
-    //             if (!tree->rootNode->isValid) {
-    //                 // remove the tree from the vertex tree map
-    //                 treesEntryToDelete.push_back(tree);
-    //                 tree_reference_counting.at(tree->rootVertex)--;
-    //             } else if (searchNode(tree->rootNode, vertex, state))
-    //                 result.emplace_back(tree->rootVertex, tree->rootNode, tree->expired);
-    //         }
-    //     }
-    //     for (auto tree : treesEntryToDelete) {
-    //         vertex_tree_map.at(vertex).erase(tree);
-    //     }
-    //
-    //     if (vertex_state_tree_map.count(pair(vertex,state))) {
-    //         for (auto tree_root: vertex_state_tree_map.at(pair(vertex,state))) {
-    //             // catch a dangling tree, decrease reference counter
-    //             if (trees.count(tree_root) && !trees.at(tree_root).rootNode->isValid){
-    //                 treesRootEntryToDelete.push_back(tree_root);
-    //             }
-    //         }
-    //     }
-    //     for (auto tree : treesRootEntryToDelete) {
-    //         vertex_state_tree_map.at(pair(vertex,state)).erase(tree);
-    //     }
-    //     return result;
-    // }
+    Node *findNodeInTree(long long rootVertex, long long vertex, long long state) {
+        auto tree_it = trees.find(rootVertex);
+        if (tree_it == trees.end()) return nullptr;
 
-    // std::vector<Tree> findTreesWithNode(long long vertex, long long state) {
-    //     std::vector<Tree> result;
-    //
-    //     if (vertex_tree_map.count(vertex)) {
-    //         for (auto &tree : vertex_tree_map.at(vertex)) {
-    //             if (!tree->rootNode->isValid) continue;
-    //             if (searchNode(tree->rootNode, vertex, state))
-    //                 result.emplace_back(tree->rootVertex, tree->rootNode, tree->expired);
-    //         }
-    //     }
-    //     return result;
-    // }
+        auto& nm = tree_it->second.node_map;
+        auto s_it = nm.find(state);
+        if (s_it == nm.end()) return nullptr;
+        auto v_it = s_it->second.find(vertex);
+        if (v_it == s_it->second.end()) return nullptr;
+        // Guard: if the node was invalidated (pending delete), treat as absent
+        Node* node = v_it->second;
+        if (!node->isValid) return nullptr;
 
-    std::vector<Tree> findTreesWithNode(long long vertex, long long state) {
+        return node;
+    }
+
+    std::vector<Tree> findTreesWithNodeInstance(long long vertex, long long state) {
         std::vector<Tree> result;
         auto key = std::pair<long long, long long>(vertex, state);
         if (vertex_state_tree_map.count(key)) {
@@ -453,6 +357,99 @@ public:
             }
         }
         return result;
+    }
+
+    std::vector<long long> findTreeRootsWithNode(long long vertex, long long state) {
+        std::vector<long long> result;
+        auto key = std::make_pair(vertex, state);
+        if (vertex_state_tree_map.count(key))
+            for (auto rv : vertex_state_tree_map.at(key))
+                if (trees.count(rv) && trees.at(rv).rootNode->isValid)
+                    result.push_back(rv);
+        return result;
+    }
+
+    void expire_per_tree(long long v, long long state, long long rootVertex, long long eviction_time) {
+        auto tree_it = trees.find(rootVertex);
+        if (tree_it == trees.end()) return;
+        Tree& tree = tree_it->second;
+
+        // O(1) lookup via node_map — no tree traversal
+        auto s_it = tree.node_map.find(state);
+        if (s_it == tree.node_map.end()) return;
+
+        auto v_it = s_it->second.find(v);
+        if (v_it == s_it->second.end()) return;
+
+        Node* node = v_it->second;
+        if (!node->isValid) return;
+
+        // Check expiry: the node's interval has closed before the eviction threshold
+        if (node->expiration_time < eviction_time) {
+            // deleteSubTree disconnects from parent, cleans all indexes, marks invalid
+            deleteSubTree(node, rootVertex);
+        }
+    }
+
+    void expire_forest(long long eviction_time, const std::vector<streaming_graph::expired_edge_info>& deleted_edges) {
+        // visited set: avoid processing the same (vertex, state) product-node twice
+        // across multiple expired edges in the same expiry round
+        std::unordered_set<long long> visited; // encodes (vertex << 16 | state)
+        auto encode = [](long long v, long long s) { return (v << 16) | s; };
+
+        for (const auto &e: deleted_edges) {
+            // Only the destination of an expired edge can head an expired subtree.
+            // The source vertex is a parent in the tree — its subtree is checked
+            // when its OWN incoming edges expire.
+            long long dst = e.dst;
+
+            // Use the edge label to get only the (src_state, dst_state) pairs
+            // that are actually reachable via this label — no need to scan all states
+            auto state_pairs = fsa.getStatePairsWithTransition(e.label);
+
+            for (const auto &[sb, sd]: state_pairs) {
+                if (visited.count(encode(dst, sd))) continue;
+                visited.insert(encode(dst, sd));
+
+                // Find all trees that contain the product-graph node (dst, sd)
+                auto key = std::make_pair(dst, sd);
+                if (!vertex_state_tree_map.count(key)) continue;
+
+                // Copy root IDs: expire_per_tree may modify vertex_state_tree_map
+                // during deleteSubTree, invalidating the iterator
+                std::vector<long long> roots(
+                    vertex_state_tree_map.at(key).begin(),
+                    vertex_state_tree_map.at(key).end()
+                );
+
+                for (long long rootVertex: roots) {
+                    if (!trees.count(rootVertex)) continue;
+
+                    expire_per_tree(dst, sd, rootVertex, eviction_time);
+
+                    // If the root has no children left, the tree is empty:
+                    // all paths from this source have expired, delete the tree
+                    auto tree_it = trees.find(rootVertex);
+                    if (tree_it == trees.end()) continue; // already gone
+                    Node *root = tree_it->second.rootNode;
+                    //if (root->children.empty()) {
+                     if (root->child == nullptr) {
+                        // Clean up all remaining index entries for the root node itself
+                        vertex_state_tree_map[{rootVertex, root->state}].erase(rootVertex);
+                        vertex_tree_map[rootVertex].erase(&tree_it->second);
+                        tree_reference_counting.erase(rootVertex);
+                        // node_map is stored inside Tree, freed with it
+                        root->isValid = false;
+                        node_count--;
+                        trees_count--;
+                        delete root;
+                        trees.erase(tree_it);
+                    }
+                }
+            }
+        }
+
+        flushPendingDeletes();
     }
 
     void expire_timestamped(long long eviction_time, const std::vector<pair<long long, long long> > &candidate_edges) {
@@ -526,82 +523,23 @@ public:
         pending_deletes.clear();
     }
 
-    void printTree(Node *node, const std::string& prefix = "", bool isLast = true) const {
-        if (!node) return;
-
-        std::cout << prefix;
-        std::cout << (isLast ? "└── " : "├── ");
-        std::cout << "v:" << node->vertex << ", s:" << node->state << ", ts: " << (node->isRoot ? node->timestamp : 0);
-        if (node->isRoot) std::cout << " ROOT";
-        if (!node->isValid) std::cout << " INVALID";
-        std::cout << ")\n";
-
-        std::string childPrefix = prefix + (isLast ? "    " : "│   ");
-
-        for (size_t i = 0; i < node->children.size(); ++i) {
-            bool lastChild = (i == node->children.size() - 1);
-            printTree(node->children[i], childPrefix, lastChild);
-        }
-    }
-
-    void printForest() const {
-        if (trees.empty()) {
-            std::cout << "╔════════════════╗\n";
-            std::cout << "║ Empty Forest   ║\n";
-            std::cout << "╚════════════════╝\n";
-            return;
-        }
-
-        std::cout << "╔════════════════════════════════════════╗\n";
-        std::cout << "║ Forest Statistics                      ║\n";
-        std::cout << "╠════════════════════════════════════════╣\n";
-        std::cout << "║ Trees: " << trees_count << std::string(32 - std::to_string(trees_count).length(), ' ') << "║\n";
-        std::cout << "║ Nodes: " << node_count << std::string(32 - std::to_string(node_count).length(), ' ') << "║\n";
-        std::cout << "╚════════════════════════════════════════╝\n\n";
-
-        size_t treeIndex = 0;
-        for (const auto &pair: trees) {
-            std::cout << "Tree #" << ++treeIndex << " [Root Vertex: " << pair.first << "]";
-            if (pair.second.expired) std::cout << " (EXPIRED)";
-            std::cout << "\n";
-            printTree(pair.second.rootNode);
-            std::cout << "\n";
-        }
-    }
-
-
-    [[nodiscard]] size_t getUsedMemory() const {
-        size_t total = 0;
-
-        // Memoria delle trees (inclusi nodi interni)
-        total += MemoryEstimator::estimate_trees(trees);
-        //
-        // // Memory used by vertex_tree_map
-        // total += MemoryEstimator::estimate_vertex_tree_map(vertex_tree_map);
-        //
-        // // Memory used by vertex_state_tree_map
-        // total += MemoryEstimator::estimate_vertex_state_tree_map(vertex_state_tree_map);
-        //
-        // // Memory used by tree_reference_counting
-        // total += MemoryEstimator::estimate_unordered_map_ll_tree(tree_reference_counting);
-
-        return total;
-    }
 
 private:
 
-    Node *searchNode(Node *node, long long vertex, long long state) {
-        if (!node) return nullptr;
-        if (!node->isValid) return nullptr;
-        if (node->vertex == vertex && node->state == state) return node;
-        for (Node *child: node->children) {
-            Node *found = searchNode(child, vertex, state);
-            if (found) return found;
-        }
-        return nullptr;
-    }
+    // Node *searchNode(Node *node, long long vertex, long long state) {
+    //     if (!node) return nullptr;
+    //     if (!node->isValid) return nullptr;
+    //     if (node->vertex == vertex && node->state == state) return node;
+    //     for (Node *child: node->children) {
+    //         Node *found = searchNode(child, vertex, state);
+    //         if (found) return found;
+    //     }
+    //     return nullptr;
+    // }
 
     std::pair<Node *, int> searchNodeWithDepth(Node *root, long long vertex, long long state) {
+        // NOT WORKING
+
         if (!root) return {nullptr, -1};
 
         std::stack<std::pair<Node *, int> > stack; // (node, depth)
@@ -618,30 +556,31 @@ private:
                 return {current, depth};
             }
 
-            for (Node *child: current->children) {
-                stack.emplace(child, depth + 1);
-            }
+            // for (Node *child: current->children) {
+            //     stack.emplace(child, depth + 1);
+            // }
         }
 
         return {nullptr, -1};
     }
 
-    Node *searchNodeNoState(Node *node, long long vertex) {
-        if (!node) return nullptr;
-        if (!node->isValid) return nullptr;
-        if (node->vertex == vertex) return node;
-        for (Node *child: node->children) {
-            if (Node *found = searchNodeNoState(child, vertex)) return found;
-        }
-        return nullptr;
-    }
+    // Node *searchNodeNoState(Node *node, long long vertex) {
+    //     if (!node) return nullptr;
+    //     if (!node->isValid) return nullptr;
+    //     if (node->vertex == vertex) return node;
+    //     for (Node *child: node->children) {
+    //         if (Node *found = searchNodeNoState(child, vertex)) return found;
+    //     }
+    //     return nullptr;
+    // }
 
     std::vector<Node *> searchAllNodesNoState(Node *node, long long vertex) {
         std::vector<Node *> foundNodes;
         if (!node) return foundNodes;
         if (!node->isValid) return foundNodes;
         if (node->vertex == vertex) foundNodes.push_back(node);
-        for (Node *child: node->children) {
+        //for (Node *child: node->children) {
+        for (Node* child = node->child; child != nullptr; child = child->brother) {
             auto childFound = searchAllNodesNoState(child, vertex);
             foundNodes.insert(foundNodes.end(), childFound.begin(), childFound.end());
         }
@@ -665,7 +604,8 @@ private:
                 return;
             }
 
-            for (Node* child : current->children) {
+            //for (Node* child : current->children) {
+            for (Node* child = current->child; child != nullptr; child = child->brother) {
                 stack.push(child);
             }
         }
@@ -676,8 +616,9 @@ private:
 
         // remove the node from the parent's children list
         if (node->parent) {
-            auto &siblings = node->parent->children;
-            siblings.erase(std::remove(siblings.begin(), siblings.end(), node), siblings.end());
+            // auto &siblings = node->parent->children;
+            // siblings.erase(std::remove(siblings.begin(), siblings.end(), node), siblings.end());
+            detachFromParent(node);
 
             auto& treeSet = vertex_tree_map[node->vertex];
             for (auto it = treeSet.begin(); it != treeSet.end(); ++it) {
@@ -695,16 +636,66 @@ private:
                 }
             }
         }
-        deleteSubTreeRecursive(node, rootVertex);
+        deleteSubTreeBFS(node, rootVertex);
+    }
+
+    void deleteSubTreeBFS(Node* node, long long rootVertex) {
+        std::queue<Node*> q;
+        q.push(node);
+
+        while (!q.empty()) {
+            Node* cur = q.front();
+            q.pop();
+
+            // enqueue all children before we touch this node
+            for (Node* c = cur->child; c != nullptr; c = c->brother)
+                q.push(c);
+
+            auto& treeSet = vertex_tree_map[cur->vertex];
+            for (auto it = treeSet.begin(); it != treeSet.end(); ++it) {
+                if ((*it)->rootVertex == rootVertex) {
+                    tree_reference_counting.at(rootVertex)--;
+                    treeSet.erase(it);
+                    break;
+                }
+            }
+            auto &treeRootsSet = vertex_state_tree_map[pair(cur->vertex, cur->state)];
+            for (auto it = treeRootsSet.begin(); it != treeRootsSet.end(); ++it) {
+                if (*it == rootVertex) {
+                    treeRootsSet.erase(it);
+                    break;
+                }
+            }
+            if (trees.count(rootVertex)) {
+                auto& nm = trees.at(rootVertex).node_map;
+                auto s_it = nm.find(cur->state);
+                if (s_it != nm.end()) {
+                    s_it->second.erase(cur->vertex);
+                    if (s_it->second.empty())
+                        nm.erase(s_it);
+                }
+            }
+
+            // if (fsa.isFinalState(cur->state)) {
+            //     propagateFinalStateCount(cur, -1);
+            // }
+            // vertex_cost_manager.removeCost(cur->vertex, rootVertex);
+
+            cur->isValid = false;
+            if (!cur->isRoot) {
+                node_count--;
+                pending_deletes.push_back(cur);
+            }
+        }
     }
 
     void deleteSubTreeRecursive(Node *node, long long rootVertex) {
         if (!node) return;
 
-        std::vector<Node*> childrenCopy = node->children;
-        node->children.clear();
+        // std::vector<Node*> childrenCopy = node->children;
+        // node->children.clear();
 
-        for (Node *child: childrenCopy) {
+        for (Node* child = node->child; child != nullptr; child = child->brother) {
             deleteSubTreeRecursive(child, rootVertex);
         }
         auto& treeSet = vertex_tree_map[node->vertex];
@@ -715,7 +706,6 @@ private:
                 break;
             }
         }
-        //auto treeRootsSet = vertex_state_tree_map[pair(node->vertex, node->state)];
         auto &treeRootsSet = vertex_state_tree_map[pair(node->vertex, node->state)];
         for (auto it = treeRootsSet.begin(); it != treeRootsSet.end(); ++it) {
             if (*it == rootVertex) {
@@ -723,11 +713,20 @@ private:
                 break;
             }
         }
-
-        if (fsa.isFinalState(node->state)) {
-            propagateFinalStateCount(node, -1);
+        if (trees.count(rootVertex)) {
+            auto& nm = trees.at(rootVertex).node_map;
+            auto s_it = nm.find(node->state);
+            if (s_it != nm.end()) {
+                s_it->second.erase(node->vertex);
+                if (s_it->second.empty())
+                    nm.erase(s_it);
+            }
         }
-        vertex_cost_manager.removeCost(node->vertex, rootVertex);
+
+        // if (fsa.isFinalState(node->state)) {
+        //     propagateFinalStateCount(node, -1);
+        // }
+        // vertex_cost_manager.removeCost(node->vertex, rootVertex);
 
         node->isValid = false;
         if (!node->isRoot) {
