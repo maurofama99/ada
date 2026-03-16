@@ -19,7 +19,7 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
     
     /* EVICT */
     if (update_window(ctx, new_sgt, time, s)) {
-        std::vector<std::pair<long long, long long> > candidate_for_deletion = evict(ctx, time);
+        evict(ctx, time);
 
         //ctx.f->expire_timestamped((ctx.windows)[ctx.to_evict.back() + 1].t_open, candidate_for_deletion);
 

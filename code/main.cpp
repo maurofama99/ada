@@ -160,6 +160,7 @@ int main(int argc, char *argv[]) {
     const fs::path windows_path = output_folder / (base + "_window_results.csv");
     const fs::path tuples_path  = output_folder / (base + "_tuples_results.csv");
     const fs::path memory_path  = output_folder / (base + "_memory_results.csv");
+    const fs::path slides_path  = output_folder / (base + "_slides_results.csv");
 
     std::ofstream csv_summary(summary_path.string());
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
@@ -173,18 +174,22 @@ int main(int argc, char *argv[]) {
     std::ofstream csv_memory(memory_path.string());
     csv_memory << "alef,avg_deg,lef,max_deg,nm\n";
 
+    std::ofstream csv_slides(slides_path.string());
+    csv_slides << "t_open,t_close,latency_sec,elements,new_results,cost_norm\n";
+
     ctx.csv_tuples = &csv_tuples;
     ctx.csv_memory = &csv_memory;
     long long checkpoint = 500000;
 
     int elements_processed = 0;
     double cumulative_processing_time = 0;
+
     clock_t start = clock();
     ctx.beta_latency_start = clock();
 
     long long t0 = 0;
     long long time;
-    ctx.windows.emplace_back(0, config.size, nullptr, nullptr);
+    ctx.windows.emplace_back(0, config.size, nullptr, nullptr, 0);
     long long s, d, l, t;
     while (fin >> s >> d >> l >> t) {
         if (t0 == 0) t0 = t;
@@ -217,12 +222,14 @@ int main(int argc, char *argv[]) {
             cout << "matched paths: " << ctx.sink->matched_paths << "\n\n";
         }
     }
-
-    cout << "Created windows: " << ctx.windows.size() << endl;
-
+    if (!ctx.slides.empty()) {
+        ctx.slides.back().wall_close = clock();
+        ctx.slides.back().results_at_close = ctx.sink->matched_paths;
+    }
     clock_t finish = clock();
     long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
 
+    cout << "Created windows: " << ctx.windows.size() << endl;
     cout << "Total execution time: " << time_used << " seconds" << endl;
 
     double avg_window_size = static_cast<double>(ctx.total_elements_count) / ctx.windows.size();
@@ -242,11 +249,21 @@ int main(int argc, char *argv[]) {
                 << ctx.windows[i].t_open << ","
                 << ctx.windows[i].t_close << ","
                 << ctx.windows[i].cost << ","
-                << ctx.windows[i].emitted_results << ","
+                << (ctx.windows[i].results_at_close - ctx.windows[i].results_at_open) << ","
                 << ctx.windows[i].total_matched_results << ","
                 << ctx.windows[i].latency << ","
                 << ctx.windows[i].elements_count << ","
                 << ctx.windows[i].t_close - ctx.windows[i].t_open << "\n";
+    }
+
+    for (auto&[t_open, t_close, wall_open, wall_close, elements_count, results_at_open, results_at_close, cost_norm] : ctx.slides) {
+        double latency = static_cast<double>(wall_close - wall_open) / CLOCKS_PER_SEC;
+        csv_slides << t_open << ","
+                   << t_close << ","
+                   << latency << ","
+                   << elements_count << ","
+                   << (results_at_close - results_at_open) << ","
+                   << cost_norm << "\n";
     }
 
     ctx.sink->exportResultSet(base + "_result_set.csv");

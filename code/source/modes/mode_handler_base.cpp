@@ -73,11 +73,33 @@ long long ModeHandlerBase::compute_window_boundaries(ModeContext &ctx, long long
     
     long long window_close;
     double o_i = std::floor(static_cast<double>(time) / ctx.slide) * ctx.slide;
+    if (o_i > ctx.last_oi) {
+        ctx.last_oi = o_i;
+        clock_t now = clock();
 
-    if (o_i > (ctx.windows)[ctx.windows.size()-1].t_open) {
+        // Close the previous slide
+        if (!ctx.slides.empty()) {
+            ctx.slides.back().wall_close = now;
+            ctx.slides.back().results_at_close = ctx.sink->matched_paths;
+            // cost_norm will be filled after compute_load_estimation runs
+        }
+
+        // Open the new slide
+        Slide s;
+        s.t_open     = static_cast<long long>(o_i);
+        s.t_close    = static_cast<long long>(o_i + ctx.slide);
+        s.wall_open  = now;
+        s.results_at_open = ctx.sink->matched_paths;
+        ctx.slides.push_back(s);
+        ctx.current_slide_open = s.t_open;
+
+        if (!ctx.slides.empty()) {
+            ctx.slides.back().cost_norm = ctx.cost_norm;
+        }
+
         ctx.beta_latency_end = (clock() - ctx.beta_latency_start) / CLOCKS_PER_SEC;
         ctx.beta_latency_start = clock();
-        ctx.beta_id++;
+        ctx.beta_elements_cont = 0;
     }
 
     bool new_window = true;
@@ -114,7 +136,7 @@ long long ModeHandlerBase::compute_window_boundaries(ModeContext &ctx, long long
                     // paths emitted on this window close
                     (ctx.windows)[ctx.windows.size() - 1].window_matches = (ctx.windows)[ctx.windows.size() - 1].emitted_results;
                 }
-                ctx.windows.emplace_back(window_open, window_close, nullptr, nullptr);
+                ctx.windows.emplace_back(window_open, window_close, nullptr, nullptr, ctx.sink->matched_paths);
             }
         }
 
@@ -147,12 +169,17 @@ bool ModeHandlerBase::update_window(ModeContext &ctx, sg_edge* new_sgt, long lon
         }
     }
 
+    if (!ctx.slides.empty() && time >= ctx.slides.back().t_open && time < ctx.slides.back().t_close) {
+        ctx.slides.back().elements_count++;
+    }
+
     ctx.cumulative_size += ctx.size;
     (ctx.size_count)++;
     ctx.avg_size = ctx.cumulative_size / ctx.size_count;
 
     ctx.cumulative_degree += ctx.sg->out_degree[new_sgt->s];
     (ctx.window_cardinality)++;
+    ctx.beta_elements_cont++;
     ctx.avg_deg = ctx.cumulative_degree / ctx.window_cardinality;
     
     return evict;
@@ -164,6 +191,7 @@ std::vector<std::pair<long long, long long> > ModeHandlerBase::evict (ModeContex
 
     std::vector<streaming_graph::expired_edge_info> deleted_edges;
     ctx.sg->expire(eviction_time, deleted_edges);
+    ctx.window_cardinality -= deleted_edges.size();
     ctx.f->expire_forest(eviction_time, deleted_edges);
 
     std::vector<std::pair<long long, long long> > candidate_for_deletion;
@@ -198,11 +226,12 @@ std::vector<std::pair<long long, long long> > ModeHandlerBase::evict (ModeContex
 void ModeHandlerBase::mark_windows_evicted(ModeContext &ctx) {
     for (unsigned long i: ctx.to_evict) {
         (ctx.windows)[i].evicted = true;
-        (ctx.windows)[i].latency = static_cast<double>(clock() - (ctx.windows)[i].start_time) / CLOCKS_PER_SEC;
+        ctx.windows[i].latency = static_cast<double>(clock() - (ctx.windows)[i].start_time) / CLOCKS_PER_SEC;
         if ((ctx.windows)[i].latency > ctx.lat_max) ctx.lat_max = (ctx.windows)[i].latency;
         if ((ctx.windows)[i].latency < ctx.lat_min) ctx.lat_min = (ctx.windows)[i].latency;
         (ctx.windows)[i].normalized_latency = ((ctx.windows)[i].latency - ctx.lat_min) / (ctx.lat_max - ctx.lat_min);
         ctx.cumulative_window_latency += (ctx.windows)[i].latency;
+        ctx.windows[i].results_at_close = ctx.sink->matched_paths;
     }
 
     (ctx.warmup)++;

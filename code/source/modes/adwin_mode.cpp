@@ -51,7 +51,7 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
         (ctx.windows)[ctx.resizings].total_matched_results = ctx.sink->matched_paths;
         (ctx.windows)[ctx.resizings].emitted_results = ctx.sink->getResultSetSize();
         (ctx.resizings)++;
-        ctx.windows.emplace_back(time, time, nullptr, nullptr);
+        ctx.windows.emplace_back(time, time, nullptr, nullptr, ctx.sink->matched_paths);
         timed_edge *current = ctx.sg->time_list_head;
         std::vector<std::pair<long long, long long> > candidate_for_deletion;
 

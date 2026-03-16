@@ -49,11 +49,11 @@ public:
             for (auto rootVertex : forest.findTreeRootsWithNode(edge->s, sb_sd.first)) {
                 auto& tree = forest.trees.at(rootVertex);
                 if (tree.expired) continue;
-                std::deque<tree_expansion*> Q;
-                Q.push_back(new tree_expansion(edge->s, sb_sd.first, edge->d, sb_sd.second, edge->timestamp, edge->timestamp, edge->timestamp, edge->expiration_time));
+                std::priority_queue<tree_expansion*, std::vector<tree_expansion*>, time_comparator> Q;
+                Q.push(new tree_expansion(edge->s, sb_sd.first, edge->d, sb_sd.second, edge->timestamp, edge->timestamp, edge->timestamp, edge->expiration_time));
                 while (!Q.empty()) {
-                    auto element = Q.front();
-                    Q.pop_front();
+                    auto element = Q.top();
+                    Q.pop();
                     auto vj_sj_node = forest.findNodeInTree(tree.rootVertex, element->vd, element->sd);
                     auto vb_sb_node = forest.findNodeInTree(tree.rootVertex, element->vb, element->sb);
 
@@ -99,10 +99,10 @@ public:
                         }
 
                         // Only enqueue successors whose expiry exceeds the OLD expiry
-                        for (auto successors : sg.get_all_suc(element->vd)) {
-                            if (auto sq = fsa.getNextState(element->sd, successors.label); sq != -1) {
-                                if (successors.expiration_time > old_expiry) {
-                                    Q.push_back(new tree_expansion(element->vd, element->sd, successors.d, sq, successors.timestamp, element->d_timestamp, successors.timestamp, successors.expiration_time));
+                        for (auto successors : sg.get_all_suc_ptrs(element->vd)) {
+                            if (auto sq = fsa.getNextState(element->sd, successors->label); sq != -1) {
+                                if (successors->expiration_time > old_expiry) {
+                                    Q.push(new tree_expansion(element->vd, element->sd, successors->d, sq, successors->timestamp, element->d_timestamp, successors->timestamp, successors->expiration_time));
                                 }
                             }
                         }
@@ -123,11 +123,11 @@ public:
                     // Enqueue all valid successors
                     Node* current_node = forest.findNodeInTree(tree.rootVertex, element->vd, element->sd);
                     if (current_node) {
-                        for (auto successors : sg.get_all_suc(element->vd)) {
-                            if (auto sq = fsa.getNextState(element->sd, successors.label); sq != -1) {
-                                if (successors.expiration_time > current_node->timestamp
-                                    && successors.timestamp < current_node->expiration_time) {
-                                    Q.push_back(new tree_expansion(element->vd, element->sd, successors.d, sq, successors.timestamp, element->d_timestamp, successors.timestamp, successors.expiration_time));
+                        for (auto successors : sg.get_all_suc_ptrs(element->vd)) {
+                            if (auto sq = fsa.getNextState(element->sd, successors->label); sq != -1) {
+                                if (successors->expiration_time > current_node->timestamp
+                                    && successors->timestamp < current_node->expiration_time) {
+                                    Q.push(new tree_expansion(element->vd, element->sd, successors->d, sq, successors->timestamp, element->d_timestamp, successors->timestamp, successors->expiration_time));
                                 }
                             }
                         }
@@ -135,8 +135,8 @@ public:
                     delete element;
                 }
                 while (!Q.empty()) {
-                    delete Q.front();
-                    Q.pop_front();
+                    delete Q.top();
+                    Q.pop();
                 }
             }
         }

@@ -11,7 +11,6 @@
 #include "../rpq_forest.h"
 #include "../sink.h"
 #include "../fsa.h"
-#include "../ranking/buckets.h"
 
 typedef struct Config {
     std::string input_data_path;
@@ -74,7 +73,7 @@ inline config readConfig(const std::string &filename) {
     return config;
 }
 
-// Window class definition (originally from main.cpp)
+// Window class definition
 class window {
 public:
     long long t_open;
@@ -92,18 +91,32 @@ public:
 
     long long elements_count = 0;
     int window_matches = 0;
+    int results_at_open = 0;   // matched_paths when window opened
+    int results_at_close = 0;  // matched_paths when window was evicted
 
     int total_matched_results = 0;
     int emitted_results = 0;
 
     // Constructor
-    window(long long t_open, long long t_close, timed_edge *first, timed_edge *last) {
+    window(long long t_open, long long t_close, timed_edge *first, timed_edge *last, int results_at_open) {
         this->t_open = t_open;
         this->t_close = t_close;
         this->first = first;
         this->last = last;
         this->start_time = clock();
+        this->results_at_open = results_at_open;
     }
+};
+
+struct Slide {
+    long long t_open;           // k * slide_size
+    long long t_close;          // (k+1) * slide_size
+    clock_t   wall_open;        // wall clock when this slide was created
+    clock_t   wall_close;       // wall clock when the next slide was created
+    long long elements_count = 0; // edges that arrived in [t_open, t_close)
+    int       results_at_open = 0;  // snapshot of matched_paths at slide open
+    int       results_at_close = 0; // snapshot of matched_paths at slide close
+    double    cost_norm = 0.0;  // cost_norm computed at slide boundary
 };
 
 // Context structure to hold shared state for mode handlers
@@ -168,6 +181,11 @@ struct ModeContext {
     double beta_latency_start = 0;
     double beta_latency_end = 0;
     int beta_id = 0;
+    int beta_elements_cont = 0;
+    double last_oi = 0.0;
+
+    std::vector<Slide> slides;
+    long long current_slide_open = -1; // t_open of the active slide
 
 };
 

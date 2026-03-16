@@ -426,6 +426,16 @@ public:
         return sucs;
     }
 
+    // return a vector of pointers instead of copies
+    std::vector<sg_edge*> get_all_suc_ptrs(long long s) {
+        std::vector<sg_edge*> sucs;
+        auto it = adjacency_list.find(s);
+        if (it == adjacency_list.end()) return sucs;
+        for (auto& [to, edge] : it->second)
+            sucs.emplace_back(edge);
+        return sucs;
+    }
+
     void shift_timed_edge(timed_edge *to_insert, timed_edge *target) {
         if (!to_insert || !target) return;
 
