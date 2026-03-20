@@ -22,6 +22,7 @@ typedef struct Config {
     int max_size{};
     int min_size{};
     double l_max{};
+    double average_degree{};
 } config;
 
 inline config readConfig(const std::string &filename) {
@@ -162,8 +163,6 @@ struct ModeContext {
     std::deque<double> cost_window;
 
     int warmup = 0;
-    double cumulative_degree = 0.0;
-    double avg_deg = 0.0;
     int resizings = 0;
     int window_cardinality = 0;
     
@@ -171,8 +170,10 @@ struct ModeContext {
     double p_shed = 0.0;
     double granularity;
     double max_shed;
+
     double average_processing_time = 0.0;
     double latency_max;
+    double average_degree;
 
     // Other
     int total_elements_count = 0;
@@ -186,6 +187,10 @@ struct ModeContext {
 
     std::vector<Slide> slides;
     long long current_slide_open = -1; // t_open of the active slide
+
+    vector<double> cumulative_processing_time_type;
+    vector<double> processed_elements_type;
+    vector<double> input_rate_type;
 
 };
 

@@ -26,7 +26,7 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         // mark window as evicted
         mark_windows_evicted(ctx);
 
-        if (ctx.mode >= 11 && ctx.mode <= 15 && ctx.warmup > 10) {
+        if (ctx.mode >= 11 && ctx.mode <= 15) {
             double cost_diff = compute_load_estimation(ctx, ctx.mode);
 
             if (cost_diff >= 0.01 || ctx.cost_norm >= 0.95) {

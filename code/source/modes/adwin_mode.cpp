@@ -27,8 +27,7 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
     if (ctx.sg->out_degree[new_sgt->s] > ctx.max_deg) ctx.max_deg = ctx.sg->out_degree[new_sgt->s];
 
     // compute average out degree centrality incrementally
-    ctx.cumulative_degree += ctx.sg->out_degree[new_sgt->s];
-    ctx.avg_deg = ctx.cumulative_degree / ctx.window_cardinality;
+    double avg_deg = ctx.sg->edge_num/ctx.sg->vertex_num;
 
     // compute cost function
     double n = (ctx.sg->EINIT_count + 1) * (2 * ctx.sg->edge_num - ctx.sg->EINIT_count) / 2.0;
@@ -59,8 +58,6 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
             auto cur_edge = current->edge_pt;
             auto next = current->next;
 
-            ctx.cumulative_degree -= ctx.sg->out_degree[cur_edge->s];
-
             candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d);
 
             ctx.sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label, time);
@@ -84,7 +81,7 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
         }
 
         // ctx.sink->refresh_resultSet(ctx.sg->time_list_head->edge_pt->timestamp);
-        ctx.f->expire_timestamped(ctx.sg->time_list_head->edge_pt->timestamp, candidate_for_deletion);
+        //ctx.f->expire_timestamped(ctx.sg->time_list_head->edge_pt->timestamp, candidate_for_deletion);
         candidate_for_deletion.clear();
     }
     (ctx.windows)[ctx.resizings].t_close = time;

@@ -62,6 +62,7 @@ int main(int argc, char *argv[]) {
     ctx.min_size = config.min_size;
     ctx.mode = config.adaptive;
     ctx.latency_max = config.l_max;
+    ctx.average_degree = config.average_degree;
     if (config.size >0 && config.slide >0) ctx.overlap = config.size / config.slide;
     ctx.granularity = static_cast<double>(ctx.min_size) / 100.0;
     ctx.max_shed = static_cast<double>(ctx.max_size) / 100.0;
@@ -73,11 +74,12 @@ int main(int argc, char *argv[]) {
     auto query = new QueryHandler(*ctx.aut, *ctx.f, *ctx.sg, *ctx.sink);
 
     // Create mode handler using factory
-    std::mt19937 gen(std::random_device{}());
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
     double delta = 1.0 / static_cast<double>(config.min_size);
-    Adwin adwin(5, 1, delta);
-    auto mode_handler = ModeFactory::create_mode_handler(config.adaptive, &adwin, &gen, &dist);
+    long long labels_size = *std::max_element(config.labels.begin(), config.labels.end());
+    auto mode_handler = ModeFactory::create_mode_handler(config.adaptive, delta, labels_size);
+    ctx.cumulative_processing_time_type.reserve(labels_size);
+    ctx.processed_elements_type.reserve(labels_size);
+    ctx.input_rate_type.reserve(labels_size);
 
     std::string mode;
     switch (config.adaptive) {
@@ -119,18 +121,17 @@ int main(int argc, char *argv[]) {
             cout << "ADWIN configuration: " << endl;
             cout << "  - delta: " << delta << endl;
             break;
-        case 3: mode = "lshedprob";
+        case 3: mode = "lshed_prob";
             cout << "Load shedding mode activated." << endl;
             cout << "Window size: " << config.size << endl;
             cout << "Window slide: " << config.slide << endl;
             break;
-        case 4: mode = "lshedlatency";
+        case 4: mode = "lshed_random";
             cout << "Load shedding mode activated." << endl;
             cout << "Window size: " << config.size << endl;
             cout << "Window slide: " << config.slide << endl;
-            cout << "Max latency: " << config.l_max << endl;
             break;
-        case 5: mode = "lshedrank";
+        case 5: mode = "lshed_darling";
             cout << "Load shedding mode activated." << endl;
             cout << "Window size: " << config.size << endl;
             cout << "Window slide: " << config.slide << endl;
@@ -179,7 +180,7 @@ int main(int argc, char *argv[]) {
 
     ctx.csv_tuples = &csv_tuples;
     ctx.csv_memory = &csv_memory;
-    long long checkpoint = 500000;
+    long long checkpoint = 100000;
 
     int elements_processed = 0;
     double cumulative_processing_time = 0;
@@ -202,23 +203,29 @@ int main(int argc, char *argv[]) {
             continue;
 
         sg_edge *new_sgt = nullptr;
-
-        // Process edge using the appropriate mode handler
-        mode_handler->process_edge(s, d, l, time, ctx, &new_sgt);
-
-        elements_processed++;
+        bool is_shed = false;
         clock_t processing_time_start = clock();
-        /* QUERY */
+
+        is_shed = mode_handler->process_edge(s, d, l, time, ctx, &new_sgt);
         if (new_sgt) {  // Only process query if an edge was created (not shed in load shedding mode)
             query->pattern_matching_tc(new_sgt);
         }
+
+        elements_processed++;
         double processing_time_used = static_cast<double>(clock() - processing_time_start) / CLOCKS_PER_SEC;
-        cumulative_processing_time += processing_time_used;
-        ctx.average_processing_time = cumulative_processing_time / elements_processed;
+        if (!is_shed) { // compute the average time used do process an event in a steady state of the stream
+            cumulative_processing_time += processing_time_used;
+            ctx.average_processing_time = cumulative_processing_time / static_cast<double>(elements_processed);
+        }
+        // compute metrics per type
+        ctx.cumulative_processing_time_type[l] += processing_time_used;
+        ctx.processed_elements_type[l]++;
+        ctx.input_rate_type[l] = ctx.processed_elements_type[l] / static_cast<double>(clock() - start);
 
         if (elements_processed % checkpoint == 0) {
             printf("processed edges: %d\n", elements_processed);
-            printf("avg degree: %f\n", ctx.avg_deg);
+            printf("avg degree: %f\n", ctx.sg->edge_num/ctx.sg->vertex_num);
+            cout << "average processing time: " << ctx.average_processing_time << " seconds\n";
             cout << "matched paths: " << ctx.sink->matched_paths << "\n\n";
         }
     }

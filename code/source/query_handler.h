@@ -40,7 +40,8 @@ public:
         : fsa(fsa), forest(forest), sg(sg), sink(sink) {
     }
 
-    void pattern_matching_tc(const sg_edge *edge) {
+    bool pattern_matching_tc(const sg_edge *edge) {
+        bool is_match = false;
         auto statePairs = fsa.getStatePairsWithTransition(edge->label);
         for (const auto &sb_sd: statePairs) {
             if (sb_sd.first == 0 && !forest.hasTree(edge->s)) {
@@ -96,6 +97,7 @@ public:
                         // Emit result if final state
                         if (fsa.isFinalState(element->sd)) {
                             sink.addEntry(tree.rootVertex, element->vd, candidate_expiry);
+                            is_match = true;
                         }
 
                         // Only enqueue successors whose expiry exceeds the OLD expiry
@@ -118,11 +120,11 @@ public:
                     // This code only runs for Case 1 (new node added)
                     if (fsa.isFinalState(element->sd)) {
                         sink.addEntry(tree.rootVertex, element->vd, candidate_expiry);
+                        is_match = true;
                     }
 
                     // Enqueue all valid successors
-                    Node* current_node = forest.findNodeInTree(tree.rootVertex, element->vd, element->sd);
-                    if (current_node) {
+                    if (Node* current_node = forest.findNodeInTree(tree.rootVertex, element->vd, element->sd)) {
                         for (auto successors : sg.get_all_suc_ptrs(element->vd)) {
                             if (auto sq = fsa.getNextState(element->sd, successors->label); sq != -1) {
                                 if (successors->expiration_time > current_node->timestamp
@@ -140,6 +142,7 @@ public:
                 }
             }
         }
+        return is_match;
     }
 };
 

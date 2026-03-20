@@ -3,7 +3,7 @@
 //
 
 #include "mode_handler_base.h"
-#include "source/streaming_graph.h"
+#include "../streaming_graph.h"
 #include <iostream>
 #include <numeric>
 
@@ -13,7 +13,7 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
         if ((ctx.windows)[i].max_degree > ctx.max_deg) ctx.max_deg = (ctx.windows)[i].max_degree;
     }
 
-    ctx.avg_deg = ctx.cumulative_degree / ctx.window_cardinality;
+    double avg_deg = ctx.sg->edge_num/ctx.sg->vertex_num;
 
     double n = 0;
     n = (ctx.sg->EINIT_count + 1) * (2 * ctx.sg->edge_num - ctx.sg->EINIT_count) / 2.0;
@@ -21,13 +21,13 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
 
     switch (mode) {
         case 11:
-            ctx.cost = n / ctx.max_deg;
+            ctx.cost = n / ctx.max_deg; // ALEF
             break;
         case 12:
-            ctx.cost = ctx.avg_deg;
+            ctx.cost = avg_deg;
             break;
         case 13:
-            ctx.cost = n;
+            ctx.cost = n; // LEF
             break;
         case 14:
             ctx.cost = ctx.max_deg;
@@ -40,7 +40,7 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
             exit(1);
     }
 
-    *(ctx.csv_memory) << n / ctx.max_deg << "," << ctx.avg_deg << "," << n << "," << ctx.max_deg << "," << ctx.sg->
+    *(ctx.csv_memory) << n / ctx.max_deg << "," << avg_deg << "," << n << "," << ctx.max_deg << "," << ctx.sg->
             EINIT_count * ctx.sg->edge_num << std::endl;
 
     if (ctx.cost > ctx.cost_max) ctx.cost_max = ctx.cost;
@@ -177,15 +177,13 @@ bool ModeHandlerBase::update_window(ModeContext &ctx, sg_edge* new_sgt, long lon
     (ctx.size_count)++;
     ctx.avg_size = ctx.cumulative_size / ctx.size_count;
 
-    ctx.cumulative_degree += ctx.sg->out_degree[new_sgt->s];
     (ctx.window_cardinality)++;
     ctx.beta_elements_cont++;
-    ctx.avg_deg = ctx.cumulative_degree / ctx.window_cardinality;
-    
+
     return evict;
 }
 
-std::vector<std::pair<long long, long long> > ModeHandlerBase::evict (ModeContext &ctx, long long time) {
+std::vector<streaming_graph::expired_edge_info> ModeHandlerBase::evict (ModeContext &ctx, long long time) {
 
     long long eviction_time = (ctx.windows)[ctx.to_evict.back() + 1].t_open;
 
@@ -194,33 +192,7 @@ std::vector<std::pair<long long, long long> > ModeHandlerBase::evict (ModeContex
     ctx.window_cardinality -= deleted_edges.size();
     ctx.f->expire_forest(eviction_time, deleted_edges);
 
-    std::vector<std::pair<long long, long long> > candidate_for_deletion;
-    // long long to_evict_timestamp = (ctx.windows)[ctx.to_evict.back() + 1].t_open;
-    //
-    // if (!ctx.sg->time_list_head) {
-    //     std::cerr << "ERROR: Evict start point is null." << std::endl;
-    //     exit(1);
-    // }
-    //
-    // timed_edge *current = ctx.sg->time_list_head;
-    // while (current && current->edge_pt->timestamp < to_evict_timestamp) {
-    //     auto cur_edge = current->edge_pt;
-    //     auto next = current->next;
-    //
-    //     ctx.cumulative_degree -= ctx.sg->out_degree[cur_edge->s];
-    //     (ctx.window_cardinality)--;
-    //
-    //     candidate_for_deletion.emplace_back(cur_edge->s, cur_edge->d); // schedule for deletion from RPQ forest
-    //     ctx.sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label, time); // delete from adjacency list
-    //     ctx.sg->delete_timed_edge(current); // delete from time list
-    //
-    //     current = next;
-    // }
-    // // reset time list pointers
-    // ctx.sg->time_list_head->prev = nullptr;
-    // ctx.sg->time_list_head = current;
-    //
-    return candidate_for_deletion;
+    return deleted_edges;
 }
 
 void ModeHandlerBase::mark_windows_evicted(ModeContext &ctx) {

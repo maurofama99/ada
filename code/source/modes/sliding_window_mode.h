@@ -5,13 +5,9 @@
 #include "../adwin/Adwin.h"
 
 class SlidingWindowMode : public ModeHandlerBase {
-private:
-    Adwin* adwin;
-    double last_adwin_estimation = 0.0;
 
 public:
-    explicit SlidingWindowMode(Adwin* adwin_instance) : adwin(adwin_instance) {
-    }
+    explicit SlidingWindowMode()  = default;
     ~SlidingWindowMode() override = default;
     
     bool process_edge(

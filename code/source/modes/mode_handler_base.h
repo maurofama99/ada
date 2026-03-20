@@ -14,7 +14,7 @@ protected:
 
     bool update_window (ModeContext &ctx, sg_edge* new_sgt, long long time, long long s);
 
-    std::vector<std::pair<long long, long long> > evict (ModeContext &ctx, long long time);
+    std::vector<streaming_graph::expired_edge_info> evict (ModeContext &ctx, long long time);
 
     void mark_windows_evicted(ModeContext &ctx);
 

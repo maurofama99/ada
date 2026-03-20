@@ -5,11 +5,12 @@
 #include "../adwin/Adwin.h"
 
 class AdwinMode : public ModeHandlerBase {
-private:
     Adwin* adwin;
     
 public:
-    explicit AdwinMode(Adwin* adwin_instance) : adwin(adwin_instance) {}
+    explicit AdwinMode(const double delta) {
+        adwin = new Adwin(5, 1, delta);
+    }
     ~AdwinMode() override = default;
     
     bool process_edge(
