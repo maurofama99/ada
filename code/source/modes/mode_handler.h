@@ -8,9 +8,9 @@
 #include <sstream>
 
 #include "../streaming_graph.h"
-#include "../rpq_forest.h"
 #include "../sink.h"
 #include "../fsa.h"
+#include "code/source/query_handler.h"
 
 typedef struct Config {
     std::string input_data_path;
@@ -22,7 +22,7 @@ typedef struct Config {
     int max_size{};
     int min_size{};
     double l_max{};
-    double average_degree{};
+    int path_algorithm{};
 } config;
 
 inline config readConfig(const std::string &filename) {
@@ -54,6 +54,7 @@ inline config readConfig(const std::string &filename) {
     config.max_size = std::stoi(configMap["max_size"]);
     config.min_size = std::stoi(configMap["min_size"]);
     config.query_type = std::stoi(configMap["query_type"]);
+    config.path_algorithm = std::stoi(configMap["path_algorithm"]);
 
     std::istringstream extraArgsStream(configMap["labels"]);
     std::string arg;
@@ -127,9 +128,9 @@ struct ModeContext {
     // Windows and graph structures
     std::vector<window> windows;
     streaming_graph* sg;
-    Forest* f;
     Sink* sink;
     FiniteStateAutomaton* aut;
+    QueryHandler* q;
     
     // CSV output streams
     std::ofstream* csv_tuples;
@@ -173,7 +174,6 @@ struct ModeContext {
 
     double average_processing_time = 0.0;
     double latency_max;
-    double average_degree;
 
     // Other
     int total_elements_count = 0;

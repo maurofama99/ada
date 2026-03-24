@@ -8,7 +8,6 @@ using namespace std;
 
 bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long long time, ModeContext& ctx, sg_edge** new_sgt_out) {
     bool is_shedding = false;
-    ctx.f->current_time = time;
     long long window_close = compute_window_boundaries(ctx, time);
 
     bool shedding_condition = false;
@@ -40,6 +39,8 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
         exit(1);
     }
 
+    *new_sgt_out = new_sgt;
+
     bool evict_condition = update_window(ctx, new_sgt, time, s);
 
     if (ctx.mode == 5) {
@@ -60,8 +61,6 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
             }
 
             is_shedding = true;
-            std::vector<streaming_graph::expired_edge_info> deleted_edges;
-            std::vector<std::int64_t> bottom_k_edges;
 
             double total = 0.0;
             for (int i = 0; i < types_counts.size(); i++) { // compute Z_t and R_t for each type
@@ -73,11 +72,14 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
             }
             for (int i = 0; i < types_counts.size(); i++) { // compute Z_t and R_t for each type
                 if (types_counts[i] > 0) {
+                    std::vector<std::int64_t> bottom_k_edges;
+                    std::vector<streaming_graph::expired_edge_info> deleted_edges;
                     const double Z_t = ctx.cumulative_processing_time_type[i] / ctx.processed_elements_type[i];
                     const double R_t = ctx.input_rate_type[i];
                     const double N_t = ceil(Z_t * R_t / total * N_in * 0.8);
                     cout << "shedding: N_T[" << i << "] = " << N_t << ", type counts: " << types_counts[i] << endl;
                     if (N_t < types_counts[i]) bottom_k_edges = ranks[i].bottom_k(static_cast<size_t>(types_counts[i] - N_t));
+                    else bottom_k_edges = ranks[i].bottom_k(static_cast<size_t>(types_counts[i]));
                     for (const auto& edge_id : bottom_k_edges) {
                         auto& cur_edge = ctx.sg->edge_id_to_edge[edge_id];
                         if (cur_edge == nullptr) {
@@ -94,7 +96,8 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
                     cout << "removed " << deleted_edges.size() << " edges" << endl;
                     ctx.window_cardinality -= deleted_edges.size();
                     types_counts[i] -= deleted_edges.size();
-                    ctx.f->expire_forest(INT64_MAX, deleted_edges);
+                    assert (types_counts[i] >= 0);
+                    ctx.q->update_state(time, deleted_edges);
                 }
             }
         }
@@ -102,14 +105,12 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
 
     // TODO:
     // REMOVE INVERTED ADJACENCY LIST
-    
-    // Set output parameter
-    *new_sgt_out = new_sgt;
 
     if (evict_condition) {
         std::vector<streaming_graph::expired_edge_info> deleted_edges = evict(ctx, time);
         for (auto& edge : deleted_edges) {
             types_counts[edge.label]--;
+            assert (types_counts[edge.label] >= 0);
             ranks[edge.label].remove(edge.id);
         }
 
@@ -124,7 +125,8 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
                 ctx.p_shed -= ceil(cost_diff * 10 * ctx.granularity);
             }
 
-            ctx.p_shed = std::max(std::min(ctx.p_shed, ctx.max_shed), 0.0);
+            double max_prob = (ctx.p_shed < ctx.max_shed ? ctx.p_shed : ctx.max_shed);
+            ctx.p_shed = max_prob > 0.0 ? max_prob : 0.0;
         }
     }
 

@@ -20,6 +20,7 @@ public:
     long long initialState;
     std::unordered_set<long long> finalStates;
     int states_count = 0;
+    unsigned int scores[4]{};
     
     FiniteStateAutomaton(long long query_type, const std::vector<long long> &labels) : initialState(0) {
         switch (query_type) {
@@ -28,6 +29,7 @@ public:
                 addTransition(0, 1, labels[0]);
                 addTransition(1, 1, labels[0]);
                 states_count = 2;
+                scores[0] = 6;
                 break;
             case 5: // ab*c
                 addFinalState(2);
@@ -35,6 +37,9 @@ public:
                 addTransition(1, 1, labels[1]);
                 addTransition(1, 2, labels[2]);
                 states_count = 3;
+                scores[0] = 0;
+                scores[1] = 7;
+                scores[2] = 0;
                 break;
             case 7: // abc*
                 addFinalState(2);
@@ -42,6 +47,9 @@ public:
                 addTransition(1, 2, labels[1]);
                 addTransition(2, 2, labels[2]);
                 states_count = 3;
+                scores[0] = 0;
+                scores[1] = 7;
+                scores[2] = 6;
                 break;
             case 4: // (abc)+
                 addFinalState(3);
@@ -49,6 +57,10 @@ public:
                 addTransition(1, 2, labels[1]);
                 addTransition(2, 3, labels[2]);
                 addTransition(3, 1, labels[0]);
+                scores[0] = 7;
+                scores[1] = 6;
+                scores[2] = 6;
+                scores[3] = 6;
                 states_count = 4;
                 break;
             case 2: // ab*
@@ -56,6 +68,8 @@ public:
                 addTransition(0, 1, labels[0]);
                 addTransition(1, 1, labels[1]);
                 states_count = 2;
+                scores[0] = 0;
+                scores[1] = 6;
                 break;
             case 10: // (a|b)c*
                 addFinalState(1);
@@ -63,6 +77,8 @@ public:
                 addTransition(0, 1, labels[1]);
                 addTransition(1, 1, labels[2]);
                 states_count = 2;
+                scores[0] = 7;
+                scores[1] = 6;
                 break;
             case 6: // a*b*
                 addFinalState(1);
@@ -73,6 +89,8 @@ public:
                 addTransition(0, 2, labels[1]);
                 addTransition(2, 2, labels[1]);
                 states_count = 3;
+                scores[0] = 13;
+                scores[1] = 6;
                 break;
             case 3: // ab*c*
                 addFinalState(1);
@@ -82,6 +100,9 @@ public:
                 addTransition(1, 2, labels[2]);
                 addTransition(2, 2, labels[2]);
                 states_count = 3;
+                scores[0] = 0;
+                scores[1] = 13;  /// 2 loops, 1 edge 1->2, thus 2*6+1 = 13
+                scores[2] = 6;
                 break;
             default:
                 std::cerr << "ERROR: Wrong query type" << std::endl;

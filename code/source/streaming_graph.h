@@ -1,10 +1,10 @@
 #ifndef STREAMING_GRAPH_H
 #define STREAMING_GRAPH_H
 
-#include <cassert>
 #include <vector>
 #include <unordered_map>
 #include <iostream>
+#include <map>
 
 #include "ranking/buckets.h"
 
@@ -86,10 +86,6 @@ public:
 
     std::unordered_map<long long, std::vector<std::pair<long long, sg_edge *> > > adjacency_list;
 
-    // Inverted adjacency list: for each vertex, stores incoming edges
-    // Key: destination vertex, Value: vector of (source vertex, edge pointer)
-    std::unordered_map<long long, std::vector<std::pair<long long, sg_edge *>>> inverted_adjacency_list;
-
     double edge_num = 0; // number of edges in the window
     int EINIT_count = 0;
 
@@ -169,15 +165,7 @@ public:
         // Check if the edge already exists in the adjacency list
         for (auto &[to_vertex, existing_edge]: adjacency_list[from]) {
             if (existing_edge->label == label && to_vertex == to) {
-                // if (existing_edge->expiration_time < expiration_time) existing_edge->expiration_time = expiration_time;
                 if (existing_edge->timestamp < timestamp) existing_edge->timestamp = timestamp;
-                // update the timestamp of the existing edge also in the inverted adjacency list
-                for (auto &[src_vertex, inv_edge]: inverted_adjacency_list[to]) {
-                    if (inv_edge == existing_edge) {
-                        inv_edge->timestamp = existing_edge->timestamp;
-                        break;
-                    }
-                }
                 delete_timed_edge(existing_edge->time_pos); // remove the old timed edge from the time list
                 return existing_edge;
             }
@@ -194,12 +182,6 @@ public:
             adjacency_list[from] = std::vector<std::pair<long long, sg_edge *> >();
         }
         adjacency_list.at(from).emplace_back(to, edge);
-
-        // Add to inverted adjacency list (incoming edges for 'to')
-        if (inverted_adjacency_list[to].empty()) {
-            inverted_adjacency_list[to] = std::vector<std::pair<long long, sg_edge *>>();
-        }
-        inverted_adjacency_list.at(to).emplace_back(from, edge);
 
         if (out_degree.find(from) == out_degree.end()) {
             out_degree[from] = 0;
@@ -243,21 +225,6 @@ public:
                 if (label == first_transition) EINIT_count--;
                 if (edges.empty()) {
                     should_erase_from = true;
-                }
-
-                // Remove from inverted adjacency list
-                auto inv_it_map = inverted_adjacency_list.find(to);
-                if (inv_it_map != inverted_adjacency_list.end()) {
-                    auto &inv_edges = inv_it_map->second;
-                    for (auto inv_it = inv_edges.begin(); inv_it != inv_edges.end(); ++inv_it) {
-                        if (inv_it->first == from && inv_it->second == edge) {
-                            inv_edges.erase(inv_it);
-                            break;
-                        }
-                    }
-                    if (inv_edges.empty()) {
-                        inverted_adjacency_list.erase(inv_it_map);
-                    }
                 }
 
                 // Update degrees
@@ -355,6 +322,17 @@ public:
     [[nodiscard]] size_t getUsedMemory() const {
         return MemoryEstimatorAdjL::estimate_adjacency_list(adjacency_list);
     }
+
+    std::map<unsigned int, unsigned int> get_degree_map(const long long vertex_id) {
+        std::map<unsigned int, unsigned int> degree_map;
+        for (auto [edge_id, edge_ptr] : adjacency_list[vertex_id]) {
+            if (const long long label = edge_ptr->label; degree_map.find(label) != degree_map.end())
+                degree_map[label]++;
+            else
+                degree_map[label] = 1;
+        }
+        return degree_map;
+    };
 
     void printGraph() const {
         if (adjacency_list.empty()) {

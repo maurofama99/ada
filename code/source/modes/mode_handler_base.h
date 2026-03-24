@@ -8,15 +8,15 @@ class ModeHandlerBase : public ModeHandler {
 
 protected:
 
-    double compute_load_estimation (ModeContext &ctx, int mode);
+    static double compute_load_estimation (ModeContext &ctx, int mode);
 
-    long long compute_window_boundaries (ModeContext &ctx, long long time);
+    static long long compute_window_boundaries (ModeContext &ctx, long long time);
 
-    bool update_window (ModeContext &ctx, sg_edge* new_sgt, long long time, long long s);
+    static bool update_window (ModeContext &ctx, sg_edge* new_sgt, long long time, long long s);
 
-    std::vector<streaming_graph::expired_edge_info> evict (ModeContext &ctx, long long time);
+    static std::vector<streaming_graph::expired_edge_info> evict (ModeContext &ctx, long long time);
 
-    void mark_windows_evicted(ModeContext &ctx);
+    static void mark_windows_evicted(ModeContext &ctx);
 
 };
 

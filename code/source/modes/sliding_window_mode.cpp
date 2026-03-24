@@ -1,6 +1,5 @@
 #include "sliding_window_mode.h"
 #include <cmath>
-#include <algorithm>
 #include <numeric>
 
 bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long long time, ModeContext& ctx, sg_edge** new_sgt_out) {
@@ -21,8 +20,6 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
     if (update_window(ctx, new_sgt, time, s)) {
         evict(ctx, time);
 
-        //ctx.f->expire_timestamped((ctx.windows)[ctx.to_evict.back() + 1].t_open, candidate_for_deletion);
-
         // mark window as evicted
         mark_windows_evicted(ctx);
 
@@ -36,7 +33,8 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
             }
 
             // cap to max and min size
-            ctx.size = std::max(std::min(ctx.size, ctx.max_size), ctx.min_size);
+            long long max_size = (ctx.size < ctx.max_size ? ctx.size : ctx.max_size);
+            ctx.size = max_size > ctx.min_size ? max_size : ctx.min_size;
         }
 
     }

@@ -13,10 +13,8 @@
 // #include "sys/sysinfo.h"
 
 #include "source/fsa.h"
-#include "source/rpq_forest.h"
 #include "source/streaming_graph.h"
 #include "source/query_handler.h"
-#include "source/adwin/Adwin.h"
 #include "source/modes/mode_handler.h"
 #include "source/modes/mode_factory.h"
 
@@ -62,16 +60,14 @@ int main(int argc, char *argv[]) {
     ctx.min_size = config.min_size;
     ctx.mode = config.adaptive;
     ctx.latency_max = config.l_max;
-    ctx.average_degree = config.average_degree;
     if (config.size >0 && config.slide >0) ctx.overlap = config.size / config.slide;
     ctx.granularity = static_cast<double>(ctx.min_size) / 100.0;
     ctx.max_shed = static_cast<double>(ctx.max_size) / 100.0;
 
     ctx.sink = new Sink();
     ctx.aut = new FiniteStateAutomaton(config.query_type, config.labels);
-    ctx.f = new Forest(*ctx.aut);
     ctx.sg = new streaming_graph(config.labels[0]);
-    auto query = new QueryHandler(*ctx.aut, *ctx.f, *ctx.sg, *ctx.sink);
+    ctx.q = new QueryHandler(*ctx.aut, *ctx.sg, *ctx.sink, config.path_algorithm);
 
     // Create mode handler using factory
     double delta = 1.0 / static_cast<double>(config.min_size);
@@ -143,6 +139,17 @@ int main(int argc, char *argv[]) {
     }
 
     cout << "Modalità: " << mode << " (config. " << config.adaptive << ")" << endl;
+    switch (config.path_algorithm) {
+        case 1:
+            cout << "S_PATH" << endl;
+            break;
+        case 2:
+            cout << "LM_SRPQ" << endl;
+            break;
+        default:
+            cerr << "ERROR: Unknown path algorithm" << endl;
+            exit(4);
+    }
 
     // output folder for csvs
     fs::path output_folder = "results";
@@ -208,7 +215,7 @@ int main(int argc, char *argv[]) {
 
         is_shed = mode_handler->process_edge(s, d, l, time, ctx, &new_sgt);
         if (new_sgt) {  // Only process query if an edge was created (not shed in load shedding mode)
-            query->pattern_matching_tc(new_sgt);
+            ctx.q->run(new_sgt);
         }
 
         elements_processed++;
@@ -298,10 +305,9 @@ int main(int argc, char *argv[]) {
 
     // cleanup
     delete ctx.sg;
-    delete ctx.f;
     delete ctx.sink;
     delete ctx.aut;
-    delete query;
+    delete ctx.q;
 
     return 0;
 }
