@@ -104,6 +104,18 @@ public:
                 scores[1] = 13;  /// 2 loops, 1 edge 1->2, thus 2*6+1 = 13
                 scores[2] = 6;
                 break;
+            case 8: // (a|b)+c
+                addFinalState(3);
+                addTransition(0,1, labels[0]);
+                addTransition(0,2,labels[1]);
+                addTransition(1,2, labels[1]);
+                addTransition(2,1, labels[0]);
+                addTransition(2,2,labels[1]);
+                addTransition(1,1, labels[0]);
+                addTransition(1,3, labels[2]);
+                addTransition(2,3,labels[2]);
+                states_count = 4;
+                break;
             default:
                 std::cerr << "ERROR: Wrong query type" << std::endl;
                 exit(1);

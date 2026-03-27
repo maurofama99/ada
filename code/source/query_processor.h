@@ -27,6 +27,12 @@ public:
     virtual void expire_forest(
         long long eviction_time,
         const std::vector<streaming_graph::expired_edge_info>& deleted_edges) = 0;
+
+    // Handle mid-window edge deletion (load shedding). Unlike expire_forest,
+    // this finds tree nodes whose parent link used a specific deleted edge and
+    // tries to reconnect them via alternative paths still in the graph.
+    virtual void shed_edges(
+        const std::vector<streaming_graph::expired_edge_info>& deleted_edges) = 0;
 };
 
 // ---------------------------------------------------------------------------
@@ -52,6 +58,11 @@ public:
         long long eviction_time,
         const std::vector<streaming_graph::expired_edge_info>& deleted_edges) override {
         impl_.expire_forest(eviction_time, deleted_edges);
+    }
+
+    void shed_edges(
+        const std::vector<streaming_graph::expired_edge_info>& deleted_edges) override {
+        impl_.shed_edges(deleted_edges);
     }
 };
 
@@ -91,6 +102,13 @@ public:
         const std::vector<streaming_graph::expired_edge_info>& deleted_edges) override {
         impl_.expire_forest(eviction_time, deleted_edges);
         impl_.dynamic_lm_select(candidate_rate_, benefit_threshold_);
+    }
+
+    void shed_edges(
+        const std::vector<streaming_graph::expired_edge_info>& deleted_edges) override {
+        // LM-SRPQ does not yet have a dedicated shed_edges; fall back to expire_forest
+        // with a max eviction_time so the timestamp check is effectively disabled.
+        impl_.expire_forest(0, deleted_edges);
     }
 };
 

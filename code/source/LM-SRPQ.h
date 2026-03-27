@@ -363,8 +363,7 @@ private:
         for (auto it = updated_nodes.begin(); it != updated_nodes.end(); it++) {
             unsigned int dst = it->first;
             unsigned int time = min(it->second, lm_time);
-            if (dst == root_ID)
-                continue;
+            // if (dst == root_ID) continue;
             sink.addEntry(root_ID, dst, time);
         }
     }
@@ -373,8 +372,7 @@ private:
         for (auto &updated_node: updated_nodes) {
             unsigned int dst = updated_node.first;
             unsigned int time = min(updated_node.second, lm_time);
-            if (dst == root_ID)
-                continue;
+            // if (dst == root_ID) continue;
             sink.addEntry(root_ID, dst, time);
         }
     }
@@ -1613,7 +1611,7 @@ private:
     }
 
     void expire_per_tree(unsigned int v, unsigned int state, RPQ_tree *tree_pt, unsigned int expired_time)
-    // expire in normal tree, we only need to delte the nodes in the subtree.
+    // expire in normal tree, we only need to delete the nodes in the subtree.
     {
         if (tree_pt->node_map.find(state) != tree_pt->node_map.end()) {
             if (tree_pt->node_map[state]->index.find(v) != tree_pt->node_map[state]->index.end()) {

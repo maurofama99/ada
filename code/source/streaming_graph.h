@@ -84,7 +84,10 @@ public:
         long long src, dst, label, id;
     };
 
+    int shed_count = 0;
+
     std::unordered_map<long long, std::vector<std::pair<long long, sg_edge *> > > adjacency_list;
+    std::unordered_map<long long, std::vector<std::pair<long long, sg_edge *> > > reverse_adjacency_list; // dst -> [(src, edge*), ...]
 
     double edge_num = 0; // number of edges in the window
     int EINIT_count = 0;
@@ -182,6 +185,10 @@ public:
             adjacency_list[from] = std::vector<std::pair<long long, sg_edge *> >();
         }
         adjacency_list.at(from).emplace_back(to, edge);
+        if (reverse_adjacency_list[to].empty()) {
+            reverse_adjacency_list[to] = std::vector<std::pair<long long, sg_edge *> >();
+        }
+        reverse_adjacency_list[to].emplace_back(from, edge);
 
         if (out_degree.find(from) == out_degree.end()) {
             out_degree[from] = 0;
@@ -217,6 +224,18 @@ public:
 
                 // Remove from edge_id_to_edge map
                 edge_id_to_edge.erase(edge->id);
+
+                // Remove from reverse adjacency list
+                if (auto rit = reverse_adjacency_list.find(to); rit != reverse_adjacency_list.end()) {
+                    auto& rev = rit->second;
+                    for (auto rj = rev.begin(); rj != rev.end(); ++rj) {
+                        if (rj->second == edge) {
+                            rev.erase(rj);
+                            break;
+                        }
+                    }
+                    if (rev.empty()) reverse_adjacency_list.erase(rit);
+                }
 
                 // Remove the edge from the adjacency list
                 bool should_erase_from = false;
@@ -295,6 +314,16 @@ public:
         for (auto& [to, edge] : it->second)
             sucs.emplace_back(edge);
         return sucs;
+    }
+
+    // return all edges pointing TO d: each edge has edge->s = predecessor, edge->d = d
+    std::vector<sg_edge*> get_all_pred_ptrs(long long d) {
+        std::vector<sg_edge*> preds;
+        auto it = reverse_adjacency_list.find(d);
+        if (it == reverse_adjacency_list.end()) return preds;
+        for (auto& [from, edge] : it->second)
+            preds.emplace_back(edge);
+        return preds;
     }
 
     void shift_timed_edge(timed_edge *to_insert, timed_edge *target) {

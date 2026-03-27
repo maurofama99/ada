@@ -41,12 +41,15 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
 
     *new_sgt_out = new_sgt;
 
+    unsigned int new_sgt_id = new_sgt->id;
+
     bool evict_condition = update_window(ctx, new_sgt, time, s);
 
     if (ctx.mode == 5) {
         const int src_out = ctx.sg->out_degree.count(s) ? ctx.sg->out_degree.at(s) : 0;
         const int dst_in = ctx.sg->in_degree.count(d) ? ctx.sg->in_degree.at(d) : 0;
         assert(src_out >= 0 && dst_in >= 0);
+        // FIXME: This is wrong because is non-local
         const double score = 100 * ((src_out + dst_in) / (src_out + dst_in + (ctx.sg->edge_num/ctx.sg->vertex_num)));
         if (score > 100 || score < 0) cerr << "score out of bounds" << endl;
         ranks[l].set_rank(new_sgt->id, ceil(score));
@@ -54,10 +57,10 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
 
         if (ctx.average_processing_time > 0.0) N_in = ctx.latency_max / ctx.average_processing_time;
         if (ctx.window_cardinality > N_in) {
-            cout << "shedding: window cardinality " << ctx.window_cardinality << ", N_in : " << N_in << ", average processing time: " << ctx.average_processing_time << endl;
-            // cout all the type counts
+            //cout << "shedding: window cardinality " << ctx.window_cardinality << ", N_in : " << N_in << ", average processing time: " << ctx.average_processing_time << endl;
+            // print all the type counts
             for (size_t i = 0; i < types_counts.size(); ++i) {
-                cout << "type " << i << ": " << types_counts[i] << " edges" << endl;
+                //cout << "type " << i << ": " << types_counts[i] << " edges" << endl;
             }
 
             is_shedding = true;
@@ -77,7 +80,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
                     const double Z_t = ctx.cumulative_processing_time_type[i] / ctx.processed_elements_type[i];
                     const double R_t = ctx.input_rate_type[i];
                     const double N_t = ceil(Z_t * R_t / total * N_in * 0.8);
-                    cout << "shedding: N_T[" << i << "] = " << N_t << ", type counts: " << types_counts[i] << endl;
+                    //cout << "shedding: N_T[" << i << "] = " << N_t << ", type counts: " << types_counts[i] << endl;
                     if (N_t < types_counts[i]) bottom_k_edges = ranks[i].bottom_k(static_cast<size_t>(types_counts[i] - N_t));
                     else bottom_k_edges = ranks[i].bottom_k(static_cast<size_t>(types_counts[i]));
                     for (const auto& edge_id : bottom_k_edges) {
@@ -88,23 +91,22 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
                         }
                         assert(cur_edge->label == i);
 
+                        if (cur_edge->id == new_sgt_id) *new_sgt_out = nullptr;
+
                         deleted_edges.push_back({cur_edge->s, cur_edge->d, cur_edge->label, cur_edge->id});
                         ranks[i].remove(cur_edge->id);
                         ctx.sg->delete_timed_edge(cur_edge->time_pos); // delete from time list
                         ctx.sg->remove_edge(cur_edge->s, cur_edge->d, cur_edge->label, time); // delete from adjacency list
                     }
-                    cout << "removed " << deleted_edges.size() << " edges" << endl;
+                    //cout << "removed " << deleted_edges.size() << " edges" << endl;
                     ctx.window_cardinality -= deleted_edges.size();
                     types_counts[i] -= deleted_edges.size();
                     assert (types_counts[i] >= 0);
-                    ctx.q->update_state(time, deleted_edges);
+                    ctx.q->shed_edges(deleted_edges);
                 }
             }
         }
     }
-
-    // TODO:
-    // REMOVE INVERTED ADJACENCY LIST
 
     if (evict_condition) {
         std::vector<streaming_graph::expired_edge_info> deleted_edges = evict(ctx, time);

@@ -10,7 +10,6 @@
 #define MEMORY_PROFILER false
 
 #include "sys/types.h"
-// #include "sys/sysinfo.h"
 
 #include "source/fsa.h"
 #include "source/streaming_graph.h"
@@ -20,8 +19,6 @@
 
 namespace fs = std::filesystem;
 using namespace std;
-
-// struct sysinfo memInfo;
 
 int main(int argc, char *argv[]) {
     fs::path exe_path = fs::canonical(fs::absolute(argv[0]));
@@ -73,9 +70,9 @@ int main(int argc, char *argv[]) {
     double delta = 1.0 / static_cast<double>(config.min_size);
     long long labels_size = *std::max_element(config.labels.begin(), config.labels.end());
     auto mode_handler = ModeFactory::create_mode_handler(config.adaptive, delta, labels_size);
-    ctx.cumulative_processing_time_type.reserve(labels_size);
-    ctx.processed_elements_type.reserve(labels_size);
-    ctx.input_rate_type.reserve(labels_size);
+    ctx.cumulative_processing_time_type.resize(labels_size + 1, 0.0);
+    ctx.processed_elements_type.resize(labels_size + 1, 0);
+    ctx.input_rate_type.resize(labels_size + 1, 0.0);
 
     std::string mode;
     switch (config.adaptive) {
@@ -187,7 +184,7 @@ int main(int argc, char *argv[]) {
 
     ctx.csv_tuples = &csv_tuples;
     ctx.csv_memory = &csv_memory;
-    long long checkpoint = 100000;
+    long long checkpoint = 500000;
 
     int elements_processed = 0;
     double cumulative_processing_time = 0;
@@ -232,6 +229,7 @@ int main(int argc, char *argv[]) {
         if (elements_processed % checkpoint == 0) {
             printf("processed edges: %d\n", elements_processed);
             printf("avg degree: %f\n", ctx.sg->edge_num/ctx.sg->vertex_num);
+            cout << std::fixed << std::setprecision(5);
             cout << "average processing time: " << ctx.average_processing_time << " seconds\n";
             cout << "matched paths: " << ctx.sink->matched_paths << "\n\n";
         }
@@ -241,10 +239,11 @@ int main(int argc, char *argv[]) {
         ctx.slides.back().results_at_close = ctx.sink->matched_paths;
     }
     clock_t finish = clock();
-    long long time_used = (double) (finish - start) / CLOCKS_PER_SEC;
+    long long time_used = static_cast<double> (finish - start) / CLOCKS_PER_SEC;
 
     cout << "Created windows: " << ctx.windows.size() << endl;
     cout << "Total execution time: " << time_used << " seconds" << endl;
+    cout << "Shed edges: " << ctx.sg->shed_count << endl;
 
     double avg_window_size = static_cast<double>(ctx.total_elements_count) / ctx.windows.size();
 

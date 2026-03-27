@@ -4,6 +4,8 @@
 #include<unordered_set>
 #include <queue>
 #include<cassert>
+#include <iostream>
+#include <list>
 #define um_shrink_threshold 2
 #define merge_long_long(s, d) (((unsigned long long)s<<32)|d)
 using namespace std;
@@ -11,22 +13,23 @@ using namespace std;
 #define max(x, y) (x>y?x:y)
 #define MAX_INT 0x7FFFFFFF
 
-
 // this file defines the basic structures and associated functions shared by both S-PATH and LM-SRPQ. Note that some variables are not needed by S-PATH, and they will not be included in memory computation for S-PATH.
 
 template<typename K, typename V>
-inline void shrink(unordered_map<K, V>& um)  // this function shrinks the bucket number of unordered map(um) if the number of bucket is 2 times larger than the number of KV pairs. 
-//Because the system will not automatically shrink the unordered_map or unodered_set, the bucket number may be much larger than the KV number if a lot of KV are inerted into the um the then deleted. 
+void shrink(unordered_map<K, V>& um)  // this function shrinks the bucket number of unordered map (um) if the number of bucket is 2 times larger than the number of KV pairs.
+//Because the system will not automatically shrink the unordered_map or unordered_set, the bucket number may be much larger than the KV number if a lot of KV are inserted into the um the then deleted.
 {
-	if (((double)um.bucket_count()) / um.size() > um_shrink_threshold) {
+	if (um.empty()) return;
+	if (static_cast<double>(um.bucket_count()) / um.size() > um_shrink_threshold) {
 		um.reserve(um.size());
 	}
 }
 
 template<typename K>
-inline void shrink(unordered_set<K>& us) // this function shrinks the bucket number of unordered set
+void shrink(unordered_set<K>& us) // this function shrinks the bucket number of unordered set
 {
-	if (((double)us.bucket_count()) / us.size() > um_shrink_threshold)
+	if (us.empty()) return;
+	if (static_cast<double>(us.bucket_count()) / us.size() > um_shrink_threshold)
 		us.reserve(us.size());
 }
 
@@ -46,10 +49,10 @@ struct tree_node // node in the spanning tree
 		state = state_;
 		timestamp = time;
 		edge_timestamp = edge_time;
+		lm = false;
 		parent = nullptr;
 		child = nullptr;
 		brother = nullptr;
-		lm = false;
 	}
 };
 
@@ -145,9 +148,7 @@ public:
 		if (parent) {
 			tmp->brother = parent->child; // add this node to the head of the child list of the parent
 			parent->child = tmp;
-		}
-		else
-			tmp->brother = nullptr;
+		} else tmp->brother = nullptr;
 		if (node_map.find(state) == node_map.end())
 			node_map[state] = new tree_node_index;
 		node_map[state]->index[v] = tmp; // add this node to the node map
@@ -173,7 +174,7 @@ public:
 	{
 		timed_landmarks[lm] = timestamp;
 	}
-	void separate_node(tree_node* child) // separate a node from the spanning tree 
+	void separate_node(tree_node* child) // separate a node from the spanning tree
 	{
 		if (child->parent == nullptr)
 			return;
@@ -270,10 +271,8 @@ public:
 	tree_node* find_node(unsigned int ID, unsigned int state) // given a product graph node, find its corresponding tree node
 	{
 		tree_node* result = nullptr;
-		if (node_map.find(state) != node_map.end())
-		{
-			if (node_map[state]->index.find(ID) != node_map[state]->index.end())
-				result = node_map[state]->index[ID];
+		if (node_map.find(state) != node_map.end()) {
+			if (node_map[state]->index.find(ID) != node_map[state]->index.end()) result = node_map[state]->index[ID];
 		}
 		return result;
 	}

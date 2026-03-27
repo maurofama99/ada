@@ -26,6 +26,7 @@ class Sink {
 
 public:
     int matched_paths = 0; // patterns matched
+    int total_matches = 0;
 
     // get result set size
     long long getResultSetSize() {
@@ -38,15 +39,16 @@ public:
 
     // add entry in result set
     void addEntry(long long source, long long destination, long long timestamp) {
-        if (source == destination) return; // avoid self loops
+        // if (source == destination) return; // avoid self loops
         result res = {destination, timestamp};
         auto& destinations = result_set[source];
 
-        // insert restituisce una coppia: iterator e bool (true se inserito, false se esisteva già)
         if (auto [it, inserted] = destinations.insert(res); inserted) {
-            // Nuova coppia distinta, incrementa il contatore
+            // new pair
             matched_paths++;
-        }// Se non inserito, la coppia esisteva già: non fa nulla, mantiene il timestamp originale
+        }
+        total_matches++;
+        //std::cout << total_matches << std::endl;
     }
 
 

@@ -22,7 +22,7 @@ public:
 	Sink &sink;
 
 	unordered_map<unsigned long long, RPQ_tree*> forests; // map from product graph node to tree pointer
-	map<unsigned int, tree_info_index*> v2t_index; // reverse index that maps a graph vertex to the the trees that contains it. The first layer maps state to tree_info_index, and the second layer maps vertex ID to list of trees contains this node
+	map<unsigned int, tree_info_index*> v2t_index; // reverse index that maps a graph vertex to the trees that contains it. The first layer maps state to tree_info_index, and the second layer maps vertex ID to list of trees contains this node
 
 	S_PATH(FiniteStateAutomaton &aut, streaming_graph &g, Sink &sink)
 		: aut(aut), g(g), sink(sink) {
@@ -56,8 +56,7 @@ public:
 			{
 				if (auto tree_iter = index_iter2->second->tree_index.find(s); tree_iter != index_iter2->second->tree_index.end()) {
 					tree_info* tmp = tree_iter->second;
-					while (tmp)
-					{
+					while (tmp) {
 						result = insert_per_tree(s, d, label, timestamp, src_state, dst_state, tmp->tree); // for each state pair, find the trees containing (s, src_state), and update it with the new edge.
 						tmp = tmp->next;
 					}
@@ -84,17 +83,15 @@ public:
 				visited.insert(merge_long_long(dst,dst_state)); // record the checked dst node, in case of repeated process.
 				if (auto iter = v2t_index.find(dst_state); iter != v2t_index.end())
 				{
-					if (auto tree_iter = iter->second->tree_index.find(dst); tree_iter != iter->second->tree_index.end())
-					{
+					if (auto tree_iter = iter->second->tree_index.find(dst); tree_iter != iter->second->tree_index.end()) {
 						vector<RPQ_tree*> tree_to_delete;
 						tree_info* tmp = tree_iter->second;
-						while (tmp)	// first record the trees in the list with a vetor, as when we delete expired nodes we will change the tree list, leading to error in the list scan.
+						while (tmp)	// first record the trees in the list with a vector, as when we delete expired nodes we will change the tree list, leading to error in the list scan.
 						{
 							tree_to_delete.push_back(tmp->tree);
 							tmp = tmp->next;
 						}
-						for (auto & k : tree_to_delete)
-						{
+						for (auto & k : tree_to_delete) {
 							expire_per_tree(dst, dst_state, k, eviction_time); // expire in each tree
 							if (k->root->child == nullptr) // delete the tree if it is empty.
 							{
@@ -111,7 +108,103 @@ public:
 		}
 	}
 
+	// Handle mid-window edge deletion (load shedding). For each deleted edge,
+	// find tree nodes whose parent link used that edge. For each such node,
+	// use the reverse adjacency list to find an alternative incoming edge
+	// whose source exists in the same tree; reconnect or delete the subtree.
+	//
+	// Complexity per affected node: O(in_degree(dst) * |FSA_transitions|)
+	void shed_edges(const std::vector<streaming_graph::expired_edge_info>& deleted_edges) {
+		for (const auto& edge : deleted_edges) {
+			unsigned int src = edge.src;
+			unsigned int dst = edge.dst;
+			unsigned int label = edge.label;
+
+			std::vector<std::pair<long long, long long>> vec = aut.getStatePairsWithTransition(label);
+			for (auto& [src_state, dst_state] : vec) {
+				if (dst_state == -1) continue;
+
+				auto v2t_iter = v2t_index.find(dst_state);
+				if (v2t_iter == v2t_index.end()) continue;
+				auto tree_iter = v2t_iter->second->tree_index.find(dst);
+				if (tree_iter == v2t_iter->second->tree_index.end()) continue;
+
+				vector<RPQ_tree*> affected_trees;
+				for (tree_info* ti = tree_iter->second; ti; ti = ti->next)
+					affected_trees.push_back(ti->tree);
+
+				for (RPQ_tree* tree_pt : affected_trees) {
+					tree_node* node = tree_pt->find_node(dst, dst_state);
+					if (!node || !node->parent) continue;
+					if (node->parent->node_ID != src || node->parent->state != static_cast<unsigned int>(src_state))
+						continue;
+
+					// Parent link is broken. Search for best alternative via
+					// reverse adjacency list: all edges pointing to dst.
+					tree_node* best_parent = nullptr;
+					unsigned int best_timestamp = 0;
+					unsigned int best_edge_time = 0;
+
+					vector<sg_edge*> predecessors = g.get_all_pred_ptrs(dst);
+					for (sg_edge* pe : predecessors) {
+						unsigned int pred_v = pe->s;
+						unsigned int pred_label = pe->label;
+						std::vector<std::pair<long long, long long>> trans = aut.getStatePairsWithTransition(pred_label);
+						for (auto& [q_src, q_dst] : trans) {
+							if (q_dst != static_cast<long long>(dst_state)) continue;
+							tree_node* candidate = tree_pt->find_node(pred_v, q_src);
+							if (!candidate || candidate == node) continue;
+							unsigned int candidate_ts = min(candidate->timestamp, static_cast<unsigned int>(pe->timestamp));
+							if (candidate_ts > best_timestamp) {
+								best_parent = candidate;
+								best_timestamp = candidate_ts;
+								best_edge_time = pe->timestamp;
+							}
+						}
+					}
+
+					if (best_parent) {
+						tree_pt->substitute_parent(best_parent, node);
+						node->edge_timestamp = best_edge_time;
+						node->timestamp = best_timestamp;
+						propagate_timestamps(node);
+					} else {
+						erase_tree_node(tree_pt, node);
+						g.shed_count++;
+					}
+
+					if (tree_pt->root->child == nullptr) {
+						delete_index(tree_pt->root->node_ID, tree_pt->root->state, tree_pt->root->node_ID);
+						forests.erase(merge_long_long(tree_pt->root->node_ID, tree_pt->root->state));
+						delete tree_pt;
+						break;
+					}
+				}
+			}
+		}
+		shrink(forests);
+	}
+
 private:
+
+	// Propagate timestamps downward after a node's timestamp has decreased.
+	// Each child's timestamp = min(parent->timestamp, child->edge_timestamp).
+	// If a child's timestamp doesn't change, its subtree is unaffected and we stop.
+	void propagate_timestamps(tree_node* node) {
+		queue<tree_node*> q;
+		for (tree_node* cur = node->child; cur; cur = cur->brother)
+			q.push(cur);
+		while (!q.empty()) {
+			tree_node* tmp = q.front();
+			q.pop();
+			unsigned int new_ts = min(tmp->parent->timestamp, tmp->edge_timestamp);
+			if (new_ts == tmp->timestamp)
+				continue;
+			tmp->timestamp = new_ts;
+			for (tree_node* cur = tmp->child; cur; cur = cur->brother)
+				q.push(cur);
+		}
+	}
 
 	void update_result(unordered_map<unsigned int, unsigned int>& updated_nodes, unsigned int root_ID) // update the result set, first of a KV in the um is a vertex ID v, and second is a timestamp t, update timestamp of (root v) pair
 	// to t
@@ -119,8 +212,7 @@ private:
 		for (auto & updated_node : updated_nodes) {
 			unsigned int dst = updated_node.first;
 			unsigned int time = updated_node.second;
-			if (dst == root_ID)
-				continue;
+			// if (dst == root_ID) continue;
 			sink.addEntry(root_ID, dst, time);
 		}
 	}
@@ -155,7 +247,6 @@ private:
 	}
 	bool expand(tree_node* expand_node, RPQ_tree* tree_pt) // function used to expand a spanning tree with a BFS manner when a new node is added into a spanning tree. expand node is the new node
 	{
-		unsigned int root_ID = tree_pt->root->node_ID;
 		unordered_map<unsigned int, unsigned int> updated_results;
 		priority_queue<tree_node*, vector<tree_node*>, time_compare> q;
 		q.push(expand_node);
@@ -163,8 +254,7 @@ private:
 		{
 			tree_node* tmp = q.top();
 			q.pop();
-			unsigned long long tmp_info = merge_long_long(tmp->node_ID, tmp->state);
-			if (aut.isFinalState(tmp->state)) {			// if this is a final state, we need to update the result set, we record it first and at last carry out the update togther
+			if (aut.isFinalState(tmp->state)) {			// if this is a final state, we need to update the result set, we record it first and at last carry out the update together
 				if (updated_results.find(tmp->node_ID) != updated_results.end())
 					updated_results[tmp->node_ID] = max(updated_results[tmp->node_ID], tmp->timestamp);
 				else
@@ -172,21 +262,19 @@ private:
 			}
 
 			vector<sg_edge*> vec = g.get_all_suc_ptrs(tmp->node_ID); // get all the successor edges in the snapshot graph, and check each of them to find the successor nodes in the product graph.
-			for (auto & i : vec)
-			{
+			for (auto & i : vec) {
 				unsigned int successor = i->d;
 				unsigned int edge_label = i->label;
 				long long dst_state = aut.getNextState(tmp->state, edge_label);
-				if (dst_state == -1)
-					continue;
+				if (dst_state == -1) continue;
 				unsigned int time = min(tmp->timestamp, i->timestamp);
-				if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(successor) == tree_pt->node_map[dst_state]->index.end())// If this node does not exit before, we add this node.
+				if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(successor) == tree_pt->node_map[dst_state]->index.end()) // If this node does not exit before, we add this node.
 					q.push(add_node(tree_pt, successor, dst_state, tree_pt->root->node_ID, tmp, time, i->timestamp));
-				else
-				{
+				else {
 					if (tree_node* dst_pt = tree_pt->node_map[dst_state]->index[successor]; dst_pt->timestamp < time) { // else if its current timestamp is smaller than the new timestamp, we update the timestamp and link it to the new parent.
-						if (dst_pt->parent != tmp)
+						if (dst_pt->parent != tmp) {
 							tree_pt->substitute_parent(tmp, dst_pt);
+						}
 						dst_pt->timestamp = time;
 						dst_pt->edge_timestamp = i->timestamp;
 						q.push(dst_pt);
@@ -208,15 +296,16 @@ private:
 			{
 				tree_node* src_pt = tmp_index->index[s];
 				unsigned int time = min(src_pt->timestamp, timestamp);
-				if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(d) == tree_pt->node_map[dst_state]->index.end()) { // if the dst node does not exit
+				if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(d) == tree_pt->node_map[dst_state]->index.end()) { // if the dst node does not exist
 					tree_node* dst_pt = add_node(tree_pt, d, dst_state, tree_pt->root->node_ID, src_pt, min(src_pt->timestamp, timestamp), timestamp);
-					result = expand(dst_pt, tree_pt); // add the dst node and futher expand,
-				}
-				else {
+					result = expand(dst_pt, tree_pt); // add the dst node and further expand,
+				} else {
 					tree_node* dst_pt = tree_pt->node_map[dst_state]->index[d];
-					if (dst_pt->timestamp < time) // if the dst node exit but has a smaller timestamp, update its timestamp, and use expand to propagate the new timestamp down.
+					if (dst_pt->timestamp < time) // if the dst node exists but has a smaller timestamp, update its timestamp, and use expand to propagate the new timestamp down.
 					{
-						if (dst_pt->parent != src_pt) tree_pt->substitute_parent(src_pt, dst_pt);
+						if (dst_pt->parent != src_pt) {
+							tree_pt->substitute_parent(src_pt, dst_pt);
+						}
 						dst_pt->timestamp = time;
 						dst_pt->edge_timestamp = timestamp;
 						result = expand(dst_pt, tree_pt);
@@ -227,11 +316,11 @@ private:
 		return result;
 	}
 
-	void erase_tree_node(RPQ_tree* tree_pt, tree_node* child) // given an expired node, delete the subtree rooted at it in tree_pt, all the nodes in its subtree also expire. 
+	void erase_tree_node(RPQ_tree* tree_pt, tree_node* child) // given an expired node, delete the subtree rooted at it in tree_pt, all the nodes in its subtree also expire.
 	{
 		queue<tree_node*> q;
 		q.push(child);
-		tree_pt->separate_node(child); // 'child' is disconnected with its parent,other nodes donot need to call this function, as there parents and brothers are all deleted;
+		tree_pt->separate_node(child); // 'child' is disconnected with its parent, other nodes do not need to call this function, as there parents and brothers are all deleted;
 		while (!q.empty())
 		{
 			tree_node* tmp = q.front();
@@ -244,24 +333,19 @@ private:
 		}
 	}
 
-
-	void expire_per_tree(unsigned int v, unsigned int state, RPQ_tree* tree_pt, unsigned int expired_time) // given a produce graph node (v, state) which can be possibly an expired node, can try to delete its subtree.
+	void expire_per_tree(unsigned int v, unsigned int state, RPQ_tree* tree_pt, unsigned int expired_time) // given a product graph node (v, state) which can possibly be an expired node, try to delete its subtree.
 	{
-		if (tree_pt->node_map.find(state) != tree_pt->node_map.end())
-		{
+		if (tree_pt->node_map.find(state) != tree_pt->node_map.end()) {
 			if (tree_pt->node_map[state]->index.find(v) != tree_pt->node_map[state]->index.end()) {
 				if (tree_node* dst_pt = tree_pt->node_map[state]->index[v]; dst_pt->timestamp < expired_time) // if it is indeed an expired node, delete its subtree.
 					erase_tree_node(tree_pt, dst_pt);
 			}
-
 		}
 	}
 
 	void print_tree(unsigned int ID, unsigned int state)
 	{
-
-		auto iter = forests.find(merge_long_long(ID, state));
-		if (iter != forests.end()) {
+		if (auto iter = forests.find(merge_long_long(ID, state)); iter != forests.end()) {
 			tree_node* tmp = iter->second->root;
 			queue<tree_node*> q;
 			q.push(tmp);
@@ -292,8 +376,7 @@ private:
 
 	void print_path(unsigned int ID, unsigned int root_state, unsigned int dst, unsigned int dst_state)
 	{
-		auto iter = forests.find(merge_long_long(ID, root_state));
-		if (iter != forests.end()) {
+		if (auto iter = forests.find(merge_long_long(ID, root_state)); iter != forests.end()) {
 			if (iter->second->node_map.find(dst_state) != iter->second->node_map.end()) {
 				if (iter->second->node_map[dst_state]->index.find(dst) != iter->second->node_map[dst_state]->index.end()) {
 					tree_node* tmp = iter->second->node_map[dst_state]->index[dst];

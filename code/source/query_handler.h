@@ -36,4 +36,11 @@ public:
     {
         processor_->expire_forest(eviction_time, deleted_edges);
     }
+
+    // Handle mid-window edge deletion (load shedding).
+    void shed_edges(
+        const std::vector<streaming_graph::expired_edge_info>& deleted_edges) const
+    {
+        processor_->shed_edges(deleted_edges);
+    }
 };
