@@ -83,11 +83,12 @@ public:
 	unordered_map<unsigned long long, unsigned int> timed_landmarks; // this structure is used to directly get the landmarks and the timestamp of this landmark in the spanning tree. 
 	// This structure is used when we need to traverse forward in the dependency graph, and thus is only needed in the dependency-forest version of LM-SRPQ
 	int node_cnt;
+	vector<unsigned int> tree_counter;
 
-	RPQ_tree()
-	{
+	RPQ_tree(int states_count) {
 		root = nullptr;
 		node_cnt = 0;
+		tree_counter.resize(states_count, 0);
 	}
 	void clear()
 	{
@@ -153,6 +154,7 @@ public:
 			node_map[state] = new tree_node_index;
 		node_map[state]->index[v] = tmp; // add this node to the node map
 		node_cnt++;
+		tree_counter[state]++;
 		return tmp;
 	}
 	void set_lm(unsigned int v, unsigned int state) // set the LM tag of a node to true;
@@ -203,6 +205,7 @@ public:
 			if (node_map[node->state]->index.empty())
 				node_map.erase(node->state);
 		}
+		tree_counter[node->state]--;
 		node_cnt--; // need to modify the node index in the upper layer.
 		landmarks.erase(static_cast<unsigned long long>(node->node_ID) << 32 | node->state);
 		shrink(landmarks);
@@ -221,34 +224,6 @@ public:
 	{
 		landmarks.erase(ID);
 		shrink(landmarks);
-	}
-
-	tree_node* remove_node(unsigned int v, unsigned int state) // given a product graph node, delete its corresponding tree node from the node map and return the tree node pointer.
-	{
-		tree_node* ans = nullptr;
-		if (node_map.find(state) != node_map.end())
-		{
-			if (node_map[state]->index.find(v) != node_map[state]->index.end())
-			{
-				ans = node_map[state]->index[v];
-				node_map[state]->index.erase(v);
-				node_cnt--;
-				landmarks.erase(static_cast<unsigned long long>(v) << 32 | state);
-				shrink(landmarks);
-				shrink(node_map[state]->index);
-				if (node_map[state]->index.empty())
-					node_map.erase(state);
-			}
-		}
-		return ans;
-		
-	}
-
-	tree_node* delete_node(unsigned int v, unsigned int state) // given a product graph node, separate its corresponding tree node from the spanning tree and delete it from the nodemap, and return the tree node pointer.
-	{
-		tree_node* node = remove_node(v, state);
-		separate_node(node);
-		return node;
 	}
 
 	void substitute_parent(tree_node* parent, tree_node* child)// change the parent pointer of child to the given parent

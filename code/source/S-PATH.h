@@ -1,4 +1,5 @@
 #pragma once
+#include<cassert>
 #include<iostream>
 #include<fstream>
 #include<map>
@@ -24,6 +25,12 @@ public:
 	unordered_map<unsigned long long, RPQ_tree*> forests; // map from product graph node to tree pointer
 	map<unsigned int, tree_info_index*> v2t_index; // reverse index that maps a graph vertex to the trees that contains it. The first layer maps state to tree_info_index, and the second layer maps vertex ID to list of trees contains this node
 
+	// Per-vertex, per-tree counter: vertex_counters[v][tree_ptr][state] = 1 if v has that state in that tree
+	unordered_map<unsigned int, unordered_map<RPQ_tree*, vector<unsigned int>>> vertex_counters;
+	// Global vertex counter: global_counters[v][state] = number of trees where v has that state
+	unordered_map<unsigned int, vector<unsigned int>> global_counters;
+
+
 	S_PATH(FiniteStateAutomaton &aut, streaming_graph &g, Sink &sink)
 		: aut(aut), g(g), sink(sink) {
 	}
@@ -44,7 +51,7 @@ public:
 		bool result = false;
         if (aut.getNextState(0, label) != -1 && forests.find(merge_long_long(s, 0)) == forests.end())
 		{
-			auto* new_tree = new RPQ_tree();
+			auto* new_tree = new RPQ_tree(aut.states_count);
 			new_tree->root = add_node(new_tree, s, 0, s, nullptr, MAX_INT, MAX_INT);
 			forests[merge_long_long(s, 0)] = new_tree;
 		}
@@ -95,6 +102,7 @@ public:
 							expire_per_tree(dst, dst_state, k, eviction_time); // expire in each tree
 							if (k->root->child == nullptr) // delete the tree if it is empty.
 							{
+								decrement_counter(k->root->node_ID, k->root->state, k);
 								delete_index(k->root->node_ID, k->root->state, k->root->node_ID);
 								forests.erase(merge_long_long(k->root->node_ID, k->root->state));
 								delete k;
@@ -174,6 +182,7 @@ public:
 					}
 
 					if (tree_pt->root->child == nullptr) {
+						decrement_counter(tree_pt->root->node_ID, tree_pt->root->state, tree_pt);
 						delete_index(tree_pt->root->node_ID, tree_pt->root->state, tree_pt->root->node_ID);
 						forests.erase(merge_long_long(tree_pt->root->node_ID, tree_pt->root->state));
 						delete tree_pt;
@@ -226,16 +235,61 @@ private:
 	}
 
 
-	tree_node* add_node(RPQ_tree* tree_pt, unsigned int v, unsigned int state, unsigned int root_ID, tree_node* parent, unsigned int timestamp, unsigned int edge_time) // add  a node to a spanning tree, given all the necessary information.
+	tree_node* add_node(RPQ_tree* tree_pt, unsigned int v, unsigned int state, unsigned int root_ID, tree_node* parent, unsigned int timestamp, unsigned int edge_time) // add a node to a spanning tree, given all the necessary information.
 	{
 		add_index(tree_pt, v, state, root_ID);
+		increment_counter(v, state, tree_pt);
 		tree_node* tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time);
 		return tmp;
 	}
 
+	void increment_counter(unsigned int v, unsigned int state, RPQ_tree* tree_pt) {
+		auto& tc = vertex_counters[v];
+		auto it = tc.find(tree_pt);
+		if (it == tc.end())
+			it = tc.emplace(tree_pt, vector<unsigned int>(aut.states_count, 0)).first;
+		assert(it->second[state] == 0 && "per-tree counter already 1 before increment");
+		it->second[state] = 1;
 
+		auto& gc = global_counters[v];
+		if (gc.empty())
+			gc.resize(aut.states_count, 0);
+		gc[state]++;
+	}
 
-	void delete_index(unsigned int v, unsigned int state, unsigned int root) // modify the reverse index when a node is not in a spanning tree any more. 
+	void decrement_counter(unsigned int v, unsigned int state, RPQ_tree* tree_pt) {
+		auto vc_it = vertex_counters.find(v);
+		if (vc_it == vertex_counters.end()) return;
+		auto tc_it = vc_it->second.find(tree_pt);
+		if (tc_it == vc_it->second.end()) return;
+
+		assert(tc_it->second[state] == 1 && "per-tree counter not 1 before decrement");
+		tc_it->second[state] = 0;
+
+		// Clean up if all zeros for this tree
+		bool all_zero = true;
+		for (int i = 0; i < aut.states_count; i++) {
+			if (tc_it->second[i] != 0) { all_zero = false; break; }
+		}
+		if (all_zero)
+			vc_it->second.erase(tc_it);
+		if (vc_it->second.empty())
+			vertex_counters.erase(vc_it);
+
+		auto gc_it = global_counters.find(v);
+		if (gc_it != global_counters.end()) {
+			assert(gc_it->second[state] > 0 && "global counter would go negative");
+			gc_it->second[state]--;
+			bool gc_zero = true;
+			for (int i = 0; i < aut.states_count; i++) {
+				if (gc_it->second[i] != 0) { gc_zero = false; break; }
+			}
+			if (gc_zero)
+				global_counters.erase(gc_it);
+		}
+	}
+
+	void delete_index(unsigned int v, unsigned int state, unsigned int root) // modify the reverse index when a node is not in a spanning tree any more.
 	{
 		auto iter = v2t_index.find(state);
 		if (iter != v2t_index.end())
@@ -327,6 +381,7 @@ private:
 			q.pop();
 			for (tree_node* cur = tmp->child; cur; cur = cur->brother)
 				q.push(cur);
+			decrement_counter(tmp->node_ID, tmp->state, tree_pt);
 			tree_pt->remove_node(tmp);
 			delete_index(tmp->node_ID, tmp->state, tree_pt->root->node_ID);
 			delete tmp;

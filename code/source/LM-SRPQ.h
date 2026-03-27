@@ -121,7 +121,7 @@ public:
         if (aut.getNextState(0, label) != -1 && forests.find(merge_long_long(s, 0)) == forests.end())
         // we need to build a new tree
         {
-            auto *new_tree = new RPQ_tree();
+            auto *new_tree = new RPQ_tree(aut.states_count);
             if (landmarks.find(merge_long_long(s, 0)) == landmarks.end()) // a normal tree
                 new_tree->root = add_node(new_tree, s, 0, s, nullptr, MAX_INT, MAX_INT);
             else {
@@ -1208,7 +1208,7 @@ private:
     RPQ_tree *build_lm_tree(unsigned int v, unsigned int state)
     // this function build new lm tree for a landmark, we use time info in prune and may miss some nodes, we will add them back with above fulfill_new_lm_tree later .
     {
-        auto *new_tree = new RPQ_tree;
+        auto *new_tree = new RPQ_tree(aut.states_count);
         new_tree->root = new_tree->add_node(v, state, nullptr, MAX_INT, MAX_INT);
         new_tree->add_time_info(v, state, MAX_INT);
         queue<tree_node *> q;

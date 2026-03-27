@@ -1,5 +1,5 @@
 input_data_path=code/dataset/so/so-stream_labelled_modified_v2.txt
-adaptive=5
+adaptive=10
 size=100000
 slide=20000
 min_size=0
