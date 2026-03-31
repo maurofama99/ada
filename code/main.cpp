@@ -167,6 +167,11 @@ int main(int argc, char *argv[]) {
     const fs::path memory_path  = output_folder / (base + "_memory_results.csv");
     const fs::path slides_path  = output_folder / (base + "_slides_results.csv");
 
+    // Snapshot CSVs for ML counter projection
+    const fs::path snap_vertex_path = output_folder / (base + "_snapshot_vertices.csv");
+    const fs::path snap_tree_path   = output_folder / (base + "_snapshot_trees.csv");
+    const fs::path snap_forest_path = output_folder / (base + "_snapshot_forest.csv");
+
     std::ofstream csv_summary(summary_path.string());
     csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
 
@@ -182,9 +187,16 @@ int main(int argc, char *argv[]) {
     std::ofstream csv_slides(slides_path.string());
     csv_slides << "t_open,t_close,latency_sec,elements,new_results,cost_norm\n";
 
+    std::ofstream csv_snap_vertex(snap_vertex_path.string());
+    std::ofstream csv_snap_tree(snap_tree_path.string());
+    std::ofstream csv_snap_forest(snap_forest_path.string());
+    ctx.q->write_snapshot_headers(csv_snap_vertex, csv_snap_tree, csv_snap_forest);
+
     ctx.csv_tuples = &csv_tuples;
     ctx.csv_memory = &csv_memory;
-    long long checkpoint = 500000;
+    long long checkpoint = 200000;
+    int snapshot_id = 0;
+    size_t last_slide_count = 0;
 
     int elements_processed = 0;
     double cumulative_processing_time = 0;
@@ -225,6 +237,18 @@ int main(int argc, char *argv[]) {
         ctx.cumulative_processing_time_type[l] += processing_time_used;
         ctx.processed_elements_type[l]++;
         ctx.input_rate_type[l] = ctx.processed_elements_type[l] / static_cast<double>(clock() - start);
+
+        // Take snapshot at each slide boundary
+        if (ctx.slides.size() > last_slide_count) {
+            last_slide_count = ctx.slides.size();
+            int win_id = static_cast<int>(ctx.windows.size()) - 1;
+            long long snap_t_open = ctx.windows[win_id >= 0 ? win_id : 0].t_open;
+            long long snap_t_close = ctx.windows[win_id >= 0 ? win_id : 0].t_close;
+            ctx.q->dump_snapshot(csv_snap_vertex, csv_snap_tree, csv_snap_forest,
+                                 snapshot_id, win_id, time, snap_t_open, snap_t_close,
+                                 ctx.sink->matched_paths);
+            snapshot_id++;
+        }
 
         if (elements_processed % checkpoint == 0) {
             printf("processed edges: %d\n", elements_processed);
@@ -279,7 +303,7 @@ int main(int argc, char *argv[]) {
                    << cost_norm << "\n";
     }
 
-    ctx.sink->exportResultSet(base + "_result_set.csv");
+    //ctx.sink->exportResultSet(base + "_result_set.csv");
 
     if (mode == "adwin") {
         // print maximum and minimum window sizes
@@ -297,10 +321,22 @@ int main(int argc, char *argv[]) {
         cout << "max window size: " << max << endl;
     }
 
+    // Final snapshot at end of stream
+    if (!ctx.windows.empty()) {
+        int win_id = static_cast<int>(ctx.windows.size()) - 1;
+        ctx.q->dump_snapshot(csv_snap_vertex, csv_snap_tree, csv_snap_forest,
+                             snapshot_id, win_id, time,
+                             ctx.windows[win_id].t_open, ctx.windows[win_id].t_close,
+                             ctx.sink->matched_paths);
+    }
+
     csv_summary.close();
     csv_windows.close();
     csv_tuples.close();
     csv_memory.close();
+    csv_snap_vertex.close();
+    csv_snap_tree.close();
+    csv_snap_forest.close();
 
     // cleanup
     delete ctx.sg;

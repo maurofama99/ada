@@ -33,6 +33,18 @@ public:
     // tries to reconnect them via alternative paths still in the graph.
     virtual void shed_edges(
         const std::vector<streaming_graph::expired_edge_info>& deleted_edges) = 0;
+
+    // Dump a snapshot of counters/forest state for ML training data.
+    // Default no-op for algorithms that don't support it.
+    virtual void dump_snapshot(std::ostream& /*vertex_csv*/, std::ostream& /*tree_csv*/,
+                               std::ostream& /*forest_csv*/, int /*snapshot_id*/,
+                               int /*window_id*/, long long /*current_time*/,
+                               long long /*t_open*/, long long /*t_close*/,
+                               int /*matched_paths*/) {}
+
+    // Write CSV headers for snapshot files. Returns states_count (0 if unsupported).
+    virtual int write_snapshot_headers(std::ostream& /*vertex_csv*/, std::ostream& /*tree_csv*/,
+                                       std::ostream& /*forest_csv*/) { return 0; }
 };
 
 // ---------------------------------------------------------------------------
@@ -63,6 +75,21 @@ public:
     void shed_edges(
         const std::vector<streaming_graph::expired_edge_info>& deleted_edges) override {
         impl_.shed_edges(deleted_edges);
+    }
+
+    void dump_snapshot(std::ostream& vertex_csv, std::ostream& tree_csv,
+                       std::ostream& forest_csv, int snapshot_id,
+                       int window_id, long long current_time,
+                       long long t_open, long long t_close,
+                       int matched_paths) override {
+        impl_.dump_snapshot(vertex_csv, tree_csv, forest_csv, snapshot_id,
+                            window_id, current_time, t_open, t_close, matched_paths);
+    }
+
+    int write_snapshot_headers(std::ostream& vertex_csv, std::ostream& tree_csv,
+                                std::ostream& forest_csv) override {
+        impl_.write_snapshot_headers(vertex_csv, tree_csv, forest_csv);
+        return impl_.aut.states_count;
     }
 };
 

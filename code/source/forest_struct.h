@@ -43,7 +43,8 @@ struct tree_node // node in the spanning tree
 	tree_node* parent;	// pointer to parent. As we may need to move a subtree from one parent to another, a parent pointer will accelerate this procedure, as suggested by the authors.
 	tree_node* child;
 	tree_node* brother;	// first child and list of brother, classic method for tree maintaining
-	tree_node(unsigned int ID, unsigned int state_, unsigned int time, unsigned int edge_time)
+	vector<unsigned int> subtree_counter; // count of each state in the subtree rooted at this node (self-inclusive)
+	tree_node(unsigned int ID, unsigned int state_, unsigned int time, unsigned int edge_time, int states_count = 0)
 	{
 		node_ID = ID;
 		state = state_;
@@ -53,6 +54,10 @@ struct tree_node // node in the spanning tree
 		parent = nullptr;
 		child = nullptr;
 		brother = nullptr;
+		if (states_count > 0) {
+			subtree_counter.resize(states_count, 0);
+			subtree_counter[state_] = 1;
+		}
 	}
 };
 
@@ -144,7 +149,8 @@ public:
 	}
 	tree_node* add_node(unsigned int v, unsigned int state, tree_node* parent, unsigned int time, unsigned int edge_time) // add a new tree node with given ID, state, node time ,edge time and parent
 	{
-		auto* tmp = new tree_node(v, state, time, edge_time);
+		int states_count = static_cast<int>(tree_counter.size());
+		auto* tmp = new tree_node(v, state, time, edge_time, states_count);
 		tmp->parent = parent;
 		if (parent) {
 			tmp->brother = parent->child; // add this node to the head of the child list of the parent
@@ -155,6 +161,9 @@ public:
 		node_map[state]->index[v] = tmp; // add this node to the node map
 		node_cnt++;
 		tree_counter[state]++;
+		// Propagate the new node's state up the ancestor chain
+		for (tree_node* ancestor = parent; ancestor; ancestor = ancestor->parent)
+			ancestor->subtree_counter[state]++;
 		return tmp;
 	}
 	void set_lm(unsigned int v, unsigned int state) // set the LM tag of a node to true;

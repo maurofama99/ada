@@ -35,6 +35,15 @@ public:
 		: aut(aut), g(g), sink(sink) {
 	}
 
+	void assert_root_subtree_eq_tree_counter() {
+		for (auto& [key, tree_pt] : forests) {
+			for (int q = 0; q < aut.states_count; q++) {
+				assert(tree_pt->root->subtree_counter[q] == tree_pt->tree_counter[q]
+					&& "root->subtree_counter must equal tree_counter");
+			}
+		}
+	}
+
 	~S_PATH() {
 		unordered_map<unsigned long long, RPQ_tree*>::iterator it;
 		for (it = forests.begin(); it != forests.end(); it++)
@@ -70,6 +79,7 @@ public:
 				}
 			}
 		}
+		assert_root_subtree_eq_tree_counter();
 		return result;
 	}
 
@@ -114,6 +124,7 @@ public:
 				}
 			}
 		}
+		assert_root_subtree_eq_tree_counter();
 	}
 
 	// Handle mid-window edge deletion (load shedding). For each deleted edge,
@@ -172,7 +183,7 @@ public:
 					}
 
 					if (best_parent) {
-						tree_pt->substitute_parent(best_parent, node);
+						reparent_with_counters(tree_pt, best_parent, node);
 						node->edge_timestamp = best_edge_time;
 						node->timestamp = best_timestamp;
 						propagate_timestamps(node);
@@ -192,6 +203,7 @@ public:
 			}
 		}
 		shrink(forests);
+		assert_root_subtree_eq_tree_counter();
 	}
 
 private:
@@ -238,35 +250,16 @@ private:
 	tree_node* add_node(RPQ_tree* tree_pt, unsigned int v, unsigned int state, unsigned int root_ID, tree_node* parent, unsigned int timestamp, unsigned int edge_time) // add a node to a spanning tree, given all the necessary information.
 	{
 		add_index(tree_pt, v, state, root_ID);
-		increment_counter(v, state, tree_pt);
 		tree_node* tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time);
+		increment_counter(v, state, tree_pt);
 		return tmp;
 	}
 
-	void increment_counter(unsigned int v, unsigned int state, RPQ_tree* tree_pt) {
-		auto& tc = vertex_counters[v];
-		auto it = tc.find(tree_pt);
-		if (it == tc.end())
-			it = tc.emplace(tree_pt, vector<unsigned int>(aut.states_count, 0)).first;
-		assert(it->second[state] == 0 && "per-tree counter already 1 before increment");
-		it->second[state] = 1;
-
-		auto& gc = global_counters[v];
-		if (gc.empty())
-			gc.resize(aut.states_count, 0);
-		gc[state]++;
-	}
-
-	void decrement_counter(unsigned int v, unsigned int state, RPQ_tree* tree_pt) {
-		auto vc_it = vertex_counters.find(v);
-		if (vc_it == vertex_counters.end()) return;
-		auto tc_it = vc_it->second.find(tree_pt);
-		if (tc_it == vc_it->second.end()) return;
-
-		assert(tc_it->second[state] == 1 && "per-tree counter not 1 before decrement");
-		tc_it->second[state] = 0;
-
-		// Clean up if all zeros for this tree
+	// Remove zero entries from vertex_counters and global_counters for a given vertex/tree pair.
+	// Takes iterators to avoid redundant lookups.
+	void cleanup_vertex_entry(
+			unordered_map<unsigned int, unordered_map<RPQ_tree*, vector<unsigned int>>>::iterator vc_it,
+			unordered_map<RPQ_tree*, vector<unsigned int>>::iterator tc_it) {
 		bool all_zero = true;
 		for (int i = 0; i < aut.states_count; i++) {
 			if (tc_it->second[i] != 0) { all_zero = false; break; }
@@ -275,17 +268,74 @@ private:
 			vc_it->second.erase(tc_it);
 		if (vc_it->second.empty())
 			vertex_counters.erase(vc_it);
+	}
 
+	// Convenience overload taking vertex ID and tree pointer.
+	void cleanup_vertex_entry(unsigned int v, RPQ_tree* tree_pt) {
+		auto vc_it = vertex_counters.find(v);
+		if (vc_it == vertex_counters.end()) return;
+		auto tc_it = vc_it->second.find(tree_pt);
+		if (tc_it == vc_it->second.end()) return;
+		cleanup_vertex_entry(vc_it, tc_it);
+	}
+
+	void cleanup_global_entry(unsigned int v) {
+		auto gc_it = global_counters.find(v);
+		if (gc_it == global_counters.end()) return;
+		bool gc_zero = true;
+		for (int i = 0; i < aut.states_count; i++) {
+			if (gc_it->second[i] != 0) { gc_zero = false; break; }
+		}
+		if (gc_zero)
+			global_counters.erase(gc_it);
+	}
+
+	void increment_counter(unsigned int v, unsigned int state, RPQ_tree* tree_pt) {
+		// Update vertex_counters and global_counters for the new node itself
+		auto& tc = vertex_counters[v];
+		auto it = tc.find(tree_pt);
+		if (it == tc.end())
+			it = tc.emplace(tree_pt, vector<unsigned int>(aut.states_count, 0)).first;
+		it->second[state] += 1;
+
+		auto& gc = global_counters[v];
+		if (gc.empty())
+			gc.resize(aut.states_count, 0);
+		gc[state]++;
+
+		// Propagate: the new node adds +1 to state for every ancestor's vertex/global counters
+		// (subtree_counter propagation is already done in RPQ_tree::add_node)
+		tree_node* node = tree_pt->find_node(v, state);
+		for (tree_node* anc = node->parent; anc; anc = anc->parent) {
+			unsigned int anc_v = anc->node_ID;
+			auto& atc = vertex_counters[anc_v];
+			auto ait = atc.find(tree_pt);
+			if (ait == atc.end())
+				ait = atc.emplace(tree_pt, vector<unsigned int>(aut.states_count, 0)).first;
+			ait->second[state] += 1;
+
+			auto& agc = global_counters[anc_v];
+			if (agc.empty())
+				agc.resize(aut.states_count, 0);
+			agc[state]++;
+		}
+	}
+
+	// Decrement counter for a single isolated node (root with no children).
+	// Ancestor propagation is handled separately by erase_tree_node.
+	void decrement_counter(unsigned int v, unsigned int state, RPQ_tree* tree_pt) {
+		auto vc_it = vertex_counters.find(v);
+		if (vc_it != vertex_counters.end()) {
+			auto tc_it = vc_it->second.find(tree_pt);
+			if (tc_it != vc_it->second.end()) {
+				tc_it->second[state] -= 1;
+				cleanup_vertex_entry(vc_it, tc_it);
+			}
+		}
 		auto gc_it = global_counters.find(v);
 		if (gc_it != global_counters.end()) {
-			assert(gc_it->second[state] > 0 && "global counter would go negative");
 			gc_it->second[state]--;
-			bool gc_zero = true;
-			for (int i = 0; i < aut.states_count; i++) {
-				if (gc_it->second[i] != 0) { gc_zero = false; break; }
-			}
-			if (gc_zero)
-				global_counters.erase(gc_it);
+			cleanup_global_entry(v);
 		}
 	}
 
@@ -298,7 +348,42 @@ private:
 			if (iter->second->tree_index.empty())
 				v2t_index.erase(iter);
 		}
+
 	}
+	// Reparent a node, updating subtree_counter, vertex_counters, and global_counters
+	// along both the old and new ancestor chains.
+	void reparent_with_counters(RPQ_tree* tree_pt, tree_node* new_parent, tree_node* child) {
+		vector<unsigned int>& moved = child->subtree_counter;
+
+		// Subtract from old ancestor chain
+		for (tree_node* anc = child->parent; anc; anc = anc->parent) {
+			unsigned int anc_v = anc->node_ID;
+			for (int q = 0; q < aut.states_count; q++) {
+				anc->subtree_counter[q] -= moved[q];
+				vertex_counters[anc_v][tree_pt][q] -= moved[q];
+				global_counters[anc_v][q] -= moved[q];
+			}
+		}
+
+		tree_pt->substitute_parent(new_parent, child);
+
+		// Add to new ancestor chain
+		for (tree_node* anc = new_parent; anc; anc = anc->parent) {
+			unsigned int anc_v = anc->node_ID;
+			auto& atc = vertex_counters[anc_v];
+			auto ait = atc.find(tree_pt);
+			if (ait == atc.end())
+				ait = atc.emplace(tree_pt, vector<unsigned int>(aut.states_count, 0)).first;
+			auto& agc = global_counters[anc_v];
+			if (agc.empty()) agc.resize(aut.states_count, 0);
+			for (int q = 0; q < aut.states_count; q++) {
+				anc->subtree_counter[q] += moved[q];
+				ait->second[q] += moved[q];
+				agc[q] += moved[q];
+			}
+		}
+	}
+
 	bool expand(tree_node* expand_node, RPQ_tree* tree_pt) // function used to expand a spanning tree with a BFS manner when a new node is added into a spanning tree. expand node is the new node
 	{
 		unordered_map<unsigned int, unsigned int> updated_results;
@@ -327,7 +412,7 @@ private:
 				else {
 					if (tree_node* dst_pt = tree_pt->node_map[dst_state]->index[successor]; dst_pt->timestamp < time) { // else if its current timestamp is smaller than the new timestamp, we update the timestamp and link it to the new parent.
 						if (dst_pt->parent != tmp) {
-							tree_pt->substitute_parent(tmp, dst_pt);
+							reparent_with_counters(tree_pt, tmp, dst_pt);
 						}
 						dst_pt->timestamp = time;
 						dst_pt->edge_timestamp = i->timestamp;
@@ -358,7 +443,7 @@ private:
 					if (dst_pt->timestamp < time) // if the dst node exists but has a smaller timestamp, update its timestamp, and use expand to propagate the new timestamp down.
 					{
 						if (dst_pt->parent != src_pt) {
-							tree_pt->substitute_parent(src_pt, dst_pt);
+							reparent_with_counters(tree_pt, src_pt, dst_pt);
 						}
 						dst_pt->timestamp = time;
 						dst_pt->edge_timestamp = timestamp;
@@ -372,16 +457,39 @@ private:
 
 	void erase_tree_node(RPQ_tree* tree_pt, tree_node* child) // given an expired node, delete the subtree rooted at it in tree_pt, all the nodes in its subtree also expire.
 	{
+		// Save the subtree's aggregate counter before separation
+		vector<unsigned int> removed = child->subtree_counter;
+		tree_node* cut_parent = child->parent;
+		tree_pt->separate_node(child); // 'child' is disconnected with its parent
+
+		// Propagate subtree removal up the ancestor chain
+		for (tree_node* anc = cut_parent; anc; anc = anc->parent) {
+			unsigned int anc_v = anc->node_ID;
+			for (int s = 0; s < aut.states_count; s++) {
+				anc->subtree_counter[s] -= removed[s];
+				vertex_counters[anc_v][tree_pt][s] -= removed[s];
+				global_counters[anc_v][s] -= removed[s];
+			}
+		}
+
+		// BFS delete — each node removes its subtree_counter from its own vertex entry
 		queue<tree_node*> q;
 		q.push(child);
-		tree_pt->separate_node(child); // 'child' is disconnected with its parent, other nodes do not need to call this function, as there parents and brothers are all deleted;
 		while (!q.empty())
 		{
 			tree_node* tmp = q.front();
 			q.pop();
 			for (tree_node* cur = tmp->child; cur; cur = cur->brother)
 				q.push(cur);
-			decrement_counter(tmp->node_ID, tmp->state, tree_pt);
+
+			unsigned int nv = tmp->node_ID;
+			for (int s = 0; s < aut.states_count; s++) {
+				vertex_counters[nv][tree_pt][s] -= tmp->subtree_counter[s];
+				global_counters[nv][s] -= tmp->subtree_counter[s];
+			}
+			cleanup_vertex_entry(nv, tree_pt);
+			cleanup_global_entry(nv);
+
 			tree_pt->remove_node(tmp);
 			delete_index(tmp->node_ID, tmp->state, tree_pt->root->node_ID);
 			delete tmp;
@@ -449,6 +557,93 @@ private:
 		}
 	}
 
-	
+
+public:
+	// -----------------------------------------------------------------------
+	// Snapshot export for ML-based counter projection
+	// -----------------------------------------------------------------------
+	void dump_snapshot(std::ostream& vertex_csv, std::ostream& tree_csv, std::ostream& forest_csv,
+	                   int snapshot_id, int window_id, long long current_time,
+	                   long long t_open, long long t_close, int matched_paths) {
+		// Collect query label frequencies once per snapshot
+		auto query_labels = aut.getDistinctLabels();
+		int total_edges = static_cast<int>(g.edge_num);
+		int total_vertices = static_cast<int>(g.vertex_num);
+
+		// Per-vertex global counters
+		for (auto& [v, gc] : global_counters) {
+			int in_deg = g.in_degree.count(v) ? g.in_degree.at(v) : 0;
+			int out_deg = g.out_degree.count(v) ? g.out_degree.at(v) : 0;
+			int num_trees = vertex_counters.count(v) ? static_cast<int>(vertex_counters.at(v).size()) : 0;
+			vertex_csv << snapshot_id << "," << window_id << "," << current_time << ","
+			           << t_open << "," << t_close << ","
+			           << v << "," << in_deg << "," << out_deg << "," << num_trees;
+			for (int q = 0; q < aut.states_count; q++)
+				vertex_csv << "," << gc[q];
+			vertex_csv << "," << matched_paths
+			           << "," << total_edges << "," << total_vertices;
+			for (auto lbl : query_labels) {
+				auto it = g.label_counts.find(static_cast<int>(lbl));
+				vertex_csv << "," << (it != g.label_counts.end() ? it->second : 0);
+			}
+			vertex_csv << "\n";
+		}
+
+		// Per-node subtree counters with depth (one row per node in each tree)
+		for (auto& [key, tree_pt] : forests) {
+			// BFS with depth tracking
+			queue<pair<tree_node*, int>> bfs;
+			bfs.push({tree_pt->root, 0});
+			while (!bfs.empty()) {
+				auto [node, depth] = bfs.front(); bfs.pop();
+				int num_children = 0;
+				for (tree_node* c = node->child; c; c = c->brother) {
+					bfs.push({c, depth + 1});
+					num_children++;
+				}
+				int subtree_size = 0;
+				for (int q = 0; q < aut.states_count; q++)
+					subtree_size += node->subtree_counter[q];
+				tree_csv << snapshot_id << "," << node->node_ID << "," << node->state << ","
+				         << tree_pt->root->node_ID << "," << tree_pt->root->state
+				         << "," << depth << "," << num_children << "," << subtree_size;
+				for (int q = 0; q < aut.states_count; q++)
+					tree_csv << "," << node->subtree_counter[q];
+				tree_csv << "\n";
+			}
+		}
+
+		// Per-tree forest stats
+		for (auto& [key, tree_pt] : forests) {
+			forest_csv << snapshot_id << "," << tree_pt->root->node_ID << ","
+			           << tree_pt->root->state << "," << tree_pt->node_cnt;
+			for (int q = 0; q < aut.states_count; q++)
+				forest_csv << "," << tree_pt->tree_counter[q];
+			forest_csv << "\n";
+		}
+	}
+
+	void write_snapshot_headers(std::ostream& vertex_csv, std::ostream& tree_csv,
+	                            std::ostream& forest_csv) {
+		auto query_labels = aut.getDistinctLabels();
+
+		vertex_csv << "snapshot_id,window_id,time,t_open,t_close,vertex_id,in_degree,out_degree,num_trees";
+		for (int q = 0; q < aut.states_count; q++)
+			vertex_csv << ",global_subtree_q" << q;
+		vertex_csv << ",matched_paths,total_edges,total_vertices";
+		for (auto lbl : query_labels)
+			vertex_csv << ",label_" << lbl << "_count";
+		vertex_csv << "\n";
+
+		tree_csv << "snapshot_id,vertex_id,node_state,tree_root_vertex,tree_root_state,depth,num_children,subtree_size";
+		for (int q = 0; q < aut.states_count; q++)
+			tree_csv << ",subtree_q" << q;
+		tree_csv << "\n";
+
+		forest_csv << "snapshot_id,tree_root_vertex,tree_root_state,node_count";
+		for (int q = 0; q < aut.states_count; q++)
+			forest_csv << ",tree_counter_q" << q;
+		forest_csv << "\n";
+	}
 
 };

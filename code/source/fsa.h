@@ -116,6 +116,27 @@ public:
                 addTransition(2,3,labels[2]);
                 states_count = 4;
                 break;
+            case 9: // a(b*c)+d*(e|f)
+                states_count = 5;
+                addFinalState(1);
+                // a
+                addTransition(0,4,labels[0]);
+                // b
+                addTransition(4,4, labels[1]);
+                addTransition(3,4, labels[1]);
+                // c
+                addTransition(4,3, labels[2]);
+                addTransition(3,3, labels[2]);
+                // d
+                addTransition(3,2, labels[3]);
+                addTransition(2,2, labels[3]);
+                // e
+                addTransition(2,1, labels[4]);
+                addTransition(3,1, labels[4]);
+                //f
+                addTransition(2,1, labels[5]);
+                addTransition(3,1, labels[5]);
+                break;
             default:
                 std::cerr << "ERROR: Wrong query type" << std::endl;
                 exit(1);
@@ -180,6 +201,19 @@ public:
             }
         }
         return false;
+    }
+
+    [[nodiscard]] std::vector<long long> getDistinctLabels() const {
+        std::unordered_set<long long> seen;
+        std::vector<long long> labels;
+        for (const auto& [state, trans_list] : transitions) {
+            for (const auto& t : trans_list) {
+                if (seen.insert(t.label).second)
+                    labels.push_back(t.label);
+            }
+        }
+        std::sort(labels.begin(), labels.end());
+        return labels;
     }
 
     [[nodiscard]] bool isFinalState(const long long state) const {

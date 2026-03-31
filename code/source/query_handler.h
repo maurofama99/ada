@@ -43,4 +43,19 @@ public:
     {
         processor_->shed_edges(deleted_edges);
     }
+
+    // Snapshot export for ML counter projection training data.
+    void dump_snapshot(std::ostream& vertex_csv, std::ostream& tree_csv,
+                       std::ostream& forest_csv, int snapshot_id,
+                       int window_id, long long current_time,
+                       long long t_open, long long t_close,
+                       int matched_paths) const {
+        processor_->dump_snapshot(vertex_csv, tree_csv, forest_csv, snapshot_id,
+                                  window_id, current_time, t_open, t_close, matched_paths);
+    }
+
+    int write_snapshot_headers(std::ostream& vertex_csv, std::ostream& tree_csv,
+                                std::ostream& forest_csv) const {
+        return processor_->write_snapshot_headers(vertex_csv, tree_csv, forest_csv);
+    }
 };

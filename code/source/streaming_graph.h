@@ -91,6 +91,7 @@ public:
 
     double edge_num = 0; // number of edges in the window
     int EINIT_count = 0;
+    std::unordered_map<int, int> label_counts; // per-label edge count in current window
 
     timed_edge *time_list_head = nullptr; // head of the time sequence list;
     timed_edge *time_list_tail = nullptr; // tail of the time sequence list
@@ -175,6 +176,7 @@ public:
         }
 
         edge_num++;
+        label_counts[label]++;
         if (label == first_transition) EINIT_count++;
 
         auto *edge = new sg_edge(edge_id, from, to, label, timestamp, expiration_time);
@@ -241,6 +243,8 @@ public:
                 bool should_erase_from = false;
                 edges.erase(it);
                 edge_num--;
+                label_counts[label]--;
+                if (label_counts[label] <= 0) label_counts.erase(label);
                 if (label == first_transition) EINIT_count--;
                 if (edges.empty()) {
                     should_erase_from = true;
