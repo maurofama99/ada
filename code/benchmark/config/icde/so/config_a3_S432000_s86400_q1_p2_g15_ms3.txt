@@ -1,0 +1,9 @@
+mode=3
+input_data_path=code/dataset/so/sx_stackoverflow_merged_peaks.txt
+size=432000
+slide=86400
+query_type=1
+labels=2
+path_algorithm=2
+granularity=15
+max_shed=3

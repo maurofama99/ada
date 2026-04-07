@@ -31,17 +31,11 @@ public:
     }
 
     ~LM_SRPQ() {
-        unordered_map<unsigned long long, RPQ_tree *>::iterator it;
-        for (it = forests.begin(); it != forests.end(); it++)
-            delete it->second;
+        for (auto &[fst, snd] : forests) delete snd;
         forests.clear();
-        map<unsigned int, tree_info_index *>::iterator it2;
-        for (it2 = v2t_index.begin(); it2 != v2t_index.end(); it2++)
-            delete it2->second;
-        map<unsigned int, lm_info_index *>::iterator it3;
-        for (it3 = v2l_index.begin(); it3 != v2l_index.end(); it3++)
-            delete it3->second;
+        for (auto &[fst, snd] : v2t_index) delete snd;
         v2t_index.clear();
+        for (auto &[fst, snd] : v2l_index) delete snd;
         v2l_index.clear();
 
         landmarks.clear();
@@ -593,7 +587,7 @@ private:
                     // update the time info.
                     tracked_nodes.insert(make_pair(iterator->first, time));
                     // record this node with another vector, and use it in further backtrack
-                    if (iterator->first > LONG_LONG_MAX) {
+                    if (iterator->first > LLONG_MAX) {
                         cout << "error in backtrack_lm: node ID exceeds the limit of long long" << endl;
                         exit(-1);
                     }

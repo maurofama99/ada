@@ -1,6 +1,3 @@
-//
-// Created by Mauro Famà on 12/02/2026.
-//
 
 #include "mode_handler_base.h"
 #include "../streaming_graph.h"
@@ -15,9 +12,7 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
 
     double avg_deg = ctx.sg->edge_num/ctx.sg->vertex_num;
 
-    double n = 0;
-    n = (ctx.sg->EINIT_count + 1) * (2 * ctx.sg->edge_num - ctx.sg->EINIT_count) / 2.0;
-
+    double n = (ctx.sg->EINIT_count + 1) * (2 * ctx.sg->edge_num - ctx.sg->EINIT_count) / 2.0;
 
     switch (mode) {
         case 11:
@@ -40,8 +35,7 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
             exit(1);
     }
 
-    *(ctx.csv_memory) << n / ctx.max_deg << "," << avg_deg << "," << n << "," << ctx.max_deg << "," << ctx.sg->
-            EINIT_count * ctx.sg->edge_num << std::endl;
+    *(ctx.csv_memory) << n / ctx.max_deg << "," << avg_deg << "," << n << "," << ctx.max_deg << "," << ctx.sg->EINIT_count * ctx.sg->edge_num << std::endl;
 
     if (ctx.cost > ctx.cost_max) ctx.cost_max = ctx.cost;
     if (ctx.cost < ctx.cost_min) ctx.cost_min = ctx.cost;

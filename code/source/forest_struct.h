@@ -106,10 +106,10 @@ public:
 				}
 				delete tmp;
 			}
-			for (auto & iter : node_map)
-				delete iter.second;
-			for (auto & iter : time_info)
-				delete iter.second;
+			for (auto &[fst, snd] : node_map)
+				delete snd;
+			for (auto &[fst, snd] : time_info)
+				delete snd;
 			node_map.clear();
 			landmarks.clear();
 			time_info.clear();

@@ -1,0 +1,9 @@
+mode=11
+input_data_path=code/dataset/higgs-activity/higgs-activity_time_postprocess.txt
+size=10800
+slide=900
+query_type=5
+labels=1,2,3
+path_algorithm=2
+max_size=10800
+min_size=9180

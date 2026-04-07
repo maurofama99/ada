@@ -1,6 +1,5 @@
 #include "load_shedding_mode.h"
 #include <cmath>
-#include <algorithm>
 #include <cassert>
 #include <iostream>
 
@@ -110,10 +109,12 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
 
     if (evict_condition) {
         std::vector<streaming_graph::expired_edge_info> deleted_edges = evict(ctx, time);
-        for (auto& edge : deleted_edges) {
-            types_counts[edge.label]--;
-            assert (types_counts[edge.label] >= 0);
-            ranks[edge.label].remove(edge.id);
+        if (ctx.mode == 5) {
+            for (auto& edge : deleted_edges) {
+                types_counts[edge.label]--;
+                assert (types_counts[edge.label] >= 0);
+                ranks[edge.label].remove(edge.id);
+            }
         }
 
         mark_windows_evicted(ctx);

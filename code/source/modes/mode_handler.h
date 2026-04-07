@@ -4,17 +4,16 @@
 #include <vector>
 #include <deque>
 #include <fstream>
-#include <ctime>
 #include <sstream>
 
 #include "../streaming_graph.h"
 #include "../sink.h"
 #include "../fsa.h"
-#include "code/source/query_handler.h"
+#include "../query_handler.h"
 
 typedef struct Config {
     std::string input_data_path;
-    int adaptive{};
+    int mode{};
     long long size{};
     long long slide{};
     long long query_type{};
@@ -23,6 +22,8 @@ typedef struct Config {
     int min_size{};
     double l_max{};
     int path_algorithm{};
+    double granularity{};
+    double max_shed{};
 } config;
 
 inline config readConfig(const std::string &filename) {
@@ -39,20 +40,17 @@ inline config readConfig(const std::string &filename) {
 
     while (std::getline(file, line)) {
         std::istringstream ss(line);
-        std::string key, value;
-        if (std::getline(ss, key, '=') && std::getline(ss, value)) {
+        std::string value;
+        if (std::string key; std::getline(ss, key, '=') && std::getline(ss, value)) {
             configMap[key] = value;
         }
     }
 
     // Convert values from the map
     config.input_data_path = configMap["input_data_path"];
-    config.adaptive = std::stoi(configMap["adaptive"]);
-
+    config.mode = std::stoi(configMap["mode"]);
     config.size = std::stoi(configMap["size"]);
     config.slide = std::stoi(configMap["slide"]);
-    config.max_size = std::stoi(configMap["max_size"]);
-    config.min_size = std::stoi(configMap["min_size"]);
     config.query_type = std::stoi(configMap["query_type"]);
     config.path_algorithm = std::stoi(configMap["path_algorithm"]);
 
@@ -62,7 +60,31 @@ inline config readConfig(const std::string &filename) {
         config.labels.push_back(std::stoi(arg));
     }
 
-    if (config.adaptive == 5) {
+    if (config.mode >= 10 and config.mode <= 15) {
+        if (configMap.find("max_size") == configMap.end() || configMap.find("min_size") == configMap.end()) {
+            std::cerr << "Error: max_size and min_size should be set" << std::endl;
+            exit(1);
+        }
+        config.max_size = std::stoi(configMap["max_size"]);
+        config.min_size = std::stoi(configMap["min_size"]);
+    } else {
+        config.max_size = 0;
+        config.min_size = 0;
+    }
+
+    if (config.mode == 3 || config.mode == 4) {
+        if (configMap.find("granularity") == configMap.end() || configMap.find("max_shed") == configMap.end()) {
+            std::cerr << "Error: granularity and max_shed should be set" << std::endl;
+            exit(1);
+        }
+        config.granularity = std::stod(configMap["granularity"]);
+        config.max_shed = std::stod(configMap["max_shed"]);
+    } else {
+        config.granularity = 0;
+        config.max_shed = 0;
+    }
+
+    if (config.mode == 5) {
         if (configMap.find("l_max") == configMap.end()) {
             std::cerr << "Error: l_max should be set" << std::endl;
             exit(1);
@@ -107,14 +129,16 @@ public:
         this->last = last;
         this->start_time = clock();
         this->results_at_open = results_at_open;
+        this->results_at_close = results_at_open;
+        this->total_matched_results = results_at_open;
     }
 };
 
 struct Slide {
-    long long t_open;           // k * slide_size
-    long long t_close;          // (k+1) * slide_size
-    clock_t   wall_open;        // wall clock when this slide was created
-    clock_t   wall_close;       // wall clock when the next slide was created
+    long long t_open{};           // k * slide_size
+    long long t_close{};          // (k+1) * slide_size
+    clock_t   wall_open{};        // wall clock when this slide was created
+    clock_t   wall_close{};       // wall clock when the next slide was created
     long long elements_count = 0; // edges that arrived in [t_open, t_close)
     int       results_at_open = 0;  // snapshot of matched_paths at slide open
     int       results_at_close = 0; // snapshot of matched_paths at slide close

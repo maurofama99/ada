@@ -1,7 +1,6 @@
 #include <vector>
 #include <string>
 #include <ctime>
-#include <cstdlib>
 #include <fstream>
 #include <filesystem>
 #include <sstream>
@@ -55,11 +54,11 @@ int main(int argc, char *argv[]) {
     ctx.slide = config.slide;
     ctx.max_size = config.max_size;
     ctx.min_size = config.min_size;
-    ctx.mode = config.adaptive;
+    ctx.mode = config.mode;
     ctx.latency_max = config.l_max;
     if (config.size >0 && config.slide >0) ctx.overlap = config.size / config.slide;
-    ctx.granularity = static_cast<double>(ctx.min_size) / 100.0;
-    ctx.max_shed = static_cast<double>(ctx.max_size) / 100.0;
+    ctx.granularity = config.granularity;
+    ctx.max_shed = config.max_shed;
 
     ctx.sink = new Sink();
     ctx.aut = new FiniteStateAutomaton(config.query_type, config.labels);
@@ -69,13 +68,13 @@ int main(int argc, char *argv[]) {
     // Create mode handler using factory
     double delta = 1.0 / static_cast<double>(config.min_size);
     long long labels_size = *std::max_element(config.labels.begin(), config.labels.end());
-    auto mode_handler = ModeFactory::create_mode_handler(config.adaptive, delta, labels_size);
+    auto mode_handler = ModeFactory::create_mode_handler(config.mode, delta, labels_size);
     ctx.cumulative_processing_time_type.resize(labels_size + 1, 0.0);
     ctx.processed_elements_type.resize(labels_size + 1, 0);
     ctx.input_rate_type.resize(labels_size + 1, 0.0);
 
     std::string mode;
-    switch (config.adaptive) {
+    switch (config.mode) {
         case 10: mode = "sl";
             cout << "Window size: " << config.size << endl;
             cout << "Window slide: " << config.slide << endl;
@@ -135,13 +134,13 @@ int main(int argc, char *argv[]) {
             exit(4);
     }
 
-    cout << "Modalità: " << mode << " (config. " << config.adaptive << ")" << endl;
+    cout << "Modalità: " << mode << " (config. " << config.mode << ")" << endl;
     switch (config.path_algorithm) {
         case 1:
-            cout << "S_PATH" << endl;
+            cout << "SPATH" << endl;
             break;
         case 2:
-            cout << "LM_SRPQ" << endl;
+            cout << "LMSRPQ" << endl;
             break;
         default:
             cerr << "ERROR: Unknown path algorithm" << endl;
@@ -154,17 +153,30 @@ int main(int argc, char *argv[]) {
         fs::create_directories(output_folder);
     }
 
-    // Base filename (without folder)
-    const std::string base =
-        data_folder + "_" + std::to_string(config.query_type) + "_" + std::to_string(config.size) + "_" +
-        std::to_string(config.slide) + "_" + mode + "_" + std::to_string(config.min_size) + "_" + std::to_string(config.max_size)
-        + "_" + config_folder_name;
+    std::string base;
+    const std::string radix =
+        data_folder + "_" +
+            std::to_string(config.query_type) + "_" +
+                std::to_string(config.size) + "_" +
+                    std::to_string(config.slide) + "_" +
+                        mode + "_" +
+                            std::to_string(config.path_algorithm) + "_";
+
+    if (config.mode == 10) {
+        base = radix + "0_0";
+    }
+    if (config.mode >= 11 && config.mode <= 15) {
+        base = radix + std::to_string(config.min_size) + "_" + std::to_string(config.max_size);
+    }
+    if (config.mode == 3 || config.mode == 4) {
+        base = radix + std::to_string(config.granularity) + "_" + std::to_string(config.max_shed);
+    }
 
     // Build full paths under output_folder
     const fs::path summary_path = output_folder / (base + "_summary_results.csv");
     const fs::path windows_path = output_folder / (base + "_window_results.csv");
     const fs::path tuples_path  = output_folder / (base + "_tuples_results.csv");
-    const fs::path memory_path  = output_folder / (base + "_memory_results.csv");
+    const fs::path memory_path  = output_folder / (base + "_functions_results.csv");
     const fs::path slides_path  = output_folder / (base + "_slides_results.csv");
 
     std::ofstream csv_summary(summary_path.string());
@@ -279,7 +291,7 @@ int main(int argc, char *argv[]) {
                    << cost_norm << "\n";
     }
 
-    ctx.sink->exportResultSet(base + "_result_set.csv");
+    // ctx.sink->exportResultSet(base + "_result_set.csv");
 
     if (mode == "adwin") {
         // print maximum and minimum window sizes

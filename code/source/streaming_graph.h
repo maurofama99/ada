@@ -241,28 +241,38 @@ public:
                 bool should_erase_from = false;
                 edges.erase(it);
                 edge_num--;
+                if (edge_num < 0) std::cerr << "ERROR: edge_num < 0\n";
                 if (label == first_transition) EINIT_count--;
                 if (edges.empty()) {
                     should_erase_from = true;
                 }
 
-                // Update degrees
+                // Update degrees (exactly once)
                 out_degree[from]--;
                 in_degree[to]--;
 
-                if (out_degree[from] == 0 && in_degree[from] == 0) {
-                    out_degree.erase(from);
-                    in_degree.erase(from);
-                    vertex_num--;
-                }
+                // Remove isolated vertices safely
+                auto try_remove_isolated_vertex = [&](long long v) {
+                    auto out_it = out_degree.find(v);
+                    auto in_it = in_degree.find(v);
 
-                if (out_degree[to] == 0 && in_degree[to] == 0) {
-                    out_degree.erase(to);
-                    in_degree.erase(to);
-                    if (adjacency_list.count(to)) {
-                        adjacency_list.erase(to);
-                    }
-                    vertex_num--;
+                    if (out_it != out_degree.end() && in_it != in_degree.end() &&
+                        out_it->second == 0 && in_it->second == 0) {
+                        out_degree.erase(out_it);
+                        in_degree.erase(in_it);
+
+                        auto adj_it = adjacency_list.find(v);
+                        if (adj_it != adjacency_list.end() && adj_it->second.empty()) {
+                            adjacency_list.erase(adj_it);
+                        }
+
+                        vertex_num--;
+                        }
+                };
+
+                try_remove_isolated_vertex(from);
+                if (to != from) {
+                    try_remove_isolated_vertex(to);
                 }
 
                 if (should_erase_from) {

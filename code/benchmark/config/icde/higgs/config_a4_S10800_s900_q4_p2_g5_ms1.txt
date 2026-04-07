@@ -1,0 +1,9 @@
+mode=4
+input_data_path=code/dataset/higgs-activity/higgs-activity_time_postprocess.txt
+size=10800
+slide=900
+query_type=4
+labels=2,1,3
+path_algorithm=2
+granularity=5
+max_shed=1
