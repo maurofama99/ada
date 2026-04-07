@@ -99,5 +99,5 @@ bool AdwinMode::process_edge(long long s, long long d, long long l, long long ti
         << (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].t_close - (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].t_open << ","
         << 0 << std::endl;
     
-    return true;
+    return false;
 }

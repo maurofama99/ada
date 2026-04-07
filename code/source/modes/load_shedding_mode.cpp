@@ -12,13 +12,13 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
 
     bool shedding_condition = false;
     switch (ctx.mode) {
-        case 3:
+        case 3: // load aware shedding
             shedding_condition = (dist)(gen) < ctx.p_shed;
             break;
-        case 4:
+        case 4: // fixed shedding
             shedding_condition = (dist)(gen) < ctx.max_shed;
             break;
-        case 5:
+        case 5: // darling
             shedding_condition = false;
             break;
         default:
@@ -28,7 +28,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
 
     if (shedding_condition && (ctx.windows)[ctx.windows.size()-1].elements_count > 0) {
         *new_sgt_out = nullptr; // no edge created when load shedding
-        return is_shedding; // continue to next edge
+        return true; // continue to next edge
     }
     
     (ctx.edge_number)++;
@@ -109,7 +109,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
     }
 
     if (evict_condition) {
-        std::vector<streaming_graph::expired_edge_info> deleted_edges = evict(ctx, time);
+        std::vector<streaming_graph::expired_edge_info> deleted_edges = evict(ctx);
         for (auto& edge : deleted_edges) {
             types_counts[edge.label]--;
             assert (types_counts[edge.label] >= 0);

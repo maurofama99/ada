@@ -13,12 +13,12 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         std::cerr << "ERROR: new sgt is null, time: " << time << std::endl;
         exit(1);
     }
-    
+
     *new_sgt_out = new_sgt;
-    
+
     /* EVICT */
     if (update_window(ctx, new_sgt, time, s)) {
-        evict(ctx, time);
+        evict(ctx);
 
         // mark window as evicted
         mark_windows_evicted(ctx);
@@ -51,5 +51,5 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         << (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].t_close - (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].t_open << ","
         << 0 << std::endl;
 
-    return true;
+    return false;
 }

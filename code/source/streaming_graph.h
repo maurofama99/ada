@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <iostream>
 #include <map>
+#include <random>
 
 #include "ranking/buckets.h"
 
@@ -17,6 +18,7 @@ struct sg_edge {
     timed_edge *time_pos;
     long long s, d;
     long long id;
+    size_t vec_index;
 
     sg_edge(const long long id_, const long long src, const long long dst, const long long label_, const long long time, const long long expiration_time_) {
         id = id_;
@@ -26,6 +28,7 @@ struct sg_edge {
         label = label_;
         time_pos = nullptr;
         expiration_time = expiration_time_;
+        vec_index = 0;
     }
 };
 
@@ -105,10 +108,17 @@ public:
     // Lookup from the edge_id to the edge in the adjacency list
     std::unordered_map<long long, sg_edge *> edge_id_to_edge;
 
+    // Flat vector of active edge IDs for O(1) random access
+    std::vector<long long> edge_id_vec;
+
     // edge_id -> (src, dst)
     std::unordered_map<long long, std::pair<long long, long long> > edge_endpoints;
 
-    streaming_graph(const int first_transition) : first_transition(first_transition) {}
+    bool counters_activated = false;
+
+    streaming_graph(const int first_transition, int mode) : first_transition(first_transition) {
+        if (mode==62) counters_activated = true;
+    }
 
     ~streaming_graph() {
         // Free memory for all edges in the adjacency list
@@ -181,6 +191,8 @@ public:
 
         auto *edge = new sg_edge(edge_id, from, to, label, timestamp, expiration_time);
         edge_id_to_edge[edge_id] = edge;
+        edge->vec_index = edge_id_vec.size();
+        edge_id_vec.push_back(edge_id);
 
         // Add the edge to the adjacency list if it doesn't exist
         if (adjacency_list[from].empty()) {
@@ -223,6 +235,15 @@ public:
         auto &edges = adjacency_list[from];
         for (auto it = edges.begin(); it != edges.end(); ++it) {
             if (sg_edge *edge = it->second; it->first == to && edge->label == label) {
+
+                // Swap-delete from edge_id_vec for O(1) removal
+                {
+                    size_t idx = edge->vec_index;
+                    long long back_id = edge_id_vec.back();
+                    edge_id_vec[idx] = back_id;
+                    edge_id_to_edge[back_id]->vec_index = idx;
+                    edge_id_vec.pop_back();
+                }
 
                 // Remove from edge_id_to_edge map
                 edge_id_to_edge.erase(edge->id);
@@ -308,6 +329,12 @@ public:
             // remove_edge handles adjacency list, degrees, ranking, and deletes cur
             remove_edge(cur->s, cur->d, cur->label, eviction_time);
         }
+    }
+
+    sg_edge* get_random_edge(std::mt19937& gen) {
+        if (edge_id_vec.empty()) return nullptr;
+        std::uniform_int_distribution<size_t> dist(0, edge_id_vec.size() - 1);
+        return edge_id_to_edge[edge_id_vec[dist(gen)]];
     }
 
     // return a vector of pointers instead of copies

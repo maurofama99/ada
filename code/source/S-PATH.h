@@ -25,6 +25,7 @@ public:
 	unordered_map<unsigned long long, RPQ_tree*> forests; // map from product graph node to tree pointer
 	map<unsigned int, tree_info_index*> v2t_index; // reverse index that maps a graph vertex to the trees that contains it. The first layer maps state to tree_info_index, and the second layer maps vertex ID to list of trees contains this node
 
+	bool counters_activated = false;
 	// Per-vertex, per-tree counter: vertex_counters[v][tree_ptr][state] = 1 if v has that state in that tree
 	unordered_map<unsigned int, unordered_map<RPQ_tree*, vector<unsigned int>>> vertex_counters;
 	// Global vertex counter: global_counters[v][state] = number of trees where v has that state
@@ -45,13 +46,11 @@ public:
 	}
 
 	~S_PATH() {
-		unordered_map<unsigned long long, RPQ_tree*>::iterator it;
-		for (it = forests.begin(); it != forests.end(); it++)
-			delete it->second;
+		for (auto &[node, tree] : forests)
+			delete tree;
 		forests.clear();
-		map<unsigned int, tree_info_index*>::iterator it2;
-		for (it2 = v2t_index.begin(); it2 != v2t_index.end(); it2++)
-			delete it2->second;
+		for (auto &[vertex, tree_info] : v2t_index)
+			delete tree_info;
 		v2t_index.clear();
 	}
 
@@ -79,7 +78,7 @@ public:
 				}
 			}
 		}
-		assert_root_subtree_eq_tree_counter();
+		if (counters_activated) assert_root_subtree_eq_tree_counter();
 		return result;
 	}
 
@@ -112,7 +111,7 @@ public:
 							expire_per_tree(dst, dst_state, k, eviction_time); // expire in each tree
 							if (k->root->child == nullptr) // delete the tree if it is empty.
 							{
-								decrement_counter(k->root->node_ID, k->root->state, k);
+								if (counters_activated) decrement_counter(k->root->node_ID, k->root->state, k);
 								delete_index(k->root->node_ID, k->root->state, k->root->node_ID);
 								forests.erase(merge_long_long(k->root->node_ID, k->root->state));
 								delete k;
@@ -124,7 +123,16 @@ public:
 				}
 			}
 		}
-		assert_root_subtree_eq_tree_counter();
+		if (counters_activated) assert_root_subtree_eq_tree_counter();
+	}
+
+	// Check if 'descendant' is in the subtree rooted at 'ancestor'.
+	// Used to prevent re-parenting a node under its own descendant (creating a cycle).
+	static bool is_descendant(tree_node* ancestor, tree_node* descendant) {
+		for (tree_node* cur = descendant->parent; cur; cur = cur->parent) {
+			if (cur == ancestor) return true;
+		}
+		return false;
 	}
 
 	// Handle mid-window edge deletion (load shedding). For each deleted edge,
@@ -170,9 +178,10 @@ public:
 						unsigned int pred_label = pe->label;
 						std::vector<std::pair<long long, long long>> trans = aut.getStatePairsWithTransition(pred_label);
 						for (auto& [q_src, q_dst] : trans) {
-							if (q_dst != static_cast<long long>(dst_state)) continue;
+							if (q_dst != dst_state) continue;
 							tree_node* candidate = tree_pt->find_node(pred_v, q_src);
 							if (!candidate || candidate == node) continue;
+							if (is_descendant(node, candidate)) continue; // skip descendants to avoid cycles
 							unsigned int candidate_ts = min(candidate->timestamp, static_cast<unsigned int>(pe->timestamp));
 							if (candidate_ts > best_timestamp) {
 								best_parent = candidate;
@@ -183,7 +192,8 @@ public:
 					}
 
 					if (best_parent) {
-						reparent_with_counters(tree_pt, best_parent, node);
+						if (counters_activated) reparent_with_counters(tree_pt, best_parent, node);
+						else tree_pt->substitute_parent(best_parent, node);
 						node->edge_timestamp = best_edge_time;
 						node->timestamp = best_timestamp;
 						propagate_timestamps(node);
@@ -193,7 +203,7 @@ public:
 					}
 
 					if (tree_pt->root->child == nullptr) {
-						decrement_counter(tree_pt->root->node_ID, tree_pt->root->state, tree_pt);
+						if (counters_activated) decrement_counter(tree_pt->root->node_ID, tree_pt->root->state, tree_pt);
 						delete_index(tree_pt->root->node_ID, tree_pt->root->state, tree_pt->root->node_ID);
 						forests.erase(merge_long_long(tree_pt->root->node_ID, tree_pt->root->state));
 						delete tree_pt;
@@ -203,7 +213,7 @@ public:
 			}
 		}
 		shrink(forests);
-		assert_root_subtree_eq_tree_counter();
+		if (counters_activated) assert_root_subtree_eq_tree_counter();
 	}
 
 private:
@@ -250,8 +260,11 @@ private:
 	tree_node* add_node(RPQ_tree* tree_pt, unsigned int v, unsigned int state, unsigned int root_ID, tree_node* parent, unsigned int timestamp, unsigned int edge_time) // add a node to a spanning tree, given all the necessary information.
 	{
 		add_index(tree_pt, v, state, root_ID);
-		tree_node* tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time);
-		increment_counter(v, state, tree_pt);
+		tree_node* tmp;
+		if (counters_activated) {
+			tmp = tree_pt->add_node_counters(v, state, parent, timestamp, edge_time);
+			increment_counter(v, state, tree_pt);
+		} else tmp = tree_pt->add_node(v, state, parent, timestamp, edge_time);
 		return tmp;
 	}
 
@@ -412,7 +425,8 @@ private:
 				else {
 					if (tree_node* dst_pt = tree_pt->node_map[dst_state]->index[successor]; dst_pt->timestamp < time) { // else if its current timestamp is smaller than the new timestamp, we update the timestamp and link it to the new parent.
 						if (dst_pt->parent != tmp) {
-							reparent_with_counters(tree_pt, tmp, dst_pt);
+							if (counters_activated) reparent_with_counters(tree_pt, tmp, dst_pt);
+							else tree_pt->substitute_parent(tmp, dst_pt);
 						}
 						dst_pt->timestamp = time;
 						dst_pt->edge_timestamp = i->timestamp;
@@ -443,7 +457,8 @@ private:
 					if (dst_pt->timestamp < time) // if the dst node exists but has a smaller timestamp, update its timestamp, and use expand to propagate the new timestamp down.
 					{
 						if (dst_pt->parent != src_pt) {
-							reparent_with_counters(tree_pt, src_pt, dst_pt);
+							if (counters_activated) reparent_with_counters(tree_pt, src_pt, dst_pt);
+							else tree_pt->substitute_parent(src_pt, dst_pt);
 						}
 						dst_pt->timestamp = time;
 						dst_pt->edge_timestamp = timestamp;
@@ -456,6 +471,27 @@ private:
 	}
 
 	void erase_tree_node(RPQ_tree* tree_pt, tree_node* child) // given an expired node, delete the subtree rooted at it in tree_pt, all the nodes in its subtree also expire.
+	{
+		if (counters_activated) erase_tree_node_counters(tree_pt, child);
+		else {
+			// BFS delete
+			queue<tree_node *> q;
+			q.push(child);
+			tree_pt->separate_node(child); // 'child' is disconnected with its parent
+			while (!q.empty()) {
+				tree_node *tmp = q.front();
+				q.pop();
+				for (tree_node *cur = tmp->child; cur; cur = cur->brother)
+					q.push(cur);
+
+				tree_pt->remove_node(tmp);
+				delete_index(tmp->node_ID, tmp->state, tree_pt->root->node_ID);
+				delete tmp;
+			}
+		}
+	}
+
+	void erase_tree_node_counters(RPQ_tree* tree_pt, tree_node* child) // given an expired node, delete the subtree rooted at it in tree_pt, all the nodes in its subtree also expire.
 	{
 		// Save the subtree's aggregate counter before separation
 		vector<unsigned int> removed = child->subtree_counter;
@@ -559,9 +595,6 @@ private:
 
 
 public:
-	// -----------------------------------------------------------------------
-	// Snapshot export for ML-based counter projection
-	// -----------------------------------------------------------------------
 	void dump_snapshot(std::ostream& vertex_csv, std::ostream& tree_csv, std::ostream& forest_csv,
 	                   int snapshot_id, int window_id, long long current_time,
 	                   long long t_open, long long t_close, int matched_paths) {

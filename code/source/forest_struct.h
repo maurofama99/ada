@@ -149,6 +149,21 @@ public:
 	}
 	tree_node* add_node(unsigned int v, unsigned int state, tree_node* parent, unsigned int time, unsigned int edge_time) // add a new tree node with given ID, state, node time ,edge time and parent
 	{
+		auto* tmp = new tree_node(v, state, time, edge_time, 0);
+		tmp->parent = parent;
+		if (parent) {
+			tmp->brother = parent->child; // add this node to the head of the child list of the parent
+			parent->child = tmp;
+		} else tmp->brother = nullptr;
+		if (node_map.find(state) == node_map.end())
+			node_map[state] = new tree_node_index;
+		node_map[state]->index[v] = tmp; // add this node to the node map
+		node_cnt++;
+		return tmp;
+	}
+
+	tree_node* add_node_counters(unsigned int v, unsigned int state, tree_node* parent, unsigned int time, unsigned int edge_time) // add a new tree node with given ID, state, node time ,edge time and parent
+	{
 		int states_count = static_cast<int>(tree_counter.size());
 		auto* tmp = new tree_node(v, state, time, edge_time, states_count);
 		tmp->parent = parent;

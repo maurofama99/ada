@@ -8,6 +8,7 @@
 #include <random>
 
 #define MEMORY_PROFILER false
+#define DEBUG false
 
 #include "sys/types.h"
 
@@ -55,7 +56,7 @@ int main(int argc, char *argv[]) {
     ctx.slide = config.slide;
     ctx.max_size = config.max_size;
     ctx.min_size = config.min_size;
-    ctx.mode = config.adaptive;
+    ctx.mode = config.mode;
     ctx.latency_max = config.l_max;
     if (config.size >0 && config.slide >0) ctx.overlap = config.size / config.slide;
     ctx.granularity = static_cast<double>(ctx.min_size) / 100.0;
@@ -63,19 +64,19 @@ int main(int argc, char *argv[]) {
 
     ctx.sink = new Sink();
     ctx.aut = new FiniteStateAutomaton(config.query_type, config.labels);
-    ctx.sg = new streaming_graph(config.labels[0]);
+    ctx.sg = new streaming_graph(config.labels[0], ctx.mode);
     ctx.q = new QueryHandler(*ctx.aut, *ctx.sg, *ctx.sink, config.path_algorithm);
 
     // Create mode handler using factory
     double delta = 1.0 / static_cast<double>(config.min_size);
     long long labels_size = *std::max_element(config.labels.begin(), config.labels.end());
-    auto mode_handler = ModeFactory::create_mode_handler(config.adaptive, delta, labels_size);
+    auto mode_handler = ModeFactory::create_mode_handler(config.mode, delta, labels_size, config.budget);
     ctx.cumulative_processing_time_type.resize(labels_size + 1, 0.0);
     ctx.processed_elements_type.resize(labels_size + 1, 0);
     ctx.input_rate_type.resize(labels_size + 1, 0.0);
 
     std::string mode;
-    switch (config.adaptive) {
+    switch (config.mode) {
         case 10: mode = "sl";
             cout << "Window size: " << config.size << endl;
             cout << "Window slide: " << config.slide << endl;
@@ -130,18 +131,36 @@ int main(int argc, char *argv[]) {
             cout << "Window slide: " << config.slide << endl;
             cout << "Max latency: " << config.l_max << endl;
             break;
+        case 60: mode = "summary_random";
+            cout << "Random Summary Selection mode activated." << endl;
+            cout << "Window size: " << config.size << endl;
+            cout << "Window slide: " << config.slide << endl;
+            cout << "Budget: " << config.budget << endl;
+            break;
+        case 61: mode = "summary_fifo";
+            cout << "FIFO Summary Selection mode activated." << endl;
+            cout << "Window size: " << config.size << endl;
+            cout << "Window slide: " << config.slide << endl;
+            cout << "Budget: " << config.budget << endl;
+            break;
+        case 62: mode = "summary_selection";
+            cout << "Summary Selection mode activated." << endl;
+            break;
         default:
             cerr << "ERROR: Unknown mode" << endl;
             exit(4);
     }
 
-    cout << "Modalità: " << mode << " (config. " << config.adaptive << ")" << endl;
+    cout << "Mode: " << mode << " (config. " << config.mode << ")" << endl;
+    string algo;
     switch (config.path_algorithm) {
         case 1:
             cout << "S_PATH" << endl;
+            algo = "SPATH";
             break;
         case 2:
             cout << "LM_SRPQ" << endl;
+            algo = "LMSRPQ";
             break;
         default:
             cerr << "ERROR: Unknown path algorithm" << endl;
@@ -158,7 +177,7 @@ int main(int argc, char *argv[]) {
     const std::string base =
         data_folder + "_" + std::to_string(config.query_type) + "_" + std::to_string(config.size) + "_" +
         std::to_string(config.slide) + "_" + mode + "_" + std::to_string(config.min_size) + "_" + std::to_string(config.max_size)
-        + "_" + config_folder_name;
+        + "_" + algo;
 
     // Build full paths under output_folder
     const fs::path summary_path = output_folder / (base + "_summary_results.csv");
@@ -171,9 +190,14 @@ int main(int argc, char *argv[]) {
     const fs::path snap_vertex_path = output_folder / (base + "_snapshot_vertices.csv");
     const fs::path snap_tree_path   = output_folder / (base + "_snapshot_trees.csv");
     const fs::path snap_forest_path = output_folder / (base + "_snapshot_forest.csv");
+    std::ofstream csv_snap_vertex(snap_vertex_path.string());
+    std::ofstream csv_snap_tree(snap_tree_path.string());
+    std::ofstream csv_snap_forest(snap_forest_path.string());
+    if (DEBUG) ctx.q->write_snapshot_headers(csv_snap_vertex, csv_snap_tree, csv_snap_forest);
+
 
     std::ofstream csv_summary(summary_path.string());
-    csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
+    csv_summary << "total_edges,shed_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
 
     std::ofstream csv_windows(windows_path.string());
     csv_windows << "window_id,t_open,t_close,normalized_estimated_cost,window_results,incremental_matches,latency,window_cardinality,window_size\n";
@@ -187,14 +211,8 @@ int main(int argc, char *argv[]) {
     std::ofstream csv_slides(slides_path.string());
     csv_slides << "t_open,t_close,latency_sec,elements,new_results,cost_norm\n";
 
-    std::ofstream csv_snap_vertex(snap_vertex_path.string());
-    std::ofstream csv_snap_tree(snap_tree_path.string());
-    std::ofstream csv_snap_forest(snap_forest_path.string());
-    ctx.q->write_snapshot_headers(csv_snap_vertex, csv_snap_tree, csv_snap_forest);
-
     ctx.csv_tuples = &csv_tuples;
     ctx.csv_memory = &csv_memory;
-    long long checkpoint = 200000;
     int snapshot_id = 0;
     size_t last_slide_count = 0;
 
@@ -227,19 +245,19 @@ int main(int argc, char *argv[]) {
             ctx.q->run(new_sgt);
         }
 
-        elements_processed++;
         double processing_time_used = static_cast<double>(clock() - processing_time_start) / CLOCKS_PER_SEC;
         if (!is_shed) { // compute the average time used do process an event in a steady state of the stream
             cumulative_processing_time += processing_time_used;
-            ctx.average_processing_time = cumulative_processing_time / static_cast<double>(elements_processed);
+            elements_processed++;
         }
-        // compute metrics per type
+        ctx.average_processing_time = cumulative_processing_time / static_cast<double>(elements_processed);
+
         ctx.cumulative_processing_time_type[l] += processing_time_used;
         ctx.processed_elements_type[l]++;
         ctx.input_rate_type[l] = ctx.processed_elements_type[l] / static_cast<double>(clock() - start);
 
         // Take snapshot at each slide boundary
-        if (ctx.slides.size() > last_slide_count) {
+        if (ctx.slides.size() > last_slide_count && DEBUG) {
             last_slide_count = ctx.slides.size();
             int win_id = static_cast<int>(ctx.windows.size()) - 1;
             long long snap_t_open = ctx.windows[win_id >= 0 ? win_id : 0].t_open;
@@ -250,7 +268,7 @@ int main(int argc, char *argv[]) {
             snapshot_id++;
         }
 
-        if (elements_processed % checkpoint == 0) {
+        if (long long checkpoint = 200000; elements_processed % checkpoint == 0) {
             printf("processed edges: %d\n", elements_processed);
             printf("avg degree: %f\n", ctx.sg->edge_num/ctx.sg->vertex_num);
             cout << std::fixed << std::setprecision(5);
@@ -261,6 +279,10 @@ int main(int argc, char *argv[]) {
     if (!ctx.slides.empty()) {
         ctx.slides.back().wall_close = clock();
         ctx.slides.back().results_at_close = ctx.sink->matched_paths;
+    }
+    // Close the last window (never evicted, so results_at_close is still 0)
+    if (!ctx.windows.empty() && ctx.windows.back().results_at_close == 0) {
+        ctx.windows.back().results_at_close = ctx.sink->matched_paths;
     }
     clock_t finish = clock();
     long long time_used = static_cast<double> (finish - start) / CLOCKS_PER_SEC;
@@ -273,6 +295,7 @@ int main(int argc, char *argv[]) {
 
     csv_summary
             << ctx.edge_number << ","
+            << ctx.sg->shed_count << ","
             << ctx.sink->matched_paths << ","
             << time_used << ","
             << ctx.windows.size() << ","
@@ -322,7 +345,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Final snapshot at end of stream
-    if (!ctx.windows.empty()) {
+    if (!ctx.windows.empty() && DEBUG) {
         int win_id = static_cast<int>(ctx.windows.size()) - 1;
         ctx.q->dump_snapshot(csv_snap_vertex, csv_snap_tree, csv_snap_forest,
                              snapshot_id, win_id, time,

@@ -55,7 +55,9 @@ class SPathProcessor final : public IQueryProcessor {
 
 public:
     SPathProcessor(FiniteStateAutomaton& fsa, streaming_graph& sg, Sink& sink)
-        : impl_(fsa, sg, sink) {}
+        : impl_(fsa, sg, sink) {
+        impl_.counters_activated = sg.counters_activated;
+    }
 
     bool insert_edge(long long s, long long d, long long label,
                      long long timestamp) override {

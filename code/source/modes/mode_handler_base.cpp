@@ -183,9 +183,19 @@ bool ModeHandlerBase::update_window(ModeContext &ctx, sg_edge* new_sgt, long lon
     return evict;
 }
 
-std::vector<streaming_graph::expired_edge_info> ModeHandlerBase::evict (ModeContext &ctx, long long time) {
+std::vector<streaming_graph::expired_edge_info> ModeHandlerBase::evict (ModeContext &ctx) {
 
     long long eviction_time = (ctx.windows)[ctx.to_evict.back() + 1].t_open;
+
+    std::vector<streaming_graph::expired_edge_info> deleted_edges;
+    ctx.sg->expire(eviction_time, deleted_edges);
+    ctx.window_cardinality -= deleted_edges.size();
+    ctx.q->update_state(eviction_time, deleted_edges);
+
+    return deleted_edges;
+}
+
+std::vector<streaming_graph::expired_edge_info> ModeHandlerBase::evict (ModeContext &ctx, long long eviction_time) {
 
     std::vector<streaming_graph::expired_edge_info> deleted_edges;
     ctx.sg->expire(eviction_time, deleted_edges);

@@ -4,7 +4,6 @@
 #include <vector>
 #include <deque>
 #include <fstream>
-#include <ctime>
 #include <sstream>
 
 #include "../streaming_graph.h"
@@ -14,7 +13,7 @@
 
 typedef struct Config {
     std::string input_data_path;
-    int adaptive{};
+    int mode{};
     long long size{};
     long long slide{};
     long long query_type{};
@@ -22,6 +21,7 @@ typedef struct Config {
     int max_size{};
     int min_size{};
     double l_max{};
+    int budget{};
     int path_algorithm{};
 } config;
 
@@ -47,7 +47,7 @@ inline config readConfig(const std::string &filename) {
 
     // Convert values from the map
     config.input_data_path = configMap["input_data_path"];
-    config.adaptive = std::stoi(configMap["adaptive"]);
+    config.mode = std::stoi(configMap["adaptive"]);
 
     config.size = std::stoi(configMap["size"]);
     config.slide = std::stoi(configMap["slide"]);
@@ -62,7 +62,7 @@ inline config readConfig(const std::string &filename) {
         config.labels.push_back(std::stoi(arg));
     }
 
-    if (config.adaptive == 5) {
+    if (config.mode == 5) {
         if (configMap.find("l_max") == configMap.end()) {
             std::cerr << "Error: l_max should be set" << std::endl;
             exit(1);
@@ -70,6 +70,16 @@ inline config readConfig(const std::string &filename) {
         config.l_max = std::stod(configMap["l_max"]);
     } else {
         config.l_max = -1;
+    }
+
+    if (config.mode >= 60 && config.mode < 70) {
+        if (configMap.find("budget") == configMap.end()) {
+            std::cerr << "Error: budget should be set" << std::endl;
+            exit(1);
+        }
+        config.budget = std::stoi(configMap["budget"]);
+    } else {
+        config.budget = -1;
     }
 
     return config;
@@ -111,10 +121,10 @@ public:
 };
 
 struct Slide {
-    long long t_open;           // k * slide_size
-    long long t_close;          // (k+1) * slide_size
-    clock_t   wall_open;        // wall clock when this slide was created
-    clock_t   wall_close;       // wall clock when the next slide was created
+    long long t_open{};           // k * slide_size
+    long long t_close{};          // (k+1) * slide_size
+    clock_t   wall_open{};        // wall clock when this slide was created
+    clock_t   wall_close{};       // wall clock when the next slide was created
     long long elements_count = 0; // edges that arrived in [t_open, t_close)
     int       results_at_open = 0;  // snapshot of matched_paths at slide open
     int       results_at_close = 0; // snapshot of matched_paths at slide close
