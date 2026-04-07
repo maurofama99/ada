@@ -45,7 +45,7 @@ else
 fi
 
 echo "Building target main_exe..."
-cmake --build "$build_dir" --config Release --target main_exe
+cmake --build "$build_dir" --config "$build_type" --target main_exe
 
 # -- Executable Path --
 exe_path="$build_dir/main_exe"

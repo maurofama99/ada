@@ -6,6 +6,8 @@
 #include<unordered_set>
 #include<string>
 #include <queue>
+#include <algorithm>
+#include <climits>
 #include "forest_struct.h"
 #include "fsa.h"
 #include "sink.h"
@@ -495,7 +497,7 @@ private:
             for (auto &suc: sucs) {
                 unsigned int successor = suc->d;
                 unsigned int label = suc->label;
-                unsigned int time = min(tmp->timestamp, suc->timestamp);
+                unsigned int time = min(tmp->timestamp, (unsigned int)suc->timestamp);
                 if (aut_edge.find(label) == aut_edge.end())
                     continue;
                 long long dst_state = aut_edge[label];
@@ -611,7 +613,7 @@ private:
     }
 
 
-    void insert_edge_lm_tree(unsigned int s, unsigned int d, unsigned int label, int timestamp, unsigned int src_state,
+    void insert_edge_lm_tree(unsigned int s, unsigned int d, unsigned int label, unsigned int timestamp, unsigned int src_state,
                              unsigned int dst_state, RPQ_tree *lm_tree,
                              unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> > > &lm_results)
     // insert a new edge (s, src_state) (d, dst_state) with label and timestamp in an LM tree,  record the final-state nodes to which the laste path timestamp has been updated in lm_results.
@@ -721,7 +723,7 @@ private:
                 long long dst_state = aut.getNextState(tmp->state, edge_label); // check if we can travel to a dst state
                 if (dst_state == -1)
                     continue;
-                unsigned int time = min(tmp->timestamp, i->timestamp); // compute timestamp of the dst node
+                unsigned int time = min(tmp->timestamp, (unsigned int)i->timestamp); // compute timestamp of the dst node
                 if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->
                     index.find(successor) == tree_pt->node_map[dst_state]->index.end())
                 // add dst node to the tree if it does not exist
@@ -745,7 +747,7 @@ private:
         updated_results.clear();
     }
 
-    void visit_non_lm_tree(unsigned int s, unsigned int d, unsigned int label, int timestamp, unsigned int src_state,
+    void visit_non_lm_tree(unsigned int s, unsigned int d, unsigned int label, unsigned int timestamp, unsigned int src_state,
                            unsigned int dst_state,
                            RPQ_tree *tree_pt,
                            unordered_map<unsigned long long, vector<pair<unsigned int, unsigned int> > > &lm_results,
@@ -1177,7 +1179,7 @@ private:
                     unsigned int successor = j->d;
                     long long dst_state = aut.getNextState(cur->state, j->label);
                     if (dst_state == -1) continue;
-                    unsigned int time = min(cur->timestamp, j->timestamp);
+                    unsigned int time = min(cur->timestamp, (unsigned int)j->timestamp);
                     if (necessary_nodes.find(merge_long_long(successor, dst_state)) == necessary_nodes.end() && tree_pt->get_time_info(successor, dst_state) > time)
                         // we prune a branch if it is not a necessary nodes and the path to it is not the latest.
                         continue;
@@ -1225,7 +1227,7 @@ private:
             for (auto & suc : sucs) {
                 unsigned int successor = suc->d;
                 unsigned int label = suc->label;
-                unsigned int time = min(tmp->timestamp, suc->timestamp);
+                unsigned int time = min(tmp->timestamp, (unsigned int)suc->timestamp);
                 if (aut_edge.find(label) == aut_edge.end())
                     continue;
                 long long dst_state = aut_edge[label];

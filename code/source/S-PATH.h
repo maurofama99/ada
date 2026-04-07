@@ -267,7 +267,7 @@ private:
 				unsigned int edge_label = i->label;
 				long long dst_state = aut.getNextState(tmp->state, edge_label);
 				if (dst_state == -1) continue;
-				unsigned int time = min(tmp->timestamp, i->timestamp);
+				unsigned int time = min(tmp->timestamp, (unsigned int)i->timestamp);
 				if (tree_pt->node_map.find(dst_state) == tree_pt->node_map.end() || tree_pt->node_map[dst_state]->index.find(successor) == tree_pt->node_map[dst_state]->index.end()) // If this node does not exit before, we add this node.
 					q.push(add_node(tree_pt, successor, dst_state, tree_pt->root->node_ID, tmp, time, i->timestamp));
 				else {
@@ -287,7 +287,7 @@ private:
 		return updated_results.empty();
 	}
 
-	bool insert_per_tree(unsigned int s, unsigned int d, unsigned int label, int timestamp, unsigned int src_state, unsigned int dst_state, RPQ_tree* tree_pt) // processing a new product graph edge from (s, src_state) to (d, dst_state) in a spanning tree tree_pt;
+	bool insert_per_tree(unsigned int s, unsigned int d, unsigned int label, unsigned int timestamp, unsigned int src_state, unsigned int dst_state, RPQ_tree* tree_pt) // processing a new product graph edge from (s, src_state) to (d, dst_state) in a spanning tree tree_pt;
 	{
 		bool result = false;
 		if (tree_pt->node_map.find(src_state) != tree_pt->node_map.end())

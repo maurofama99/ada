@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <sstream>
 #include <random>
+#include <algorithm>
 
 #define MEMORY_PROFILER false
 
