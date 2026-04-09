@@ -3,6 +3,7 @@
 #include "../streaming_graph.h"
 #include <iostream>
 #include <numeric>
+#include <cmath>
 
 double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
     ctx.max_deg = 1;

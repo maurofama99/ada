@@ -11,23 +11,23 @@ QUERY_LABELS = {
     },
     "higgs": {
         1: [1],
-        2: [2, 1],
-        3: [3, 2, 1],
-        4: [2, 1, 3],
-        5: [1, 2, 3],
-        6: [2, 1],
-        7: [2, 3, 1],
-        10: [2, 3, 1],
-    },
-    "so": {
-        1: [2],
         2: [1, 2],
-        3: [3, 1, 2],
-        4: [1, 3, 2],
+        3: [1, 2, 3],
+        4: [1, 2, 3],
         5: [1, 2, 3],
-        6: [1, 2],
+        6: [1, 3],
         7: [1, 3, 2],
         10: [1, 3, 2],
+    },
+    "so": {
+        1: [1],
+        2: [3, 1],
+        3: [3, 1, 2],
+        4: [1, 3, 2],
+        5: [3, 1, 2],
+        6: [1, 2],
+        7: [3, 2, 1],
+        10: [2, 3, 1],
     },
 }
 
@@ -155,42 +155,44 @@ def main():
     higgs_query_label_pairs = [(q, QUERY_LABELS["higgs"][q]) for q in QUERY_LABELS["higgs"]]
     so_query_label_pairs = [(q, QUERY_LABELS["so"][q]) for q in QUERY_LABELS["so"]]
 
-    # LDBC: min_size = 75%, 80%, 85% di 129600
     ldbc_conf = {
         "datasets": ["code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt"],
         "query_label_pairs": ldbc_query_label_pairs,
         "size": 604800,
         "slide": 21600,
         "min_size_percentages": [75, 80, 85],
-        "load_shedding_params": [(15, 3), (10, 2), (5, 1)],
+        "load_shedding_params": [(0.15, 0.03), (0.10, 0.02), (0.05, 0.01)],
     }
 
-    # HIGGS: min_size = 75%, 80%, 85% di 10800
     higgs_conf = {
         "datasets": ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"],
         "query_label_pairs": higgs_query_label_pairs,
-        "size": 10800,
-        "slide": 900,
+        "size": 86400,
+        "slide": 1800,
         "min_size_percentages": [75, 80, 85],
-        "load_shedding_params": [(15, 3), (10, 2), (5, 1)],
+        "load_shedding_params": [(0.15, 0.03), (0.10, 0.02), (0.05, 0.01)],
     }
 
-    # SO: min_size = 75%, 80%, 85% di 864000
     so_conf = {
         "datasets": ["code/dataset/so/sx_stackoverflow_merged_peaks.txt"],
         "query_label_pairs": so_query_label_pairs,
         "size": 432000,
-        "slide": 86400,
+        "slide": 21600,
         "min_size_percentages": [75, 80, 85],
-        "load_shedding_params": [(15, 3), (10, 2), (5, 1)],
+        "load_shedding_params": [(0.15, 0.03), (0.10, 0.02), (0.05, 0.01)],
     }
 
     current_conf = {
-
+        "datasets": ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"],
+        "query_label_pairs": higgs_query_label_pairs,
+        "size": 86400,
+        "slide": 1800,
+        "min_size_percentages": [75, 80, 85],
+        "load_shedding_params": [(0.05, 0.01)],
     }
 
     algorithms = [10, 11, 3, 4]
-    output = "icde/ldbc"
+    output = "icde/spath/higgs"
 
     generate_config_files(
         datasets=current_conf["datasets"],

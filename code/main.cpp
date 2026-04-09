@@ -6,6 +6,7 @@
 #include <sstream>
 #include <random>
 #include <algorithm>
+#include <cmath>
 
 #define MEMORY_PROFILER false
 
@@ -169,9 +170,15 @@ int main(int argc, char *argv[]) {
     if (config.mode >= 11 && config.mode <= 15) {
         base = radix + std::to_string(config.min_size) + "_" + std::to_string(config.max_size);
     }
+
+    const auto to_percent_int = [](double p) {
+        return std::to_string(static_cast<int>(std::lround(std::clamp(p, 0.0, 1.0) * 100.0)));
+    };
+
     if (config.mode == 3 || config.mode == 4) {
-        base = radix + std::to_string(config.granularity) + "_" + std::to_string(config.max_shed);
+        base = radix + to_percent_int(config.granularity) + "_" + to_percent_int(config.max_shed);
     }
+
 
     // Build full paths under output_folder
     const fs::path summary_path = output_folder / (base + "_summary_results.csv");
@@ -197,7 +204,7 @@ int main(int argc, char *argv[]) {
 
     ctx.csv_tuples = &csv_tuples;
     ctx.csv_memory = &csv_memory;
-    long long checkpoint = 500000;
+    long long checkpoint = 10000;
 
     int elements_processed = 0;
     double cumulative_processing_time = 0;

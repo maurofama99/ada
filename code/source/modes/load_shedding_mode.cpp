@@ -122,11 +122,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
         if (ctx.mode == 3) {
             double cost_diff = compute_load_estimation(ctx, 11);
 
-            if (cost_diff > 0 || ctx.cost_norm >= 0.95) {
-                ctx.p_shed += ceil(cost_diff * 10 * ctx.granularity);
-            } else if (cost_diff < 0 || ctx.cost_norm <= 0.05) {
-                ctx.p_shed -= ceil(cost_diff * 10 * ctx.granularity);
-            }
+            ctx.p_shed += cost_diff;
 
             double max_prob = (ctx.p_shed < ctx.max_shed ? ctx.p_shed : ctx.max_shed);
             ctx.p_shed = max_prob > 0.0 ? max_prob : 0.0;
