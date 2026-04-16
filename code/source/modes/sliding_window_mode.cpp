@@ -35,6 +35,8 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
             // cap to max and min size
             long long max_size = (ctx.size < ctx.max_size ? ctx.size : ctx.max_size);
             ctx.size = max_size > ctx.min_size ? max_size : ctx.min_size;
+
+            //cout << "size: " << ctx.size << ", cost diff: " << cost_diff << endl;
         }
 
     }

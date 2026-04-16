@@ -122,10 +122,12 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
         if (ctx.mode == 3) {
             double cost_diff = compute_load_estimation(ctx, 11);
 
-            ctx.p_shed += cost_diff;
+            ctx.p_shed += cost_diff*10;
 
             double max_prob = (ctx.p_shed < ctx.max_shed ? ctx.p_shed : ctx.max_shed);
             ctx.p_shed = max_prob > 0.0 ? max_prob : 0.0;
+
+            //cout << "p_shed: " << ctx.p_shed << ", cost diff: " << cost_diff << endl;
         }
     }
 

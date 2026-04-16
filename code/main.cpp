@@ -204,7 +204,7 @@ int main(int argc, char *argv[]) {
 
     ctx.csv_tuples = &csv_tuples;
     ctx.csv_memory = &csv_memory;
-    long long checkpoint = 10000;
+    long long checkpoint = 100000;
 
     int elements_processed = 0;
     double cumulative_processing_time = 0;

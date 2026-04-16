@@ -4,9 +4,9 @@ set -euo pipefail
 # -- Debug Mode --
 DEBUG="${DEBUG:-0}"
 
-# -- Script Setup: Ensure Path Consistency --
+# -- Script Setup: run from repo root so that input_data_path in configs resolves correctly --
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$script_dir" || exit 1
+cd "$script_dir"
 
 # -- Input Validation --
 if [ "$#" -ne 1 ]; then
@@ -14,10 +14,10 @@ if [ "$#" -ne 1 ]; then
     exit 1
 fi
 
-config_dir="$1"
+config_dir="$(cd "$1" && pwd)"
 
 if [ ! -d "$config_dir" ]; then
-    echo "Error: config directory '$config_dir' not found."
+    echo "Error: config directory '$1' not found."
     exit 1
 fi
 
@@ -54,55 +54,56 @@ if [ ! -x "$exe_path" ]; then
     exit 1
 fi
 
-# -- Output Path --
-output_dir="$script_dir/code/benchmark/logs"
-mkdir -p "$output_dir"
+# -- Output Directories --
+# main_exe writes CSVs to results/ automatically (relative to CWD = script_dir)
+mkdir -p "$script_dir/results"
+logs_dir="$script_dir/logs"
+mkdir -p "$logs_dir"
 
-# -- Process All Config Files --
-find "$config_dir" -type f -name "*.txt" | while read -r config_file; do
-    echo "Running: $(basename "$config_file")"
+# -- Process All Config Files (recursive) --
+mapfile -t configs < <(find "$config_dir" -type f -name '*.txt' | sort)
+if [ ${#configs[@]} -eq 0 ]; then
+    echo "Error: no .txt config files found in '$config_dir' (recursive)."
+    exit 1
+fi
 
-    # Extract parameters from config file
-    query_type=$(grep -E "^query_type=" "$config_file" | cut -d'=' -f2)
-    slide=$(grep -E "^slide=" "$config_file" | cut -d'=' -f2)
-    size=$(grep -E "^size=" "$config_file" | cut -d'=' -f2)
-    zscore=$(grep -E "^max_size=" "$config_file" | cut -d'=' -f2)
-    lives=$(grep -E "^adaptive=" "$config_file" | cut -d'=' -f2)
+total=0
+failed=0
 
-    # Generate output filename
-    output_file="${output_dir}/${query_type}_${slide}_${size}_${zscore}_${lives}.txt"
+for config_file in "${configs[@]}"; do
+    total=$((total + 1))
+    base="$(basename "$config_file" .txt)"
+    log_file="$logs_dir/${base}.log"
+    err_file="$logs_dir/${base}.err"
 
-    # Run program with absolute config path
-    echo "   Input: $config_file"
-    echo "   Output: $(basename "$output_file")"
+    echo "Running: $base"
+    echo "   Config: $config_file"
 
     if [ "$DEBUG" = "1" ]; then
-        # Enable ASAN symbolizer for readable stack traces
         export ASAN_OPTIONS="symbolize=1:detect_leaks=1:abort_on_error=1"
-        export ASAN_SYMBOLIZER_PATH="$(which llvm-symbolizer 2>/dev/null || which addr2line 2>/dev/null || echo "")"
+        export ASAN_SYMBOLIZER_PATH="$(which llvm-symbolizer 2>/dev/null || which addr2line 2>/dev/null || true)"
+    fi
 
-        # Run with error capture
-        set +e
-        error_output=$("$exe_path" "$config_file" 2>&1 | tee "$output_file")
-        exit_code=$?
-        set -e
+    set +e
+    "$exe_path" "$config_file" > "$log_file" 2> "$err_file"
+    exit_code=$?
+    set -e
 
-        if [ $exit_code -ne 0 ]; then
-            echo "   FAILED (exit code: $exit_code)"
-            echo "   --- Error Details ---"
-            echo "$error_output" | tail -50
-            echo "   ---------------------"
-        else
-            echo "   Success"
-        fi
+    if [ $exit_code -eq 0 ]; then
+        echo "   Success  (log: logs/${base}.log)"
     else
-        "$exe_path" "$config_file" > "$output_file"
-        if [ $? -eq 0 ]; then
-            echo "   Success"
-        else
-            echo "   Failed"
+        failed=$((failed + 1))
+        echo "   FAILED (exit code: $exit_code)"
+        echo "   Stdout: logs/${base}.log"
+        echo "   Stderr: logs/${base}.err"
+        if [ -s "$err_file" ]; then
+            echo "   --- Last errors ---"
+            tail -20 "$err_file"
+            echo "   -------------------"
         fi
     fi
 done
 
-echo "All configurations processed"
+echo ""
+echo "Done: $((total - failed))/$total succeeded."
+[ $failed -eq 0 ] || exit 1

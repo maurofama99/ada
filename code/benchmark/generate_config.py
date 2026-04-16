@@ -4,7 +4,7 @@ QUERY_LABELS = {
     "ldbc": {
         1: [3],
         2: [2, 3],
-        4: [5, 6, 4],
+        4: [1, 2, 4],
         5: [2, 3, 4],
         7: [4, 2, 3],
         10: [3, 4, 1],
@@ -55,7 +55,7 @@ def generate_config_files(
         algorithms,
         size,
         slide,
-        path_algorithm=2, #lmsrpq
+        path_algorithm=2, #lm-srpq
         min_size_percentages=None,      # usato da algoritmo 11, es. [75, 80, 85]
         load_shedding_params=None,      # usato da algoritmo 3/4, es. [(15, 3), (10, 2)]
         l_max=-1.0,                     # usato da algoritmo 5
@@ -119,16 +119,26 @@ def generate_config_files(
                         print(f"No load shedding params for algorithm {algorithm}; skipping.")
                         continue
 
+                    def prob_to_pct_int(value):
+                        v = float(value)
+                        v = max(0.0, min(1.0, v))  # clamp
+                        return int(round(v * 100))
+
                     for granularity, max_shed in load_shedding_params:
                         config_content = (
                                 base
                                 + f"granularity={granularity}\n"
                                 + f"max_shed={max_shed}\n"
                         )
+
+                        g_pct = prob_to_pct_int(granularity)
+                        ms_pct = prob_to_pct_int(max_shed)
+
                         config_filename = (
                             f"config_a{algorithm}_S{size}_s{slide}_q{query_type}"
-                            f"_p{path_algorithm}_g{granularity}_ms{max_shed}.txt"
+                            f"_p{path_algorithm}_g{g_pct}_ms{ms_pct}.txt"
                         )
+
                         config_filepath = os.path.join(out_dir, config_filename)
                         with open(config_filepath, "w") as config_file:
                             config_file.write(config_content)
@@ -158,19 +168,19 @@ def main():
     ldbc_conf = {
         "datasets": ["code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt"],
         "query_label_pairs": ldbc_query_label_pairs,
-        "size": 604800,
-        "slide": 21600,
+        "size": 864000,
+        "slide": 43200,
         "min_size_percentages": [75, 80, 85],
-        "load_shedding_params": [(0.15, 0.03), (0.10, 0.02), (0.05, 0.01)],
+        "load_shedding_params": [(0.03, 0.15), (0.02, 0.10), (0.01, 0.05)],
     }
 
     higgs_conf = {
         "datasets": ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"],
         "query_label_pairs": higgs_query_label_pairs,
         "size": 86400,
-        "slide": 1800,
+        "slide": 2160,
         "min_size_percentages": [75, 80, 85],
-        "load_shedding_params": [(0.15, 0.03), (0.10, 0.02), (0.05, 0.01)],
+        "load_shedding_params": [(0.03, 0.15), (0.02, 0.10), (0.01, 0.05)],
     }
 
     so_conf = {
@@ -179,20 +189,20 @@ def main():
         "size": 432000,
         "slide": 21600,
         "min_size_percentages": [75, 80, 85],
-        "load_shedding_params": [(0.15, 0.03), (0.10, 0.02), (0.05, 0.01)],
+        "load_shedding_params": [(0.03, 0.15), (0.02, 0.10), (0.01, 0.05)],
     }
 
     current_conf = {
-        "datasets": ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"],
-        "query_label_pairs": higgs_query_label_pairs,
-        "size": 86400,
-        "slide": 1800,
-        "min_size_percentages": [75, 80, 85],
-        "load_shedding_params": [(0.05, 0.01)],
+        "datasets": ["code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt"],
+        "query_label_pairs": ldbc_query_label_pairs,
+        "size": 864000,
+        "slide": 43200,
+        "min_size_percentages": [75],
+        "load_shedding_params": [(0.03, 0.15)],
     }
 
     algorithms = [10, 11, 3, 4]
-    output = "icde/spath/higgs"
+    output = "icde/optimization/adaptive"
 
     generate_config_files(
         datasets=current_conf["datasets"],
