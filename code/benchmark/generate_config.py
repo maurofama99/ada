@@ -168,41 +168,41 @@ def main():
     ldbc_conf = {
         "datasets": ["code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt"],
         "query_label_pairs": ldbc_query_label_pairs,
-        "size": 864000,
-        "slide": 43200,
-        "min_size_percentages": [75, 80, 85],
-        "load_shedding_params": [(0.03, 0.15), (0.02, 0.10), (0.01, 0.05)],
+        "size": 1036800,
+        "slide": 21600,
+        "min_size_percentages": [50],
+        "load_shedding_params": [(0.01, 0.5)],
     }
 
     higgs_conf = {
         "datasets": ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"],
         "query_label_pairs": higgs_query_label_pairs,
-        "size": 86400,
+        "size": 172800,
         "slide": 2160,
-        "min_size_percentages": [75, 80, 85],
-        "load_shedding_params": [(0.03, 0.15), (0.02, 0.10), (0.01, 0.05)],
+        "min_size_percentages": [70], # 80 to 56 slides
+        "load_shedding_params": [(0.01, 0.15)],
     }
 
     so_conf = {
         "datasets": ["code/dataset/so/sx_stackoverflow_merged_peaks.txt"],
         "query_label_pairs": so_query_label_pairs,
-        "size": 432000,
+        "size": 864000,
         "slide": 21600,
-        "min_size_percentages": [75, 80, 85],
-        "load_shedding_params": [(0.03, 0.15), (0.02, 0.10), (0.01, 0.05)],
+        "min_size_percentages": [70], # 40 to 28 slides
+        "load_shedding_params": [(0.01, 0.15)],
     }
 
     current_conf = {
-        "datasets": ["code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt"],
-        "query_label_pairs": ldbc_query_label_pairs,
+        "datasets": ["code/dataset/so/sx_stackoverflow_merged_peaks.txt"],
+        "query_label_pairs": so_query_label_pairs,
         "size": 864000,
-        "slide": 43200,
-        "min_size_percentages": [75],
-        "load_shedding_params": [(0.03, 0.15)],
+        "slide": 21600,
+        "min_size_percentages": [70], # 40 to 28 slides
+        "load_shedding_params": [(0.01, 0.15)],
     }
 
-    algorithms = [10, 11, 3, 4]
-    output = "icde/optimization/adaptive"
+    algorithms = [11, 3, 4]
+    output = "icde/lshed_exp/so"
 
     generate_config_files(
         datasets=current_conf["datasets"],

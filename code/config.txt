@@ -1,9 +1,9 @@
-mode=10
-input_data_path=code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt
-size=604800
-slide=21600
-query_type=1
-labels=3
+mode=11
+input_data_path=code/dataset/ldbc/ldbc_updatestream_sf10_peaks_v2.txt
+size=864000
+slide=43200
+query_type=4
+labels=3,4,2
 path_algorithm=2
-max_size=0
-min_size=0
+max_size=864000
+min_size=691200
