@@ -21,10 +21,10 @@ QUERY_LABELS = {
     },
     "so": {
         1: [1],
-        2: [3, 1],
-        3: [3, 1, 2],
+        2: [3, 1], # 2,1
+        3: [3, 1, 2], # 3,2,1
         4: [1, 3, 2],
-        5: [3, 1, 2],
+        5: [3, 1, 2], # 3,2,1
         6: [1, 2],
         7: [3, 2, 1],
         10: [2, 3, 1],
@@ -165,43 +165,37 @@ def main():
     higgs_query_label_pairs = [(q, QUERY_LABELS["higgs"][q]) for q in QUERY_LABELS["higgs"]]
     so_query_label_pairs = [(q, QUERY_LABELS["so"][q]) for q in QUERY_LABELS["so"]]
 
-    ldbc_conf = {
+
+    ldbc = {
         "datasets": ["code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt"],
         "query_label_pairs": ldbc_query_label_pairs,
         "size": 1036800,
         "slide": 21600,
-        "min_size_percentages": [50],
-        "load_shedding_params": [(0.01, 0.5)],
+        "min_size_percentages": [],
+        "load_shedding_params": [],
     }
 
-    higgs_conf = {
+    higgs = {
         "datasets": ["code/dataset/higgs-activity/higgs-activity_time_postprocess.txt"],
         "query_label_pairs": higgs_query_label_pairs,
         "size": 172800,
         "slide": 2160,
-        "min_size_percentages": [70], # 80 to 56 slides
-        "load_shedding_params": [(0.01, 0.15)],
+        "min_size_percentages": [],
+        "load_shedding_params": [],
     }
 
-    so_conf = {
+    so = {
         "datasets": ["code/dataset/so/sx_stackoverflow_merged_peaks.txt"],
         "query_label_pairs": so_query_label_pairs,
         "size": 864000,
         "slide": 21600,
-        "min_size_percentages": [70], # 40 to 28 slides
-        "load_shedding_params": [(0.01, 0.15)],
+        "min_size_percentages": [70,65,60],
+        "load_shedding_params": [],
     }
 
-    current_conf = {
-        "datasets": ["code/dataset/so/sx_stackoverflow_merged_peaks.txt"],
-        "query_label_pairs": so_query_label_pairs,
-        "size": 864000,
-        "slide": 21600,
-        "min_size_percentages": [70], # 40 to 28 slides
-        "load_shedding_params": [(0.01, 0.15)],
-    }
+    current_conf = so
 
-    algorithms = [11, 3, 4]
+    algorithms = [11]
     output = "icde/lshed_exp/so"
 
     generate_config_files(
