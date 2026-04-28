@@ -1,0 +1,9 @@
+mode=4
+input_data_path=code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt
+size=518400
+slide=21600
+query_type=4
+labels=1,2,4
+path_algorithm=2
+granularity=0.01
+max_shed=0.11

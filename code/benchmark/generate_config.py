@@ -4,7 +4,6 @@ QUERY_LABELS = {
     "ldbc": {
         1: [3],
         2: [2, 3],
-        4: [1, 2, 4],
         5: [2, 3, 4],
         7: [4, 2, 3],
         10: [3, 4, 1],
@@ -23,11 +22,16 @@ QUERY_LABELS = {
         1: [1],
         2: [3, 1], # 2,1
         3: [3, 1, 2], # 3,2,1
-        4: [1, 3, 2],
         5: [3, 1, 2], # 3,2,1
         6: [1, 2],
         7: [3, 2, 1],
         10: [2, 3, 1],
+    },
+    "so_4": {
+        4: [1, 3, 2],
+    },
+    "ldbc_4": {
+        4: [1, 2, 4],
     },
 }
 
@@ -162,9 +166,10 @@ def generate_config_files(
 def main():
     # Query-label pairs
     ldbc_query_label_pairs = [(q, QUERY_LABELS["ldbc"][q]) for q in QUERY_LABELS["ldbc"]]
+    ldbc_query_4_label_pairs = [(q, QUERY_LABELS["ldbc_4"][q]) for q in QUERY_LABELS["ldbc_4"]]
     higgs_query_label_pairs = [(q, QUERY_LABELS["higgs"][q]) for q in QUERY_LABELS["higgs"]]
     so_query_label_pairs = [(q, QUERY_LABELS["so"][q]) for q in QUERY_LABELS["so"]]
-
+    so_query_4_label_pairs = [(q, QUERY_LABELS["so_4"][q]) for q in QUERY_LABELS["so_4"]]
 
     ldbc = {
         "datasets": ["code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt"],
@@ -193,10 +198,28 @@ def main():
         "load_shedding_params": [],
     }
 
-    current_conf = so
+    so_4 = {
+        "datasets": ["code/dataset/so/sx_stackoverflow_merged_peaks.txt"],
+        "query_label_pairs": so_query_4_label_pairs,
+        "size": 432000,
+        "slide": 21600,
+        "min_size_percentages": [70,65,60],
+        "load_shedding_params": [(0.01, 0.12), (0.01, 0.15), (0.01, 0.18)],
+    }
 
-    algorithms = [11]
-    output = "icde/lshed_exp/so"
+    ldbc_4 = {
+        "datasets": ["code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt"],
+        "query_label_pairs": ldbc_query_4_label_pairs,
+        "size": 518400,
+        "slide": 21600,
+        "min_size_percentages": [50,55,60],
+        "load_shedding_params": [(0.01, 0.12), (0.01, 0.11), (0.01, 0.10)],
+    }
+
+    current_conf = ldbc_4
+
+    algorithms = [11,3,4]
+    output = "icde/lshed_exp/ldbc/ldbc_B"
 
     generate_config_files(
         datasets=current_conf["datasets"],
