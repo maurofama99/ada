@@ -1,4 +1,3 @@
-
 #include "mode_handler_base.h"
 #include "../streaming_graph.h"
 #include <iostream>
@@ -11,7 +10,10 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
         if ((ctx.windows)[i].max_degree > ctx.max_deg) ctx.max_deg = (ctx.windows)[i].max_degree;
     }
 
-    double avg_deg = ctx.sg->edge_num/ctx.sg->vertex_num;
+    double avg_deg = 0.0;
+    if (ctx.sg->vertex_num > 0) {
+        avg_deg = ctx.sg->edge_num / ctx.sg->vertex_num;
+    }
 
     double n = (ctx.sg->EINIT_count + 1) * (2 * ctx.sg->edge_num - ctx.sg->EINIT_count) / 2.0;
 
@@ -38,15 +40,29 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
 
     *(ctx.csv_memory) << n / ctx.max_deg << "," << avg_deg << "," << n << "," << ctx.max_deg << "," << ctx.sg->EINIT_count * ctx.sg->edge_num << std::endl;
 
-    if (ctx.cost > ctx.cost_max) ctx.cost_max = ctx.cost;
-    if (ctx.cost < ctx.cost_min) ctx.cost_min = ctx.cost;
-    ctx.cost_norm = (ctx.cost - ctx.cost_min) / (ctx.cost_max - ctx.cost_min);
+    if (ctx.cost_max < ctx.cost_min) {
+        ctx.cost_max = ctx.cost;
+        ctx.cost_min = ctx.cost;
+    } else {
+        if (ctx.cost > ctx.cost_max) ctx.cost_max = ctx.cost;
+        if (ctx.cost < ctx.cost_min) ctx.cost_min = ctx.cost;
+    }
+
+    double cost_den = ctx.cost_max - ctx.cost_min;
+    if (cost_den > 0.0) {
+        ctx.cost_norm = (ctx.cost - ctx.cost_min) / cost_den;
+    } else {
+        ctx.cost_norm = 0.0;
+    }
 
     ctx.cost_window.push_back(ctx.cost_norm);
-    if (ctx.cost_window.size() > ctx.overlap)
+    while (static_cast<int>(ctx.cost_window.size()) > ctx.overlap) {
         ctx.cost_window.pop_front();
+    }
 
-    ctx.cost_norm = std::accumulate(ctx.cost_window.begin(), ctx.cost_window.end(), 0.0) / ctx.cost_window.size();
+    if (!ctx.cost_window.empty()) {
+        ctx.cost_norm = std::accumulate(ctx.cost_window.begin(), ctx.cost_window.end(), 0.0) / ctx.cost_window.size();
+    }
 
     double cost_diff = ctx.cost_norm - ctx.last_cost;
     ctx.last_cost = ctx.cost_norm;

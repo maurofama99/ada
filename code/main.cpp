@@ -193,8 +193,8 @@ int main(int argc, char *argv[]) {
     std::ofstream csv_windows(windows_path.string());
     csv_windows << "window_id,t_open,t_close,normalized_estimated_cost,window_results,incremental_matches,latency,window_cardinality,window_size\n";
 
-    std::ofstream csv_tuples(tuples_path.string());
-    csv_tuples << "window_id,beta_id,timestamp,estimated_cost,normalized_estimated_cost,latency,beta_latency,window_cardinality,window_size,shedding\n";
+    // std::ofstream csv_tuples(tuples_path.string());
+    // csv_tuples << "window_id,beta_id,timestamp,estimated_cost,normalized_estimated_cost,latency,beta_latency,window_cardinality,window_size,shedding\n";
 
     std::ofstream csv_memory(memory_path.string());
     csv_memory << "alef,avg_deg,lef,max_deg,nm\n";
@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
     std::ofstream csv_slides(slides_path.string());
     csv_slides << "t_open,t_close,latency_sec,elements,new_results,cost_norm\n";
 
-    ctx.csv_tuples = &csv_tuples;
+    //ctx.csv_tuples = &csv_tuples;
     ctx.csv_memory = &csv_memory;
     long long checkpoint = 100000;
 
@@ -319,7 +319,7 @@ int main(int argc, char *argv[]) {
 
     csv_summary.close();
     csv_windows.close();
-    csv_tuples.close();
+    //csv_tuples.close();
     csv_memory.close();
 
     // cleanup

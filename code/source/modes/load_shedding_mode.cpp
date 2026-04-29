@@ -131,17 +131,17 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
         }
     }
 
-    *(ctx.csv_tuples)
-        << ctx.windows.size() << ","
-        << ctx.beta_id << ","
-        << time << ","
-        << ctx.cost << ","
-        << ctx.cost_norm << ","
-        << (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].latency << ","
-        << ctx.beta_latency_end << ","
-        << (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].elements_count << ","
-        << (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].t_close - (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].t_open << ","
-        << ctx.p_shed << std::endl;
+    // *(ctx.csv_tuples)
+    //     << ctx.windows.size() << ","
+    //     << ctx.beta_id << ","
+    //     << time << ","
+    //     << ctx.cost << ","
+    //     << ctx.cost_norm << ","
+    //     << (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].latency << ","
+    //     << ctx.beta_latency_end << ","
+    //     << (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].elements_count << ","
+    //     << (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].t_close - (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].t_open << ","
+    //     << ctx.p_shed << std::endl;
 
     return is_shedding;
 }
