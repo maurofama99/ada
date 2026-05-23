@@ -20,9 +20,9 @@ QUERY_LABELS = {
     },
     "so": {
         1: [1],
-        2: [3, 1], # 2,1
-        3: [3, 1, 2], # 3,2,1
-        5: [3, 1, 2], # 3,2,1
+        2: [3, 1],
+        3: [3, 1, 2],
+        5: [3, 1, 2],
         6: [1, 2],
         7: [3, 2, 1],
         10: [2, 3, 1],
@@ -194,7 +194,7 @@ def main():
         "query_label_pairs": so_query_label_pairs,
         "size": 864000,
         "slide": 21600,
-        "min_size_percentages": [70,65,60],
+        "min_size_percentages": [],
         "load_shedding_params": [],
     }
 
@@ -203,8 +203,8 @@ def main():
         "query_label_pairs": so_query_4_label_pairs,
         "size": 432000,
         "slide": 21600,
-        "min_size_percentages": [70,65,60],
-        "load_shedding_params": [(0.01, 0.12), (0.01, 0.15), (0.01, 0.18)],
+        "min_size_percentages": [],
+        "load_shedding_params": [],
     }
 
     ldbc_4 = {
@@ -212,14 +212,14 @@ def main():
         "query_label_pairs": ldbc_query_4_label_pairs,
         "size": 518400,
         "slide": 21600,
-        "min_size_percentages": [50,55,60],
-        "load_shedding_params": [(0.01, 0.12), (0.01, 0.11), (0.01, 0.10)],
+        "min_size_percentages": [],
+        "load_shedding_params": [],
     }
 
     current_conf = ldbc_4
 
-    algorithms = [11,3,4]
-    output = "icde/lshed_exp/ldbc/ldbc_B"
+    algorithms = [10]
+    output = "icde/lat_tput/so"
 
     generate_config_files(
         datasets=current_conf["datasets"],

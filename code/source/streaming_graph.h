@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <iostream>
 #include <map>
 
@@ -91,11 +92,12 @@ public:
 
     double edge_num = 0; // number of edges in the window
     int EINIT_count = 0;
+    std::unordered_map<long long, long long> label_count;
 
     timed_edge *time_list_head = nullptr; // head of the time sequence list;
     timed_edge *time_list_tail = nullptr; // tail of the time sequence list
 
-    int first_transition; // the first label in the query
+    std::unordered_set<long long> initial_transitions; // labels that can start the query
 
     std::unordered_map<long long, int> in_degree;
     std::unordered_map<long long, int> out_degree;
@@ -107,7 +109,15 @@ public:
     // edge_id -> (src, dst)
     std::unordered_map<long long, std::pair<long long, long long> > edge_endpoints;
 
-    streaming_graph(const int first_transition) : first_transition(first_transition) {}
+    explicit streaming_graph(const std::vector<long long>& initial_transitions_) {
+        for (const auto label : initial_transitions_) {
+            initial_transitions.insert(label);
+        }
+    }
+
+    [[nodiscard]] bool is_initial_transition(const long long label) const {
+        return initial_transitions.find(label) != initial_transitions.end();
+    }
 
     ~streaming_graph() {
         // Free memory for all edges in the adjacency list
@@ -175,7 +185,8 @@ public:
         }
 
         edge_num++;
-        if (label == first_transition) EINIT_count++;
+        label_count[label]++;
+        if (is_initial_transition(label)) EINIT_count++;
 
         auto *edge = new sg_edge(edge_id, from, to, label, timestamp, expiration_time);
         edge_id_to_edge[edge_id] = edge;
@@ -242,7 +253,11 @@ public:
                 edges.erase(it);
                 edge_num--;
                 if (edge_num < 0) std::cerr << "ERROR: edge_num < 0\n";
-                if (label == first_transition) EINIT_count--;
+                label_count[label]--;
+                if (label_count[label] == 0) {
+                    label_count.erase(label);
+                }
+                if (is_initial_transition(label)) EINIT_count--;
                 if (edges.empty()) {
                     should_erase_from = true;
                 }

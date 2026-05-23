@@ -26,10 +26,21 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
         if (ctx.mode >= 11 && ctx.mode <= 15) {
             double cost_diff = compute_load_estimation(ctx, ctx.mode);
 
-            if (cost_diff >= 0.01 || ctx.cost_norm >= 0.95) {
-                ctx.size -= ceil(cost_diff * 10) * ctx.slide;
-            } else if (cost_diff <= 0.01 || ctx.cost_norm <= 0.05) {
-                ctx.size += ceil(-cost_diff * 10) * ctx.slide;
+            const double resize_threshold = ctx.rate_volatility / (1.0 + ctx.rate_volatility);
+            const double resize_gain = 1.0 / resize_threshold;
+            auto resize_steps = [&](double magnitude) {
+                auto steps = static_cast<long long>(floor(magnitude * resize_gain));
+                return steps > 0 ? steps : 1;
+            };
+
+            if (cost_diff >= resize_threshold) {
+                ctx.size -= resize_steps(cost_diff) * ctx.slide;
+            } else if (cost_diff <= -resize_threshold) {
+                ctx.size += resize_steps(-cost_diff) * ctx.slide;
+            } else if (ctx.cost_norm >= 0.95) {
+                ctx.size -= ctx.slide;
+            } else if (ctx.cost_norm <= 0.05) {
+                ctx.size += ctx.slide;
             }
 
             // cap to max and min size

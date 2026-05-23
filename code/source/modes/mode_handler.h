@@ -24,6 +24,7 @@ typedef struct Config {
     int path_algorithm{};
     double granularity{};
     double max_shed{};
+    double rate_volatility = 0.0;
 } config;
 
 inline config readConfig(const std::string &filename) {
@@ -70,6 +71,18 @@ inline config readConfig(const std::string &filename) {
     } else {
         config.max_size = 0;
         config.min_size = 0;
+    }
+
+    if (config.mode >= 11 and config.mode <= 15) {
+        if (configMap.find("rate_volatility") == configMap.end()) {
+            std::cerr << "Error: rate_volatility should be set for adaptive resizing modes" << std::endl;
+            exit(1);
+        }
+        config.rate_volatility = std::stod(configMap["rate_volatility"]);
+        if (config.rate_volatility <= 0.0) {
+            std::cerr << "Error: rate_volatility should be > 0" << std::endl;
+            exit(1);
+        }
     }
 
     if (config.mode == 3 || config.mode == 4) {
@@ -165,6 +178,7 @@ struct ModeContext {
     long long slide;
     long long max_size;
     long long min_size;
+    double rate_volatility = 0.0;
     int first_transition;
     
     // Counters and state variables

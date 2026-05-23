@@ -141,6 +141,24 @@ public:
         }
         return kleeneStarLabels;
     }
+
+    [[nodiscard]] std::vector<long long> getInitialTransitionLabels() const {
+        std::vector<long long> initialTransitionLabels;
+        std::unordered_set<long long> seen;
+
+        auto it = transitions.find(initialState);
+        if (it == transitions.end()) {
+            return initialTransitionLabels;
+        }
+
+        for (const auto& transition : it->second) {
+            if (seen.insert(transition.label).second) {
+                initialTransitionLabels.push_back(transition.label);
+            }
+        }
+
+        return initialTransitionLabels;
+    }
     
     [[nodiscard]] std::vector<std::pair<long long, long long> > getStatePairsWithTransition(long long label) const {
         std::vector<std::pair<long long, long long> > statePairs;

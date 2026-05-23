@@ -248,6 +248,11 @@ public:
 
 
         auto num = static_cast<unsigned long>(scores.size() * candidate_rate);
+        if (num == 0)
+            num = 1;
+        if (num > scores.size())
+            num = scores.size();
+
         double bar = scores[scores.size() - num].score;
         // nodes with score smaller than this bar is not in the candidate set.
 
@@ -304,10 +309,11 @@ public:
 
         shrink(landmarks);
 
-        for (int i = scores.size() - 1; i >= scores.size() - num; i--) // scan candidates
+        for (unsigned long offset = 0; offset < num; ++offset) // scan candidates
         {
-            unsigned int v = scores[i].ID;
-            unsigned int state = scores[i].state;
+            const vertex_score& candidate = scores[scores.size() - 1 - offset];
+            unsigned int v = candidate.ID;
+            unsigned int state = candidate.state;
             unsigned long long info = merge_long_long(v, state);
             if (landmarks.find(info) != landmarks.end()) // skip a node if it is already a landmark
                 continue;
