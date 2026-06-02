@@ -4,6 +4,7 @@
 #include <fstream>
 #include <filesystem>
 #include <sstream>
+#include <algorithm>
 #include <random>
 #include <algorithm>
 #include <cmath>
@@ -208,7 +209,7 @@ int main(int argc, char *argv[]) {
 
     //ctx.csv_tuples = &csv_tuples;
     ctx.csv_memory = &csv_memory;
-    long long checkpoint = 100000;
+    long long checkpoint = 600000;
 
     int elements_processed = 0;
     double cumulative_processing_time = 0;

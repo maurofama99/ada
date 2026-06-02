@@ -75,13 +75,14 @@ inline config readConfig(const std::string &filename) {
 
     if (config.mode >= 11 and config.mode <= 15) {
         if (configMap.find("rate_volatility") == configMap.end()) {
-            std::cerr << "Error: rate_volatility should be set for adaptive resizing modes" << std::endl;
-            exit(1);
+            config.rate_volatility = 0.1;
         }
-        config.rate_volatility = std::stod(configMap["rate_volatility"]);
-        if (config.rate_volatility <= 0.0) {
-            std::cerr << "Error: rate_volatility should be > 0" << std::endl;
-            exit(1);
+        else {
+            config.rate_volatility = std::stod(configMap["rate_volatility"]);
+            if (config.rate_volatility <= 0.0) {
+                std::cerr << "Error: rate_volatility should be > 0" << std::endl;
+                exit(1);
+            }
         }
     }
 
@@ -178,7 +179,7 @@ struct ModeContext {
     long long slide;
     long long max_size;
     long long min_size;
-    double rate_volatility = 0.0;
+    double rate_volatility = 0.1;
     int first_transition;
     
     // Counters and state variables
