@@ -1,13 +1,15 @@
 #include "mode_handler_base.h"
 #include "../streaming_graph.h"
 #include <iostream>
-#include <numeric>
 #include <cmath>
 
 double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
-    ctx.max_deg = 1;
-    for (size_t i = ctx.window_offset; i < ctx.windows.size(); i++) {
-        if ((ctx.windows)[i].max_degree > ctx.max_deg) ctx.max_deg = (ctx.windows)[i].max_degree;
+    if (ctx.max_deg_dirty) {
+        ctx.max_deg = 1;
+        for (size_t i = ctx.window_offset; i < ctx.windows.size(); i++) {
+            if ((ctx.windows)[i].max_degree > ctx.max_deg) ctx.max_deg = ctx.windows[i].max_degree;
+        }
+        ctx.max_deg_dirty = false;
     }
 
     double avg_deg = 0.0;
@@ -56,12 +58,14 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
     }
 
     ctx.cost_window.push_back(ctx.cost_norm);
-    while (static_cast<int>(ctx.cost_window.size()) > ctx.overlap) {
+    ctx.cost_window_sum += ctx.cost_norm;
+    while (static_cast<int>(ctx.cost_window.size()) > ctx.overlap*2.2) {
+        ctx.cost_window_sum -= ctx.cost_window.front();
         ctx.cost_window.pop_front();
     }
 
     if (!ctx.cost_window.empty()) {
-        ctx.cost_norm = std::accumulate(ctx.cost_window.begin(), ctx.cost_window.end(), 0.0) / ctx.cost_window.size();
+        ctx.cost_norm = ctx.cost_window_sum / ctx.cost_window.size();
     }
 
     double cost_diff = ctx.cost_norm - ctx.last_cost;
@@ -129,6 +133,9 @@ long long ModeHandlerBase::compute_window_boundaries(ModeContext &ctx, long long
             if (window_close < (ctx.windows)[ctx.windows.size() - 1].t_close) {    // shrink
                 for (size_t j = ctx.windows.size() - 1; j >= ctx.window_offset; j--) {
                     if ((ctx.windows)[j].t_close > window_close) {
+                        if (ctx.windows[j].max_degree >= ctx.max_deg) {
+                            ctx.max_deg_dirty = true;
+                        }
                         (ctx.windows)[j].evicted = true;
                         (ctx.windows)[j].first = nullptr;
                         (ctx.windows)[j].last = nullptr;
@@ -171,9 +178,15 @@ bool ModeHandlerBase::update_window(ModeContext &ctx, sg_edge* new_sgt, long lon
             (ctx.windows)[i].elements_count++;
             if (ctx.sg->out_degree[s] > (ctx.windows)[i].max_degree) {
                 (ctx.windows)[i].max_degree = ctx.sg->out_degree[s];
+                if (ctx.windows[i].max_degree > ctx.max_deg) {
+                    ctx.max_deg = ctx.windows[i].max_degree;
+                }
             }
         } else if (time >= (ctx.windows)[i].t_close) {
             // schedule window for eviction
+            if (ctx.windows[i].max_degree >= ctx.max_deg) {
+                ctx.max_deg_dirty = true;
+            }
             ctx.window_offset = i + 1;
             ctx.to_evict.push_back(i);
             evict = true;

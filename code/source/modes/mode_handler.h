@@ -198,8 +198,10 @@ struct ModeContext {
     double last_cost = 0.0;
     double last_diff = 0.0;
     double max_deg = 1;
+    bool max_deg_dirty = false;
     int overlap = -1;
     std::deque<double> cost_window;
+    double cost_window_sum = 0.0;
 
     int warmup = 0;
     int resizings = 0;
