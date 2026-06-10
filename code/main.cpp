@@ -61,6 +61,11 @@ int main(int argc, char *argv[]) {
     ctx.mode = config.mode;
     ctx.latency_max = config.l_max;
     if (config.size >0 && config.slide >0) ctx.overlap = config.size / config.slide;
+    ctx.load_average_horizon = config.load_average_horizon > 0 ? config.load_average_horizon : ctx.overlap;
+    ctx.normalization_horizon = config.normalization_horizon;
+    ctx.min_variation = config.min_variation > 0.0
+        ? config.min_variation
+        : config.rate_volatility / (1.0 + config.rate_volatility);
     ctx.granularity = config.granularity;
     ctx.max_shed = config.max_shed;
 
@@ -141,6 +146,14 @@ int main(int argc, char *argv[]) {
     cout << "Modalità: " << mode << " (config. " << config.mode << ")" << endl;
     if (config.mode >= 11 && config.mode <= 15) {
         cout << "Rate volatility: " << config.rate_volatility << endl;
+        cout << "Min variation: " << ctx.min_variation << endl;
+        cout << "Load average horizon: " << ctx.load_average_horizon << endl;
+        cout << "Normalization horizon: ";
+        if (ctx.normalization_horizon == 0) {
+            cout << "all history" << endl;
+        } else {
+            cout << ctx.normalization_horizon << endl;
+        }
     }
     switch (config.path_algorithm) {
         case 1:
@@ -155,7 +168,7 @@ int main(int argc, char *argv[]) {
     }
 
     // output folder for csvs
-    fs::path output_folder = "results";
+    fs::path output_folder = config.output_folder;
     if (!fs::exists(output_folder)) {
         fs::create_directories(output_folder);
     }
@@ -209,7 +222,7 @@ int main(int argc, char *argv[]) {
 
     //ctx.csv_tuples = &csv_tuples;
     ctx.csv_memory = &csv_memory;
-    long long checkpoint = 600000;
+    long long checkpoint = 300000;
 
     int elements_processed = 0;
     double cumulative_processing_time = 0;

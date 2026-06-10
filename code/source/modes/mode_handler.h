@@ -5,6 +5,7 @@
 #include <deque>
 #include <fstream>
 #include <sstream>
+#include <limits>
 
 #include "../streaming_graph.h"
 #include "../sink.h"
@@ -25,6 +26,10 @@ typedef struct Config {
     double granularity{};
     double max_shed{};
     double rate_volatility = 0.0;
+    double min_variation = -1.0;
+    int load_average_horizon = -1;
+    int normalization_horizon = 0;
+    std::string output_folder = "results";
 } config;
 
 inline config readConfig(const std::string &filename) {
@@ -75,7 +80,7 @@ inline config readConfig(const std::string &filename) {
 
     if (config.mode >= 11 and config.mode <= 15) {
         if (configMap.find("rate_volatility") == configMap.end()) {
-            config.rate_volatility = 0.1;
+            config.rate_volatility = 0.01;
         }
         else {
             config.rate_volatility = std::stod(configMap["rate_volatility"]);
@@ -84,6 +89,34 @@ inline config readConfig(const std::string &filename) {
                 exit(1);
             }
         }
+
+        if (configMap.find("min_variation") != configMap.end()) {
+            config.min_variation = std::stod(configMap["min_variation"]);
+            if (config.min_variation <= 0.0 || config.min_variation > 1.0) {
+                std::cerr << "Error: min_variation should be in (0, 1]" << std::endl;
+                exit(1);
+            }
+        }
+
+        if (configMap.find("load_average_horizon") != configMap.end()) {
+            config.load_average_horizon = std::stoi(configMap["load_average_horizon"]);
+            if (config.load_average_horizon <= 0) {
+                std::cerr << "Error: load_average_horizon should be > 0" << std::endl;
+                exit(1);
+            }
+        }
+
+        if (configMap.find("normalization_horizon") != configMap.end()) {
+            config.normalization_horizon = std::stoi(configMap["normalization_horizon"]);
+            if (config.normalization_horizon < 0) {
+                std::cerr << "Error: normalization_horizon should be >= 0" << std::endl;
+                exit(1);
+            }
+        }
+    }
+
+    if (configMap.find("output_folder") != configMap.end()) {
+        config.output_folder = configMap["output_folder"];
     }
 
     if (config.mode == 3 || config.mode == 4) {
@@ -191,16 +224,21 @@ struct ModeContext {
     long long size_count = 0;
     double avg_size = 0;
     double cost_max = 0.0;
-    double cost_min = 922337203685470;
+    double cost_min = std::numeric_limits<double>::max();
     double lat_max = 0.0;
     double lat_min = 922337203685470;
     double cost = 0;
     double cost_norm;
     double last_cost = 0.0;
     double last_diff = 0.0;
+    double min_variation = -1.0;
     double max_deg = 1;
     bool max_deg_dirty = false;
     int overlap = -1;
+    int load_average_horizon = -1;
+    int normalization_horizon = 0;
+    std::deque<double> cost_normalization_window;
+    bool cost_normalization_dirty = false;
     std::deque<double> cost_window;
     double cost_window_sum = 0.0;
 

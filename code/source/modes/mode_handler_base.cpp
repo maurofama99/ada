@@ -33,7 +33,7 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
             ctx.cost = ctx.max_deg;
             break;
         case 15:
-            ctx.cost = ctx.sg->EINIT_count * ctx.sg->edge_num;
+            ctx.cost = ctx.sg->EINIT_count * ctx.sg->edge_num; // nm
             break;
         default:
             std::cerr << "ERROR: unknown cost mode." << std::endl;
@@ -42,12 +42,42 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
 
     *(ctx.csv_memory) << n / ctx.max_deg << "," << avg_deg << "," << n << "," << ctx.max_deg << "," << ctx.sg->EINIT_count * ctx.sg->edge_num << std::endl;
 
-    if (ctx.cost_max < ctx.cost_min) {
-        ctx.cost_max = ctx.cost;
-        ctx.cost_min = ctx.cost;
+    if (ctx.normalization_horizon > 0) {
+        ctx.cost_normalization_window.push_back(ctx.cost);
+
+        if (ctx.cost_normalization_window.size() == 1) {
+            ctx.cost_min = ctx.cost;
+            ctx.cost_max = ctx.cost;
+        } else {
+            if (ctx.cost > ctx.cost_max) ctx.cost_max = ctx.cost;
+            if (ctx.cost < ctx.cost_min) ctx.cost_min = ctx.cost;
+        }
+
+        while (static_cast<int>(ctx.cost_normalization_window.size()) > ctx.normalization_horizon) {
+            const double evicted_cost = ctx.cost_normalization_window.front();
+            ctx.cost_normalization_window.pop_front();
+            if (evicted_cost == ctx.cost_min || evicted_cost == ctx.cost_max) {
+                ctx.cost_normalization_dirty = true;
+            }
+        }
+
+        if (ctx.cost_normalization_dirty && !ctx.cost_normalization_window.empty()) {
+            ctx.cost_min = ctx.cost_normalization_window.front();
+            ctx.cost_max = ctx.cost_normalization_window.front();
+            for (double observed_cost : ctx.cost_normalization_window) {
+                if (observed_cost > ctx.cost_max) ctx.cost_max = observed_cost;
+                if (observed_cost < ctx.cost_min) ctx.cost_min = observed_cost;
+            }
+            ctx.cost_normalization_dirty = false;
+        }
     } else {
-        if (ctx.cost > ctx.cost_max) ctx.cost_max = ctx.cost;
-        if (ctx.cost < ctx.cost_min) ctx.cost_min = ctx.cost;
+        if (ctx.cost_max < ctx.cost_min) {
+            ctx.cost_max = ctx.cost;
+            ctx.cost_min = ctx.cost;
+        } else {
+            if (ctx.cost > ctx.cost_max) ctx.cost_max = ctx.cost;
+            if (ctx.cost < ctx.cost_min) ctx.cost_min = ctx.cost;
+        }
     }
 
     double cost_den = ctx.cost_max - ctx.cost_min;
@@ -59,7 +89,9 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
 
     ctx.cost_window.push_back(ctx.cost_norm);
     ctx.cost_window_sum += ctx.cost_norm;
-    while (static_cast<int>(ctx.cost_window.size()) > ctx.overlap*2.2) {
+    int average_horizon = ctx.load_average_horizon > 0 ? ctx.load_average_horizon : ctx.overlap;
+    if (average_horizon <= 0) average_horizon = 1;
+    while (static_cast<int>(ctx.cost_window.size()) > average_horizon) {
         ctx.cost_window_sum -= ctx.cost_window.front();
         ctx.cost_window.pop_front();
     }
