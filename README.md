@@ -8,14 +8,20 @@ We report the experiments of latency, throughput and completeness for all the me
 #### StackOverflow
 We execute the experiments on the first 800 days of the dataset and we introuce syntetic peaks. We maintain the same edges to preserve the real-world dataset relationships, but we increase the input rate by 4x between 200 and 300 days, and 3x between 500 and 600 days. We decrease the input rate in the remaining temporal ranges to maitain a total time span of 800 days.
 
-##### Throughput
+###### Throughput
 <img width="4480" height="3200" alt="Throughput_so_tuples_full" src="https://github.com/user-attachments/assets/564fdfb8-edb9-42d1-8dc2-f6cd3702691e" />
 
-##### Latency
+###### Latency
 <img width="4480" height="3200" alt="Latency_so_tuples_full" src="https://github.com/user-attachments/assets/d0e86c19-8853-4ae9-9451-a6985ed3bb4a" />
 
-##### Completeness
+###### Completeness
 <img width="3616" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/assets/d3a14f8e-3715-4093-a0ef-190a98fd92ed" />
+
+#### Comparison vs ADWIN
+
+<img width="3616" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/files/28843637/all_vs_adwin.pdf" />
+
+ADWIN maintains stable load-estimation values across all delta configurations for both datasets, demonstrating its design goal of preserving the stability of the input distribution. However, because the estimation is overly influenced by the window size, it no longer guides window adaptation to the workload, resulting in small windows. Because ADWIN prioritizes maintaining statistical stability, the resulting windows do not provide sufficient time for edges to form meaningful graph structures and connections. Indeed, the inability to specify a window size makes ADWIN unsuitable for scaling to realistic streaming graph-processing workloads.
 
 
 ## Code Layout
