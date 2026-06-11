@@ -17,20 +17,6 @@ We execute the experiments on the first 800 days of the dataset and we introuce 
 ##### Completeness
 <img width="3616" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/assets/d3a14f8e-3715-4093-a0ef-190a98fd92ed" />
 
-#### LDBC
-##### Throughput
-<img width="4480" height="2400" alt="Throughput_ldbc_tuples_full" src="https://github.com/user-attachments/assets/9a875845-7632-436c-8873-718803050e36" />
-
-##### Latency
-<img width="4480" height="2400" alt="Latency_ldbc_tuples_full" src="https://github.com/user-attachments/assets/7751d982-7898-419f-b40e-650beb421571" />
-
-#### Twitter-Higgs
-##### Throughput
-<img width="4480" height="4000" alt="Throughput_higgs_tuples_full" src="https://github.com/user-attachments/assets/bcf8c3a7-401a-4a25-8475-40dea562626b" />
-
-##### Latency
-<img width="4480" height="4000" alt="Latency_higgs_tuples_full" src="https://github.com/user-attachments/assets/feb2f3d1-f50b-4dc5-aea5-f400b152d902" />
-
 
 ## Build
 
