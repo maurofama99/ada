@@ -2,9 +2,6 @@
 
 ## Additional materials
 
-### Appendix
-The appendix of the paper submitted to VLDB '26 can be found in this file: [Appendix](appendix.pdf)
-
 ### Extensive Experiments
 We report the experiments of latency, throughput and completeness for all the mentioned Regular Path Queries and for the additional dataset [StackOverflow](https://snap.stanford.edu/data/sx-stackoverflow.html). 
 
