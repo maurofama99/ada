@@ -3,19 +3,21 @@
 ## Additional materials
 
 ### Extensive Experiments
-We report the experiments of latency, throughput and completeness for all the mentioned Regular Path Queries and for the additional dataset [StackOverflow](https://snap.stanford.edu/data/sx-stackoverflow.html). 
+We report the experiments of latency, throughput and completeness for all the mentioned Regular Path Queries and for the additional dataset [StackOverflow](https://snap.stanford.edu/data/sx-stackoverflow.html). In addition, we report a comparison study with the adaptive window foundational work [ADWIN](https://scholar.google.com/citations?view_op=view_citation&hl=it&user=UYvAL8EAAAAJ&citation_for_view=UYvAL8EAAAAJ:XiSMed-E-HIC).
 
 #### StackOverflow
 We execute the experiments on the first 800 days of the dataset and we introuce syntetic peaks. We maintain the same edges to preserve the real-world dataset relationships, but we increase the input rate by 4x between 200 and 300 days, and 3x between 500 and 600 days. We decrease the input rate in the remaining temporal ranges to maitain a total time span of 800 days.
 
-###### Throughput
-<img width="4480" height="3200" alt="Throughput_so_tuples_full" src="https://github.com/user-attachments/assets/564fdfb8-edb9-42d1-8dc2-f6cd3702691e" />
+###### Speedup and Recall
+<img width="3616" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/files/29243183/window_recall_speedup.pdf" />
 
-###### Latency
-<img width="4480" height="3200" alt="Latency_so_tuples_full" src="https://github.com/user-attachments/assets/d0e86c19-8853-4ae9-9451-a6985ed3bb4a" />
+###### CCDF
+<img width="3616" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/files/29243213/ccdf_latency_linear.pdf" />
 
-###### Completeness
-<img width="3616" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/assets/d3a14f8e-3715-4093-a0ef-190a98fd92ed" />
+###### Recall vs Load Shedding
+<img width="4856" height="1063" alt="comparison_so_speedup_recall" src="https://github.com/user-attachments/assets/d750d957-8529-46a1-a00f-eb2f85c13353" />
+
+###### Ablation study
 
 #### Comparison vs ADWIN
 
