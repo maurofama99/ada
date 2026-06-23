@@ -12,7 +12,7 @@ We execute the experiments on the first 800 days of the dataset and we introuce 
 <img width="3616" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/files/29243183/window_recall_speedup.pdf" />
 
 ###### CCDF
-<img width="3616" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/files/29243213/ccdf_latency_linear.pdf" />
+<img width="4856" height="1063" alt="comparison_so_speedup_recall" src="https://github.com/user-attachments/files/29250434/ccdf_latency_log.pdf" />
 
 ###### Recall vs Load Shedding
 <img width="4856" height="1063" alt="comparison_so_speedup_recall" src="https://github.com/user-attachments/assets/d750d957-8529-46a1-a00f-eb2f85c13353" />
