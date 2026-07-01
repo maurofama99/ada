@@ -15,7 +15,8 @@ We execute the experiments on the first 800 days of the dataset and we introuce 
 <img width="4856" height="1063" alt="comparison_so_speedup_recall" src="https://github.com/user-attachments/files/29250434/ccdf_latency_log.pdf" />
 
 ###### Recall vs Load Shedding
-<img width="4856" height="1063" alt="comparison_so_speedup_recall" src="https://github.com/user-attachments/assets/d750d957-8529-46a1-a00f-eb2f85c13353" />
+
+<img width="3644" height="1063" alt="comparison_so_speedup_recall" src="https://github.com/user-attachments/assets/e3743d32-cadc-427a-9a37-a33368b1e0e0" />
 
 ###### Ablation study
 
