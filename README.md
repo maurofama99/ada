@@ -16,7 +16,7 @@ We execute the experiments on the first 800 days of the dataset and we introuce 
 
 ###### Recall vs Load Shedding
 
-<img width="3644" height="1063" alt="comparison_so_speedup_recall" src="https://github.com/user-attachments/assets/e3743d32-cadc-427a-9a37-a33368b1e0e0" />
+<img width="3644" height="1063" alt="comparison_so_speedup_recall" src="https://github.com/user-attachments/assets/6970329f-3efa-47a9-813f-a609c69e2f29" />
 
 ###### Ablation study
 
