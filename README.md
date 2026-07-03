@@ -1,4 +1,4 @@
-[comparison_so_recall_results.csv](https://github.com/user-attachments/files/29634920/comparison_so_recall_results.csv)[comparison_so_recall_results.csv](https://github.com/user-attachments/files/29634894/comparison_so_recall_results.csv)# Robust Regular Path Queries over Streaming Graphs via Load-Aware Windowing
+# Robust Regular Path Queries over Streaming Graphs via Load-Aware Windowing
 
 ## Additional materials
 
