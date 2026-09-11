@@ -1,9 +1,11 @@
 mode=11
-input_data_path=code/dataset/higgs-activity/higgs-activity_time_postprocess.txt
-size=86400
-slide=4320
+input_data_path=code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt
+size=345600
+slide=21600
 query_type=5
-labels=1,2,3
+labels=2,3,4
 path_algorithm=2
-max_size=86400
-min_size=69120
+load_average_horizon=0
+min_variation=0.02
+max_size=345600
+min_size=259200

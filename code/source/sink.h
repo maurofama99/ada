@@ -1,28 +1,15 @@
 #ifndef SINK_H
 #define SINK_H
-#include <iostream>
-#include <unordered_map>
-#include <unordered_set>
-#include <string>
+#include <algorithm>
 #include <fstream>
-
-struct result {
-    long long destination;
-    long long timestamp;
-
-    bool operator==(const result &other) const {
-        return destination == other.destination;
-    }
-};
-
-struct resultHash {
-    size_t operator()(const result &p) const {
-        return std::hash<long long>()(p.destination);
-    }
-};
+#include <iostream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 class Sink {
-    std::unordered_map<long long, std::unordered_set<result, resultHash> > result_set;
+    // Keep every timestamp reported for each source-destination pair.
+    std::unordered_map<long long, std::unordered_map<long long, std::vector<long long>>> result_set;
 
 public:
     int matched_paths = 0; // patterns matched
@@ -32,6 +19,7 @@ public:
     long long getResultSetSize() {
         long long size = 0;
         for (const auto &[source, destinations]: result_set) {
+            // count distinct active pairs.
             size += destinations.size();
         }
         return size;
@@ -39,43 +27,25 @@ public:
 
     // add entry in result set
     void addEntry(long long source, long long destination, long long timestamp) {
-        // if (source == destination) return; // avoid self loops
-        result res = {destination, timestamp};
         auto& destinations = result_set[source];
-
-        if (auto [it, inserted] = destinations.insert(res); inserted) {
-            // new pair
+        auto [destination_it, inserted] = destinations.try_emplace(destination);
+        if (inserted) {
+            // Count a pair when it first becomes active.
             matched_paths++;
         }
+
+        // Store every match occurrence, including duplicate timestamps.
+        destination_it->second.push_back(timestamp);
         total_matches++;
-        //std::cout << total_matches << std::endl;
-    }
-
-
-    void refresh_resultSet(long long timestamp) {
-        // delete all the entries with timestamp less than the given timestamp
-        for (auto it = result_set.begin(); it != result_set.end();) {
-            auto &destinations = it->second;
-            for (auto dest_it = destinations.begin(); dest_it != destinations.end();) {
-                if (dest_it->timestamp < timestamp) {
-                    dest_it = destinations.erase(dest_it);
-                } else {
-                    ++dest_it;
-                }
-            }
-            if (destinations.empty()) {
-                it = result_set.erase(it);
-            } else {
-                ++it;
-            }
-        }
     }
 
     void printResultSet() {
         for (const auto &[source, destinations]: result_set) {
-            for (const auto &destination: destinations) {
-                std::cout << "Path from " << source << " to " << destination.destination << " at time " << destination.
-                        timestamp << std::endl;
+            for (const auto &[destination, timestamps]: destinations) {
+                for (const long long timestamp: timestamps) {
+                    std::cout << "Path from " << source << " to " << destination
+                              << " at time " << timestamp << std::endl;
+                }
             }
         }
     }
@@ -85,8 +55,10 @@ public:
         std::ofstream file(filename);
         // insert header
         for (const auto &[source, destinations]: result_set) {
-            for (const auto &destination: destinations) {
-                file << source << " " << destination.destination << " " << destination.timestamp << std::endl;
+            for (const auto &[destination, timestamps]: destinations) {
+                for (const long long timestamp: timestamps) {
+                    file << source << " " << destination << " " << timestamp << std::endl;
+                }
             }
         }
         file.close();

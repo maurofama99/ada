@@ -25,7 +25,6 @@ typedef struct Config {
     int path_algorithm{};
     double granularity{};
     double max_shed{};
-    double rate_volatility = 0.0;
     double min_variation = -1.0;
     int load_average_horizon = -1;
     int normalization_horizon = 0;
@@ -79,16 +78,6 @@ inline config readConfig(const std::string &filename) {
     }
 
     if (config.mode >= 11 and config.mode <= 15) {
-        if (configMap.find("rate_volatility") == configMap.end()) {
-            config.rate_volatility = 0.01;
-        }
-        else {
-            config.rate_volatility = std::stod(configMap["rate_volatility"]);
-            if (config.rate_volatility <= 0.0) {
-                std::cerr << "Error: rate_volatility should be > 0" << std::endl;
-                exit(1);
-            }
-        }
 
         if (configMap.find("min_variation") != configMap.end()) {
             config.min_variation = std::stod(configMap["min_variation"]);
@@ -100,7 +89,7 @@ inline config readConfig(const std::string &filename) {
 
         if (configMap.find("load_average_horizon") != configMap.end()) {
             config.load_average_horizon = std::stoi(configMap["load_average_horizon"]);
-            if (config.load_average_horizon <= 0) {
+            if (config.load_average_horizon < 0) {
                 std::cerr << "Error: load_average_horizon should be > 0" << std::endl;
                 exit(1);
             }
@@ -248,7 +237,6 @@ struct ModeContext {
     
     // Load shedding specific
     double p_shed = 0.0;
-    double granularity;
     double max_shed;
 
     double average_processing_time = 0.0;

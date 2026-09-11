@@ -57,16 +57,11 @@ int main(int argc, char *argv[]) {
     ctx.slide = config.slide;
     ctx.max_size = config.max_size;
     ctx.min_size = config.min_size;
-    ctx.rate_volatility = config.rate_volatility;
     ctx.mode = config.mode;
-    ctx.latency_max = config.l_max;
     if (config.size >0 && config.slide >0) ctx.overlap = config.size / config.slide;
     ctx.load_average_horizon = config.load_average_horizon > 0 ? config.load_average_horizon : ctx.overlap;
     ctx.normalization_horizon = config.normalization_horizon;
-    ctx.min_variation = config.min_variation > 0.0
-        ? config.min_variation
-        : config.rate_volatility / (1.0 + config.rate_volatility);
-    ctx.granularity = config.granularity;
+    ctx.min_variation = config.min_variation > 0.0 ? config.min_variation: 0.02;
     ctx.max_shed = config.max_shed;
 
     ctx.sink = new Sink();
@@ -145,7 +140,6 @@ int main(int argc, char *argv[]) {
 
     cout << "Modalità: " << mode << " (config. " << config.mode << ")" << endl;
     if (config.mode >= 11 && config.mode <= 15) {
-        cout << "Rate volatility: " << config.rate_volatility << endl;
         cout << "Min variation: " << ctx.min_variation << endl;
         cout << "Load average horizon: " << ctx.load_average_horizon << endl;
         cout << "Normalization horizon: ";
@@ -205,7 +199,7 @@ int main(int argc, char *argv[]) {
     const fs::path slides_path  = output_folder / (base + "_slides_results.csv");
 
     std::ofstream csv_summary(summary_path.string());
-    csv_summary << "total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
+    csv_summary << "total_edges,matches,total_matches,exec_time,windows_created,avg_window_cardinality,avg_window_size\n";
 
     std::ofstream csv_windows(windows_path.string());
     csv_windows << "window_id,t_open,t_close,normalized_estimated_cost,window_results,incremental_matches,latency,window_cardinality,window_size\n";
@@ -258,7 +252,8 @@ int main(int argc, char *argv[]) {
         if (!is_shed) { // compute the average time used do process an event in a steady state of the stream
             cumulative_processing_time += processing_time_used;
             ctx.average_processing_time = cumulative_processing_time / static_cast<double>(elements_processed);
-        }
+        } else ctx.sg->shed_count++;
+
         // compute metrics per type
         ctx.cumulative_processing_time_type[l] += processing_time_used;
         ctx.processed_elements_type[l]++;
@@ -288,6 +283,7 @@ int main(int argc, char *argv[]) {
     csv_summary
             << ctx.edge_number << ","
             << ctx.sink->matched_paths << ","
+            << ctx.sink->total_matches << ","
             << time_used << ","
             << ctx.windows.size() << ","
             << avg_window_size << ","
@@ -317,7 +313,7 @@ int main(int argc, char *argv[]) {
                    << cost_norm << "\n";
     }
 
-    // ctx.sink->exportResultSet(base + "_result_set.csv");
+    ctx.sink->exportResultSet(base + "_result_set.csv");
 
     if (mode == "adwin") {
         // print maximum and minimum window sizes

@@ -6,7 +6,6 @@
 using namespace std;
 
 bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long long time, ModeContext& ctx, sg_edge** new_sgt_out) {
-    bool is_shedding = false;
     long long window_close = compute_window_boundaries(ctx, time);
 
     bool shedding_condition = false;
@@ -27,7 +26,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
 
     if (shedding_condition && (ctx.windows)[ctx.windows.size()-1].elements_count > 0) {
         *new_sgt_out = nullptr; // no edge created when load shedding
-        return is_shedding; // continue to next edge
+        return shedding_condition; // continue to next edge
     }
     
     (ctx.edge_number)++;
@@ -62,7 +61,7 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
                 //cout << "type " << i << ": " << types_counts[i] << " edges" << endl;
             }
 
-            is_shedding = true;
+            shedding_condition = true;
 
             double total = 0.0;
             for (int i = 0; i < types_counts.size(); i++) { // compute Z_t and R_t for each type
@@ -143,5 +142,5 @@ bool LoadSheddingMode::process_edge(long long s, long long d, long long l, long 
     //     << (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].t_close - (ctx.windows)[ctx.window_offset >= 1 ? ctx.window_offset - 1 : 0].t_open << ","
     //     << ctx.p_shed << std::endl;
 
-    return is_shedding;
+    return shedding_condition;
 }
