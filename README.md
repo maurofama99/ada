@@ -1,4 +1,4 @@
-# Robust Regular Path Queries over Streaming Graphs via Load-Aware Windowing
+# Window Resizing as Deterministic Load Shedding for Continuous Regular Path Queries
 
 ## Additional materials
 
@@ -25,7 +25,6 @@
 | Random Shedding 8% | 1.29 (-0.03 / +0.04) | 1.51 (-0.16 / +0.12) | 1.30 (-0.24 / +0.30) | 1.23 (-0.20 / +0.19) | 1.30 (-0.11 / +0.05) | 1.26 (-0.24 / +0.32) | 1.30 (-0.06 / +0.12) | 1.47 (-0.26 / +0.35) |
 
 <img width="3094" height="1125" alt="comparison_higgs-activity_high_load_periods" src="https://github.com/user-attachments/assets/d46eb211-ddad-4385-a406-c9e11bec9a88" />
-
 
 #### LDBC
 
