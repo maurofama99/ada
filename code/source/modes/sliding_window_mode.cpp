@@ -45,7 +45,7 @@ bool SlidingWindowMode::process_edge(long long s, long long d, long long l, long
             ctx.size = max_size > ctx.min_size ? max_size : ctx.min_size;
 
             //cout << "size: " << ctx.size << ", cost diff: " << cost_diff << endl;
-        }
+        } else (ctx.windows)[(ctx.window_offset)].cost = ctx.sg->EINIT_count * ctx.sg->edge_num;
 
     }
 

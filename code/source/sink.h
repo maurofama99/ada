@@ -13,7 +13,7 @@ class Sink {
 
 public:
     int matched_paths = 0; // patterns matched
-    int total_matches = 0;
+    unsigned long total_matches = 0;
 
     // get result set size
     long long getResultSetSize() {

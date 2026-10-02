@@ -114,6 +114,18 @@ We execute the experiments on the first 800 days of the dataset and we introuce 
 
 ADWIN maintains stable load-estimation values across all delta configurations for both datasets, demonstrating its design goal of preserving the stability of the input distribution. However, because the estimation is overly influenced by the window size, it no longer guides window adaptation to the workload, resulting in small windows. Because ADWIN prioritizes maintaining statistical stability, the resulting windows do not provide sufficient time for edges to form meaningful graph structures and connections. Indeed, the inability to specify a window size makes ADWIN unsuitable for scaling to realistic streaming graph-processing workloads.
 
+#### LDBC schema
+
+The LDBC (Linked Data Benchmark Council) schema is a standard for representing and querying linked data. It defines a set of classes, properties, and relationships that can be used to model real-world scenarios.
+
+| Label | Relationship and direction | Source operation | SF30 edges |
+|---|---|---|---:|
+| 1 | knows: Person → Person | 8, addFriendship | 1,304,053 |
+| 2 | likes: Person → Post or Comment | 2, addPostLike; 3, addCommentLike | 30,492,376 |
+| 3 | replyOf: Comment → Post or Comment | 7, addComment | 12,588,582 |
+| 4 | hasCreator: Post or Comment → Person | 6, addPost; 7, addComment | 16,893,029 |
+| 5 | moderatorOf: Person → Forum | 4, addForum | 330,288 |
+| 6 | containerOf: Forum → Post | 6, addPost | 4,304,446 |
 
 ## Code Layout
 

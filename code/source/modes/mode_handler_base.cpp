@@ -4,7 +4,7 @@
 #include <cmath>
 
 double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
-    if (ctx.max_deg_dirty) {
+    if (ctx.max_deg_dirty && mode != 11) {
         ctx.max_deg = 1;
         for (size_t i = ctx.window_offset; i < ctx.windows.size(); i++) {
             if ((ctx.windows)[i].max_degree > ctx.max_deg) ctx.max_deg = ctx.windows[i].max_degree;
@@ -21,7 +21,7 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
 
     switch (mode) {
         case 11:
-            ctx.cost = n / ctx.max_deg; // ALEF
+            ctx.cost = ctx.sg->EINIT_count * ctx.sg->edge_num;
             break;
         case 12:
             ctx.cost = avg_deg;
@@ -33,7 +33,7 @@ double ModeHandlerBase::compute_load_estimation(ModeContext &ctx, int mode) {
             ctx.cost = ctx.max_deg;
             break;
         case 15:
-            ctx.cost = ctx.sg->EINIT_count * ctx.sg->edge_num; // nm
+            ctx.cost = n / ctx.max_deg; // ALEF
             break;
         default:
             std::cerr << "ERROR: unknown cost mode." << std::endl;

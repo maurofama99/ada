@@ -15,7 +15,9 @@ class LoadSheddingMode : public ModeHandlerBase {
 
 public:
     explicit LoadSheddingMode(const size_t label_size) {
-        gen.seed(123456u);
+        // generate each time a random seed
+        std::random_device rd;
+        gen.seed(rd());
         for (size_t i = 0; i <= label_size; ++i) {
             ranks.emplace_back(100);
             types_counts.emplace_back(0);

@@ -313,7 +313,7 @@ int main(int argc, char *argv[]) {
                    << cost_norm << "\n";
     }
 
-    ctx.sink->exportResultSet(base + "_result_set.csv");
+    // ctx.sink->exportResultSet(base + "_result_set.csv");
 
     if (mode == "adwin") {
         // print maximum and minimum window sizes

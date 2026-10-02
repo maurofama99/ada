@@ -61,7 +61,11 @@ logs_dir="$script_dir/logs"
 mkdir -p "$logs_dir"
 
 # -- Process All Config Files (recursive) --
-mapfile -t configs < <(find "$config_dir" -type f -name '*.txt' | sort)
+# macOS ships Bash 3.2 without mapfile; read paths without splitting on spaces.
+configs=()
+while IFS= read -r config_file; do
+    configs+=("$config_file")
+done < <(find "$config_dir" -type f -name '*.txt' | sort)
 if [ ${#configs[@]} -eq 0 ]; then
     echo "Error: no .txt config files found in '$config_dir' (recursive)."
     exit 1
