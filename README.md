@@ -1,111 +1,22 @@
-# Window Resizing as Deterministic Load Shedding for Continuous Regular Path Queries
+# Temporal Shedding for Continuous Regular Path Queries
 
 ## Additional materials
 
-### High-load localised Speedup and Recall vs Load Shedding
+### Dataset input rates
 
-#### Higgs
-
-| Recall | Q1 a* | Q2 ab* | Q5 ab*c | Q7 abc* | Q4 (abc)+ | Q10 (a\|b)c* | Q6 a*b* | Q3 ab*c* |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Adaptive Window 75% | 0.76 | 0.69 | 0.69 | 0.68 | 0.70 | 0.69 | 0.75 | 0.69 |
-| Adaptive Window 70% | 0.69 | 0.62 | 0.62 | 0.60 | 0.63 | 0.62 | 0.68 | 0.62 |
-| Prob Shedding 5% | 0.86 (-0.08 / +0.03) | 0.86 (-0.01 / +0.01) | 0.85 (-0.15 / +0.06) | 0.88 (-0.07 / +0.03) | 0.86 (-0.01 / +0.01) | 0.86 (-0.15 / +0.06) | 0.88 (-0.03 / +0.03) | 0.88 (-0.13 / +0.05) |
-| Prob Shedding 8% | 0.80 (-0.08 / +0.03) | 0.80 (-0.01 / +0.01) | 0.78 (-0.15 / +0.05) | 0.80 (-0.10 / +0.04) | 0.80 (-0.01 / +0.01) | 0.80 (-0.15 / +0.06) | 0.82 (-0.04 / +0.04) | 0.82 (-0.13 / +0.05) |
-| Random Shedding 5% | 0.86 (-0.08 / +0.03) | 0.86 (-0.01 / +0.01) | 0.85 (-0.15 / +0.06) | 0.87 (-0.07 / +0.03) | 0.86 (-0.01 / +0.01) | 0.86 (-0.15 / +0.06) | 0.87 (-0.03 / +0.02) | 0.88 (-0.13 / +0.05) |
-| Random Shedding 8% | 0.80 (-0.08 / +0.03) | 0.80 (-0.01 / +0.01) | 0.78 (-0.15 / +0.05) | 0.80 (-0.10 / +0.04) | 0.80 (-0.01 / +0.01) | 0.80 (-0.15 / +0.05) | 0.82 (-0.03 / +0.04) | 0.82 (-0.13 / +0.05) |
-
-| Speedup | Q1 a* | Q2 ab* | Q5 ab*c | Q7 abc* | Q4 (abc)+ | Q10 (a\|b)c* | Q6 a*b* | Q3 ab*c* |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Adaptive Window 75% | 1.12 | 1.71 | 1.44 | 1.40 | 1.38 | 1.42 | 1.30 | 1.68 |
-| Adaptive Window 70% | 1.18 | 1.90 | 1.62 | 1.54 | 1.60 | 1.59 | 1.46 | 1.84 |
-| Prob Shedding 5% | 1.16 (-0.01 / +0.03) | 1.36 (-0.13 / +0.09) | 1.17 (-0.19 / +0.25) | 1.10 (-0.17 / +0.14) | 1.11 (-0.13 / +0.11) | 1.08 (-0.21 / +0.36) | 1.13 (-0.07 / +0.03) | 1.32 (-0.21 / +0.29) |
-| Prob Shedding 8% | 1.27 (-0.03 / +0.02) | 1.49 (-0.13 / +0.11) | 1.29 (-0.23 / +0.34) | 1.24 (-0.19 / +0.21) | 1.23 (-0.12 / +0.12) | 1.24 (-0.24 / +0.31) | 1.25 (-0.03 / +0.03) | 1.43 (-0.24 / +0.35) |
-| Random Shedding 5% | 1.17 (-0.01 / +0.02) | 1.38 (-0.12 / +0.06) | 1.19 (-0.21 / +0.24) | 1.13 (-0.19 / +0.15) | 1.19 (-0.13 / +0.06) | 1.17 (-0.23 / +0.29) | 1.17 (-0.07 / +0.07) | 1.35 (-0.23 / +0.24) |
-| Random Shedding 8% | 1.29 (-0.03 / +0.04) | 1.51 (-0.16 / +0.12) | 1.30 (-0.24 / +0.30) | 1.23 (-0.20 / +0.19) | 1.30 (-0.11 / +0.05) | 1.26 (-0.24 / +0.32) | 1.30 (-0.06 / +0.12) | 1.47 (-0.26 / +0.35) |
-
-<img width="3094" height="1125" alt="comparison_higgs-activity_high_load_periods" src="https://github.com/user-attachments/assets/d46eb211-ddad-4385-a406-c9e11bec9a88" />
+The experiments use timestamp-ordered graph streams with synthetic high-load intervals. The shaded regions below mark the injected input-rate spikes while preserving the edges and their labels.
 
 #### LDBC
 
-| Recall | Q1 a* | Q2 ab* | Q5 ab*c | Q7 abc* | Q4 (abc)+ | Q10 (a\|b)c* |
-|---|---:|---:|---:|---:|---:|---:|
-| Adaptive Window 60% | 1.00 | 0.99 | 0.99 | 0.98 | 1.01 | 0.99 |
-| Adaptive Window 55% | 1.00 | 0.99 | 0.99 | 0.97 | 1.03 | 0.98 |
-| Prob Shedding 5% | 0.94 (-0.00 / +0.00) | 0.94 (-0.00 / +0.00) | 0.91 (-0.00 / +0.00) | 0.91 (-0.00 / +0.00) | 0.91 (-0.01 / +0.01) | 0.87 (-0.02 / +0.01) |
-| Prob Shedding 8% | 0.91 (-0.00 / +0.00) | 0.91 (-0.00 / +0.00) | 0.87 (-0.00 / +0.00) | 0.86 (-0.00 / +0.00) | 0.87 (-0.01 / +0.01) | 0.82 (-0.02 / +0.02) |
-| Random Shedding 5% | 0.92 (-0.00 / +0.00) | 0.92 (-0.00 / +0.00) | 0.89 (-0.00 / +0.00) | 0.88 (-0.00 / +0.00) | 0.91 (-0.00 / +0.00) | 0.84 (-0.01 / +0.01) |
-| Random Shedding 8% | 0.89 (-0.00 / +0.00) | 0.89 (-0.00 / +0.00) | 0.84 (-0.00 / +0.00) | 0.82 (-0.00 / +0.00) | 0.86 (-0.01 / +0.00) | 0.76 (-0.02 / +0.01) |
+The LDBC SNB SF10 update stream contains 22.79 million edges over 54.0 days. It includes three sustained spike intervals generated with 4×, 3×, and 5× rate multipliers.
 
-| Speedup | Q1 a* | Q2 ab* | Q5 ab*c | Q7 abc* | Q4 (abc)+ | Q10 (a\|b)c* |
-|---|---:|---:|---:|---:|---:|---:|
-| Adaptive Window 60% | 1.19 | 1.26 | 1.22 | 1.23 | 1.16 | 1.02 |
-| Adaptive Window 55% | 1.17 | 1.22 | 1.24 | 1.25 | 1.17 | 1.00 |
-| Prob Shedding 5% | 1.11 (-0.04 / +0.02) | 1.10 (-0.05 / +0.05) | 1.08 (-0.07 / +0.09) | 1.14 (-0.08 / +0.08) | 1.27 (-0.10 / +0.10) | 1.18 (-0.05 / +0.11) |
-| Prob Shedding 8% | 1.13 (-0.06 / +0.05) | 1.10 (-0.03 / +0.07) | 1.11 (-0.09 / +0.07) | 1.19 (-0.09 / +0.09) | 1.38 (-0.13 / +0.15) | 1.33 (-0.11 / +0.05) |
-| Random Shedding 5% | 1.12 (-0.04 / +0.06) | 1.13 (-0.07 / +0.08) | 1.11 (-0.07 / +0.05) | 1.18 (-0.08 / +0.08) | 1.30 (-0.11 / +0.10) | 1.27 (-0.09 / +0.09) |
-| Random Shedding 8% | 1.16 (-0.04 / +0.06) | 1.18 (-0.10 / +0.09) | 1.16 (-0.08 / +0.10) | 1.25 (-0.09 / +0.09) | 1.41 (-0.12 / +0.17) | 1.40 (-0.08 / +0.08) |
+![LDBC input rate with highlighted spikes](code/dataset/ldbc/ldbc_input_rate_spikes.png)
 
-<img width="3166" height="1125" alt="comparison_ldbc_high_load_periods" src="https://github.com/user-attachments/assets/60b663cf-1a2a-43cd-960e-fe523ab00f26" />
+#### Stack Overflow
 
-#### StackOverflow
+The Stack Overflow stream contains 5.24 million answer and comment edges over 800 days. Timestamp compression introduces two spike intervals at 3× and 2× while retaining the original interactions and overall duration.
 
-| Recall | Q1 a* | Q2 ab* | Q5 ab*c | Q7 abc* | Q4 (abc)+ | Q10 (a\|b)c* | Q6 a*b* | Q3 ab*c* |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Adaptive Window 85% | 0.64 | 0.85 | 0.66 | 0.65 | 0.99 | 0.67 | 0.80 | 0.67 |
-| Adaptive Window 80% | 0.54 | 0.55 | 0.55 | 0.53 | 0.78 | 0.56 | 0.75 | 0.56 |
-| Prob Shedding 10% | 0.88 (-0.01 / +0.01) | 0.88 (-0.00 / +0.01) | 0.89 (-0.00 / +0.00) | 0.88 (-0.00 / +0.00) | 0.93 (-0.00 / +0.00) | 0.89 (-0.00 / +0.00) | 0.88 (-0.00 / +0.01) | 0.90 (-0.00 / +0.00) |
-| Prob Shedding 15% | 0.82 (-0.01 / +0.01) | 0.81 (-0.01 / +0.01) | 0.81 (-0.02 / +0.02) | 0.81 (-0.02 / +0.02) | 0.89 (-0.00 / +0.00) | 0.82 (-0.01 / +0.02) | 0.83 (-0.01 / +0.01) | 0.83 (-0.01 / +0.02) |
-| Random Shedding 10% | 0.79 (-0.00 / +0.00) | 0.80 (-0.01 / +0.01) | 0.79 (-0.01 / +0.01) | 0.78 (-0.01 / +0.01) | 0.84 (-0.00 / +0.00) | 0.80 (-0.01 / +0.01) | 0.79 (-0.01 / +0.00) | 0.81 (-0.01 / +0.00) |
-| Random Shedding 15% | 0.69 (-0.01 / +0.01) | 0.70 (-0.01 / +0.01) | 0.68 (-0.01 / +0.01) | 0.67 (-0.01 / +0.01) | 0.76 (-0.00 / +0.00) | 0.70 (-0.00 / +0.01) | 0.70 (-0.01 / +0.01) | 0.71 (-0.00 / +0.01) |
-
-| Speedup | Q1 a* | Q2 ab* | Q5 ab*c | Q7 abc* | Q4 (abc)+ | Q10 (a\|b)c* | Q6 a*b* | Q3 ab*c* |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Adaptive Window 85% | 1.68 | 1.36 | 1.71 | 1.78 | 1.08 | 1.83 | 1.35 | 1.71 |
-| Adaptive Window 80% | 2.06 | 2.33 | 2.24 | 2.19 | 1.43 | 2.25 | 1.53 | 2.19 |
-| Prob Shedding 10% | 1.01 (-0.03 / +0.02) | 1.03 (-0.02 / +0.02) | 1.05 (-0.04 / +0.07) | 1.06 (-0.01 / +0.01) | 0.96 (-0.02 / +0.02) | 1.03 (-0.01 / +0.00) | 1.06 (-0.04 / +0.03) | 0.99 (-0.01 / +0.00) |
-| Prob Shedding 15% | 1.15 (-0.07 / +0.20) | 1.23 (-0.09 / +0.26) | 1.22 (-0.10 / +0.29) | 1.25 (-0.07 / +0.19) | 1.05 (-0.04 / +0.06) | 1.24 (-0.11 / +0.29) | 1.19 (-0.04 / +0.13) | 1.16 (-0.08 / +0.23) |
-| Random Shedding 10%  | 1.16 (-0.01 / +0.01) | 1.19 (-0.03 / +0.02) | 1.18 (-0.03 / +0.05) | 1.19 (-0.01 / +0.01) | 1.11 (-0.03 / +0.03) | 1.17 (-0.04 / +0.02) | 1.14 (-0.02 / +0.02) | 1.16 (-0.01 / +0.02) |
-| Random Shedding 15% | 1.41 (-0.07 / +0.25) | 1.52 (-0.13 / +0.31) | 1.49 (-0.08 / +0.25) | 1.53 (-0.09 / +0.23) | 1.41 (-0.12 / +0.22) | 1.50 (-0.08 / +0.28) | 1.43 (-0.08 / +0.20) | 1.46 (-0.07 / +0.26) |
-
-<img width="3166" height="1125" alt="comparison_so_high_load_periods" src="https://github.com/user-attachments/assets/f9e04542-1522-4f2c-9ca1-cfa6269343bb" />
-
-
-### Extensive Experiments
-We report the experiments of latency, throughput and completeness for all the mentioned Regular Path Queries and for the additional dataset [StackOverflow](https://snap.stanford.edu/data/sx-stackoverflow.html). In addition, we report a comparison study with the adaptive window foundational work [ADWIN](https://scholar.google.com/citations?view_op=view_citation&hl=it&user=UYvAL8EAAAAJ&citation_for_view=UYvAL8EAAAAJ:XiSMed-E-HIC).
-
-#### StackOverflow
-We execute the experiments on the first 800 days of the dataset and we introuce syntetic peaks. We maintain the same edges to preserve the real-world dataset relationships, but we increase the input rate by 4x between 200 and 300 days, and 3x between 500 and 600 days. We decrease the input rate in the remaining temporal ranges to maitain a total time span of 800 days.
-
-###### Speedup and Recall
-<img width="3616" height="1058" alt="comparison_so_combined" src="https://github.com/user-attachments/files/29243183/window_recall_speedup.pdf" />
-
-###### CCDF
-<img width="4856" height="1063" alt="comparison_so_speedup_recall" src="https://github.com/user-attachments/files/29250434/ccdf_latency_log.pdf" />
-
-###### Recall vs Load Shedding
-
-| Recall       | Q1 a*                | Q2 ab*               | Q5 ab*c              | Q7 abc*              | Q4 (abc)+            | Q10 (a\|b)c*         | Q6 a* b*                | Q3 ab* c*              |
-|---------------------|----------------------|----------------------|----------------------|----------------------|----------------------|----------------------|----------------------|----------------------|
-| Adaptive Window 85% | 0.77                 | **0.92**                 | 0.77                 | 0.76                 | **0.92**                 | 0.79                 | **0.89**                 | 0.79                 |
-| Adaptive Window 80% | 0.70                 | 0.70                 | 0.69                 | 0.67                 | 0.89                 | 0.71                 | 0.85                 | 0.71                 |
-| Random Shedding 10% | 0.79 (-0.00 / +0.00) | 0.80 (-0.01 / +0.01) | 0.79 (-0.01 / +0.01) | 0.78 (-0.01 / +0.01) | 0.80 (-0.00 / +0.00) | 0.80 (-0.01 / +0.01) | 0.80 (-0.01 / +0.01) | 0.81 (-0.01 / +0.01) |
-| Random Shedding 15% | 0.70 (-0.01 / +0.01) | 0.70 (-0.01 / +0.01) | 0.68 (-0.01 / +0.01) | 0.67 (-0.01 / +0.01) | 0.71 (-0.00 / +0.00) | 0.70 (-0.00 / +0.01) | 0.70 (-0.01 / +0.01) | 0.71 (-0.00 / +0.01) |
-| Prob Shedding 10%   | 0.88 (-0.01 / +0.01) | 0.88 (-0.00 / +0.00) | 0.88 (-0.01 / +0.01) | 0.88 (-0.01 / +0.01) | 0.89 (-0.00 / +0.00) | 0.89 (-0.01 / +0.00) | 0.88 (-0.01 / +0.01) | 0.90 (-0.01 / +0.00) |
-| Prob Shedding 15%   | 0.83 (-0.01 / +0.00) | 0.82 (-0.01 / +0.01) | 0.82 (-0.01 / +0.01) | 0.81 (-0.01 / +0.01) | 0.85 (-0.00 / +0.00) | 0.83 (-0.01 / +0.01) | 0.84 (-0.00 / +0.01) | 0.84 (-0.01 / +0.01) |
-
-| Speedup       | Q1 a*                | Q2 ab*               | Q5 ab*c              | Q7 abc*              | Q4 (abc)+            | Q10 (a\|b)c*         | Q6 ab                | Q3 abc               |
-|---------------------|----------------------|----------------------|----------------------|----------------------|----------------------|----------------------|----------------------|----------------------|
-| Adaptive Window 85% | 1.42                 | **1.22**                 | 1.46                 | 1.51                 | **1.19**                 | 1.53                 | **1.21**                 | 1.46                 |
-| Adaptive Window 80% | 1.62                 | 1.80                 | 1.76                 | 1.73                 | 1.27                 | 1.75                 | 1.32                 | 1.73                 |
-| Random Shedding 10% | 1.20 (-0.06 / +0.18) | 1.24 (-0.10 / +0.28) | 1.22 (-0.07 / +0.19) | 1.23 (-0.06 / +0.18) | 1.16 (-0.07 / +0.15) | 1.23 (-0.10 / +0.26) | 1.17 (-0.06 / +0.16) | 1.20 (-0.05 / +0.17) |
-| Random Shedding 15% | 1.40 (-0.07 / +0.24) | 1.50 (-0.13 / +0.30) | 1.47 (-0.09 / +0.26) | 1.51 (-0.09 / +0.23) | 1.43 (-0.12 / +0.23) | 1.49 (-0.08 / +0.28) | 1.42 (-0.07 / +0.20) | 1.45 (-0.07 / +0.26) |
-| Prob Shedding 10%   | 1.04 (-0.06 / +0.15) | 1.07 (-0.07 / +0.21) | 1.08 (-0.07 / +0.15) | 1.09 (-0.05 / +0.13) | 1.01 (-0.06 / +0.16) | 1.08 (-0.07 / +0.24) | 1.08 (-0.05 / +0.08) | 1.03 (-0.06 / +0.20) |
-| Prob Shedding 15%   | 1.14 (-0.06 / +0.19) | 1.22 (-0.09 / +0.26) | 1.20 (-0.10 / +0.29) | 1.24 (-0.06 / +0.18) | 1.06 (-0.04 / +0.06) | 1.23 (-0.11 / +0.28) | 1.18 (-0.05 / +0.13) | 1.15 (-0.08 / +0.23) |
-
-<img width="3644" height="1063" alt="comparison_so_speedup_recall" src="https://github.com/user-attachments/assets/56feafb8-8126-42df-90e2-092fb255b471" />
-
-###### Ablation study
+![Stack Overflow input rate with highlighted spikes](code/dataset/so/so_input_rate_spikes.png)
 
 #### Comparison vs ADWIN
 
@@ -126,222 +37,245 @@ The LDBC (Linked Data Benchmark Council) schema is a standard for representing a
 | 5 | moderatorOf: Person → Forum | 4, addForum | 330,288 |
 | 6 | containerOf: Forum → Post | 6, addPost | 4,304,446 |
 
-## Code Layout
+## Repository layout
 
-The current executable lives under `code/`:
-
-- `code/main.cpp`: entry point, configuration parsing, stream loop, CSV output.
-- `code/source/S-PATH.h`: S-PATH implementation, including dedicated mid-window edge deletion for load shedding.
-- `code/source/LM-SRPQ.h`: LM-SRPQ implementation and dynamic landmark maintenance.
-- `code/source/query_processor.h`: path algorithm factory. Current algorithm IDs are `1` for S-PATH and `2` for LM-SRPQ.
-- `code/source/modes/`: sliding-window, adaptive, ADWIN, and load-shedding mode handlers.
-- `code/source/streaming_graph.h`: streaming graph, timed edge list, forward adjacency list, and reverse adjacency list.
-- `code/benchmark/config/`: experiment configuration files.
-- `code/benchmark/results/`: generated experiment outputs.
+- `CMakeLists.txt`: C++17 build for the `main_exe` target. Release optimization (`-O3`) and assertions disabled (`-DNDEBUG`) are currently applied globally.
+- `code/main.cpp`: program setup, filtered stream loop, mode dispatch, and CSV output.
+- `code/source/fsa.h`: built-in RPQ automata selected by `query_type`.
+- `code/source/query_processor.h`: common query-processor interface and the S-PATH/LM-SRPQ factory.
+- `code/source/S-PATH.h`: prefix-spanning-tree RPQ maintenance, including explicit repair after mid-window edge shedding.
+- `code/source/LM-SRPQ.h`: landmark-aware RPQ maintenance and dynamic landmark selection.
+- `code/source/streaming_graph.h`: active graph, forward and reverse adjacency lists, edge-ID index, degree counters, and timestamp-ordered edge list.
+- `code/source/modes/`: fixed/adaptive sliding windows, probabilistic load shedding, ranked shedding, and the experimental ADWIN handler.
+- `code/source/ranking/`: rank buckets used by ranked shedding.
+- `code/dataset/`: input streams, preprocessing utilities, and dataset plots.
+- `code/benchmark/config/`: benchmark configurations grouped by experiment.
+- `code/benchmark/results/`: retained CSV results and generated figures.
+- `code/scripts/evaluation/`: evaluation, comparison, and plotting scripts.
+- `run_benchmark.sh`: recursive sequential runner for a configuration directory.
+- `code/benchmark/run_isolated_benchmarks.py`: resource-isolated multi-job benchmark launcher.
 
 ## Build
 
-Prerequisites: a C++17 compiler and CMake 3.10 or newer.
+The executable requires CMake 3.10 or newer and a C++17 compiler.
 
 ```bash
-cmake -S . -B build
-cmake --build build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target main_exe
 ```
 
-The default executable is:
-
-```bash
-./build/main_exe
-```
+The resulting executable is `build/main_exe`.
 
 ## Run
 
-The program accepts one argument: the path to a configuration file.
+Run the executable from the repository root with a configuration path as its first argument:
 
 ```bash
 ./build/main_exe code/config.txt
 ```
 
-## Input Graph File Format
+Relative `input_data_path` and `output_folder` values are resolved from the process working directory. Running from another directory therefore requires adjusted paths.
 
-The file referenced by `input_data_path` must contain one edge per line:
+To build once and execute every `.txt` configuration below a directory recursively:
 
-```text
-s d l t
+```bash
+./run_benchmark.sh code/benchmark/config/sigmod/ldbc_sf10
 ```
 
-Where:
+The batch runner builds `build-benchmark/main_exe`, writes standard output and error to `logs/<config-name>.log` and `.err`, continues after individual failures, and returns a failure status if any run fails. Set `DEBUG=1` to build with debug information and AddressSanitizer.
 
-- `s`: source vertex ID.
-- `d`: destination vertex ID.
-- `l`: integer edge label.
-- `t`: timestamp. Timestamps are expected to be non-decreasing.
+## Input stream format
 
-Only edges whose label appears in the selected RPQ automaton are processed.
+Each non-empty record must contain four whitespace-separated integers:
 
-## Configuration File
+```text
+source destination label timestamp
+```
 
-Configuration files use `key=value`, one pair per line, with no spaces around `=`.
+Timestamps must be non-decreasing. The engine subtracts the first stream timestamp and performs windowing on this relative time. Records with labels absent from the selected automaton are skipped before graph or query processing.
 
-### Example Configuration
+The active graph stores at most one edge for a `(source, destination, label)` triple. Repeating an active triple refreshes its timestamp and reprocesses it through the selected query algorithm.
+
+## Configuration format
+
+Configuration files use one `key=value` pair per line. Keys and values are not trimmed, so do not put spaces around `=`. Blank lines and full lines without `=` are ignored; unknown keys are also ignored. In particular, the old `rate_volatility` key is not consumed by the current implementation.
+
+### Adaptive-window example
 
 ```ini
-mode=10
-input_data_path=code/dataset/ldbc/ldbc_updatestream_sf10_peaks.txt
-size=1036800
+mode=11
+input_data_path=code/dataset/ldbc/ldbc_updatestream_sf10_peaks_sustained.txt
+size=259200
 slide=21600
-query_type=10
-labels=3,4,1
+query_type=5
+labels=4,1,2
 path_algorithm=2
-max_size=1036800
-min_size=518400
-rate_volatility=0.05
-output_folder=results
+max_size=259200
+min_size=129600
+min_variation=0.0075
+load_average_horizon=25
+normalization_horizon=0
+output_folder=results/ldbc_q5
 ```
 
-## Configuration Parameters
+### Configuration parameters
 
-| Key | Type | Required | Description |
-|-----|------|----------|-------------|
-| `mode` | Integer | Yes | Windowing or load-shedding mode selector. See [Modes](#modes). |
-| `input_data_path` | String | Yes | Relative or absolute path to the edge-list file. Relative paths are resolved from the current working directory. |
-| `size` | Integer | Yes | Initial or fixed time-window width, in timestamp units. |
-| `slide` | Integer | Yes | Slide step for window advancement. If equal to `size`, the run behaves as a tumbling window. |
-| `query_type` | Integer | Yes | RPQ automaton selector. See [Supported Queries](#supported-queries-query_type). |
-| `labels` | String | Yes | Comma-separated label IDs, in the order used by the query pattern. |
-| `path_algorithm` | Integer | Yes | Path processor selector. `1` = S-PATH, `2` = LM-SRPQ. |
-| `max_size` | Integer | Modes `10`-`15` | Maximum window size. For fixed sliding windows, set this to `size`. |
-| `min_size` | Integer | Modes `10`-`15` | Minimum window size. For fixed sliding windows, set this to the desired lower bound, often `size` or a tuned adaptive minimum. |
-| `rate_volatility` | Float | Optional for modes `11`-`15` | Adaptation sensitivity. Defaults to `0.01`. Must be greater than `0` when provided. |
-| `min_variation` | Float | Optional for modes `11`-`15` | Minimum normalized change needed before resizing. Must be in `(0, 1]`. |
-| `load_average_horizon` | Integer | Optional for modes `11`-`15` | Number of recent normalized-cost values used for smoothing. Defaults to the window overlap. |
-| `normalization_horizon` | Integer | Optional for modes `11`-`15` | Number of recent costs used for min/max normalization. `0` means all history. |
-| `granularity` | Float | Modes `3` and `4` | Load-shedding step as a fraction, for example `0.05` for 5%. |
-| `max_shed` | Float | Modes `3` and `4` | Maximum shedding probability/fraction as a fraction, for example `0.08` for 8%. |
-| `l_max` | Float | Mode `5` | Latency budget for DARLING-style ranked shedding. |
-| `output_folder` | String | Optional | Folder where CSV files are written. Defaults to `results`. |
+| Key | Type | Required | Current behavior |
+|---|---|---|---|
+| `input_data_path` | Path | Always | Input edge stream. Relative paths use the current working directory. |
+| `mode` | Integer | Always | Selects the window or shedding handler listed below. |
+| `size` | Integer | Always | Fixed or initial window width in timestamp units. Must be positive in normal sliding/adaptive use. |
+| `slide` | Integer | Always | Window-opening and measurement step in timestamp units. Must be positive. `size == slide` produces tumbling windows. |
+| `query_type` | Integer | Always | Selects one of the built-in automata. |
+| `labels` | Integer list | Always | Comma-separated label IDs in the positional order required by the automaton. |
+| `path_algorithm` | Integer | Always | `1` selects S-PATH; `2` selects LM-SRPQ. |
+| `max_size` | Integer | Modes `10`–`15` | Upper adaptive bound. It is parsed but unused by fixed mode `10`, where the established convention is `0`. |
+| `min_size` | Integer | Modes `10`–`15` | Lower adaptive bound. It is parsed but unused by fixed mode `10`, where the established convention is `0`. Must not exceed `max_size`. |
+| `min_variation` | Float | Optional, modes `11`–`15` | Resize threshold for the change in smoothed normalized cost. Valid range `(0, 1]`; effective default is `0.02`. |
+| `load_average_horizon` | Integer | Optional, modes `11`–`15` | Number of normalized-cost observations in the moving average. A missing or zero value uses integer overlap `size / slide`. |
+| `normalization_horizon` | Integer | Optional, modes `11`–`15` | Rolling min/max horizon for raw-cost normalization. `0` (default) uses all observed history. |
+| `granularity` | Float | Modes `3`, `4` | Required and included in the output filename. The current controllers do not otherwise use this value. |
+| `max_shed` | Float | Modes `3`, `4` | Maximum probability for adaptive shedding in mode `3`; fixed shedding probability in mode `4`. Configurations use fractions such as `0.08`. |
+| `l_max` | Float | Mode `5` | Required by the parser and printed at startup. See the mode `5` limitation below. |
+| `output_folder` | Path | Optional | Destination for generated CSV files; defaults to `results`. |
 
-## Modes
+The parser does not comprehensively validate positive sizes, positive slides, label count, probability bounds, or the existence of every core key. Use the constraints above when producing configurations.
 
-The `mode` parameter controls how windows are maintained and whether edges may be shed.
+## Window and shedding modes
 
-| Value | Output Tag | Description |
-|-------|------------|-------------|
-| `10` | `sl` | Fixed sliding window baseline. |
-| `11` | `ad_function` | Adaptive ALEF windowing using the normalized amortized load estimate. |
-| `12` | `ad_degree` | Adaptive windowing using average degree. |
-| `13` | `ad_einit` | Adaptive LEF windowing using initial-transition edge load. |
-| `14` | `maxdeg` | Adaptive windowing using maximum out-degree. |
-| `15` | `ad_complexity` | Adaptive windowing using the `EINIT * edge_count` complexity estimate. |
-| `2` | `adwin` | ADWIN-based adaptive windowing. |
-| `3` | `lshed_prob` | Probabilistic load shedding with adaptive shedding probability. |
-| `4` | `lshed_random` | Random load shedding with fixed maximum shedding probability. |
-| `5` | `lshed_darling` | Ranked load shedding driven by the latency budget `l_max`. |
+| `mode` | Output tag | Cost or policy | Status |
+|---:|---|---|---|
+| `10` | `sl` | Fixed-width sliding or tumbling window. | Active |
+| `11` | `ad_function` | `E_init × E`, called `nm` in the functions CSV. | Active |
+| `12` | `ad_degree` | Average degree `E / V`. | Active |
+| `13` | `ad_einit` | LEF: `(E_init + 1)(2E - E_init) / 2`. | Active |
+| `14` | `maxdeg` | Maximum active-window out-degree. | Active |
+| `15` | `ad_complexity` | ALEF: `LEF / max_degree`. | Active |
+| `2` | `adwin` | ADWIN over a normalized graph-cost signal. | Experimental; incomplete through `main_exe` |
+| `3` | `lshed_prob` | Random pre-insertion shedding with an adaptive probability. | Active |
+| `4` | `lshed_random` | Random pre-insertion shedding with fixed probability `max_shed`. | Active |
+| `5` | `lshed_darling` | Degree-ranked mid-window shedding. | Experimental; incomplete budget wiring |
 
-For modes `11`-`15`, the current cost components are written to the functions CSV on each cost computation: ALEF, average degree, LEF, max degree, and `nm`.
+Here `E` is the active edge count, `V` is the active vertex count, and `E_init` counts active edges whose labels leave the automaton's initial state.
 
-## Path Algorithms
+For modes `11`–`15`, the selected raw cost is min/max normalized over either all history or `normalization_horizon` observations. The engine averages the normalized values over `load_average_horizon`, compares the average with the preceding average, and changes the window by one `slide` for each complete `min_variation` step. A cost increase shrinks the window; a decrease expands it. The result is clamped to `[min_size, max_size]`.
 
-| `path_algorithm` | Name | Notes |
-|------------------|------|-------|
-| `1` | S-PATH | Maintains prefix spanning trees over the product graph. Supports dedicated `shed_edges` handling for mid-window edge deletion. |
-| `2` | LM-SRPQ | Maintains landmark-aware RPQ state and runs dynamic landmark selection during expiration. |
+Mode `3` applies the mode `11` estimator at window eviction, adds the signed normalized-cost change to `p_shed`, and clamps the probability to `[0, max_shed]`. Mode `4` independently drops each eligible incoming edge with probability `max_shed`.
 
-S-PATH's load-shedding path no longer treats shed edges as ordinary window expiration. It identifies tree nodes whose parent link used the deleted edge, searches incoming live edges through the reverse adjacency list, reconnects to the best surviving parent when possible, and deletes the affected subtree only when no alternative path exists.
+Mode `2` is not currently usable as a supported command-line configuration: `min_size` is only read for modes `10`–`15`, while ADWIN derives `delta` from `min_size`, and the handler still writes through the disabled tuple-output stream. Mode `5` parses `l_max`, but `main.cpp` does not copy it into the handler's latency-budget field. Treat both modes as implementation prototypes until those paths are completed.
 
-## Supported Queries (`query_type`)
+## Path algorithms
 
-| `query_type` | Pattern | Required Labels | Description |
-|--------------|---------|-----------------|-------------|
-| `1` | `a+` | 1 | One or more occurrences of `a`. |
-| `2` | `ab*` | 2 | `a` followed by zero or more `b`. |
-| `3` | `ab*c*` | 3 | `a`, then zero or more `b`, then zero or more `c`. |
+| `path_algorithm` | Name | Current behavior |
+|---:|---|---|
+| `1` | S-PATH | Maintains prefix spanning trees over the product graph. On ranked mid-window deletion, it searches the reverse adjacency list for a surviving parent and removes a subtree only when reconnection fails. |
+| `2` | LM-SRPQ | Maintains ordinary and landmark trees. Normal expiration is followed by dynamic landmark selection with candidate rate `0.2` and benefit threshold `1.5`. |
+
+LM-SRPQ has no dedicated mid-window `shed_edges` implementation. Its adapter currently passes explicitly deleted edges to the ordinary expiration routine with cutoff `0`; it does not run dynamic landmark selection from that shedding callback.
+
+## Supported queries
+
+`labels` maps pattern symbols by position. For example, `query_type=10` with `labels=3,4,1` instantiates `(3|4)1*`.
+
+| `query_type` | Pattern | Label count | Accepted form |
+|---:|---|---:|---|
+| `1` | `a+` | 1 | One or more `a` edges. |
+| `2` | `ab*` | 2 | One `a`, followed by zero or more `b` edges. |
+| `3` | `ab*c*` | 3 | One `a`, then zero or more `b`, then zero or more `c` edges. |
 | `4` | `(abc)+` | 3 | One or more repetitions of `abc`. |
-| `5` | `ab*c` | 3 | `a`, zero or more `b`, then exactly one `c`. |
-| `6` | `a*b*` | 2 | Zero or more `a` followed by zero or more `b`. |
-| `7` | `abc*` | 3 | `a`, then `b`, then zero or more `c`. |
-| `8` | `(a\|b)+c` | 3 | One or more `a`/`b` transitions followed by `c`. |
-| `10` | `(a\|b)c*` | 3 | Either `a` or `b`, followed by zero or more `c`. |
+| `5` | `ab*c` | 3 | One `a`, zero or more `b`, and one `c`. |
+| `6` | `a*b*` | 2 | A non-empty sequence with all `a` edges before all `b` edges. |
+| `7` | `abc*` | 3 | One `a`, one `b`, then zero or more `c` edges. |
+| `8` | `(a\|b)+c` | 3 | One or more `a`/`b` edges followed by one `c`. |
+| `9` | `ab+c` | 3 | One `a`, one or more `b`, and one `c`. |
+| `10` | `(a\|b)c*` | 3 | One `a` or `b`, followed by zero or more `c` edges. |
 
-The `labels` list maps pattern symbols by position. For example, `query_type=10` with `labels=3,4,1` means `(3|4)1*`.
+## Generated CSV files
 
-## Generated CSV Outputs
+Every run opens four CSV files below `output_folder`:
 
-Output files are written under `output_folder`. For the main modes, the filename pattern is:
+- `*_summary_results.csv`
+- `*_window_results.csv`
+- `*_slides_results.csv`
+- `*_functions_results.csv`
 
-```text
-{dataset}_{query}_{size}_{slide}_{mode}_{path_algorithm}_{param1}_{param2}_{result_type}.csv
-```
-
-Parameter fields are:
-
-- Fixed sliding window (`mode=10`): `0_0`.
-- Adaptive modes (`mode=11`-`15`): `{min_size}_{max_size}`.
-- Load shedding modes `3` and `4`: `{granularity%}_{max_shed%}`, for example `5_8`.
-
-`mode=5` writes the same CSV types, but the current filename builder in `code/main.cpp` does not assign its parameterized base name yet.
-
-### Summary Results (`summary_results`)
+For fully named modes, the base filename is:
 
 ```text
-total_edges,matches,exec_time,windows_created,avg_window_cardinality,avg_window_size
+{dataset}_{query_type}_{size}_{slide}_{mode_tag}_{path_algorithm}_{param1}_{param2}
 ```
 
-| Column | Description |
-|--------|-------------|
-| `total_edges` | Number of processed edges after label filtering. |
-| `matches` | Total number of matched paths emitted into the sink. |
-| `exec_time` | Total execution time in seconds. |
-| `windows_created` | Number of windows created during the run. |
-| `avg_window_cardinality` | Average number of edge memberships across windows. |
-| `avg_window_size` | Average effective window size tracked by the mode handler. |
+`dataset` is the name of the input file's parent directory, such as `ldbc` or `so`. The final parameters are `0_0` for mode `10`, `{min_size}_{max_size}` for modes `11`–`15`, and rounded whole percentages `{granularity}_{max_shed}` for modes `3` and `4`. Modes `2` and `5` do not currently construct a base filename and therefore write generic names beginning with `_`; repeated runs can overwrite each other.
 
-### Window Results (`window_results`)
+### Summary results
+
+```text
+total_edges,matches,total_matches,exec_time,windows_created,avg_window_cardinality,avg_window_size
+```
+
+| Column | Meaning |
+|---|---|
+| `total_edges` | Query-relevant edge insertions admitted to the graph handler. Edges dropped before insertion by modes `3`/`4` are excluded. |
+| `matches` | Cumulative count of distinct `(source, destination)` pairs first added to the sink. |
+| `total_matches` | Count of every sink insertion, including repeated occurrences for an existing pair. |
+| `exec_time` | Process CPU time in whole seconds. |
+| `windows_created` | Number of windows retained in the final window vector. Adaptive shrink can remove provisional windows. |
+| `avg_window_cardinality` | Total recorded edge-window memberships divided by the final number of retained windows. |
+| `avg_window_size` | Mean configured window width sampled while admitted edges are processed. |
+
+### Window results
 
 ```text
 window_id,t_open,t_close,normalized_estimated_cost,window_results,incremental_matches,latency,window_cardinality,window_size
 ```
 
-| Column | Description |
-|--------|-------------|
-| `window_id` | Window index. |
-| `t_open` | Window open timestamp. |
-| `t_close` | Window close timestamp. |
-| `normalized_estimated_cost` | Normalized cost assigned to this window. |
-| `window_results` | Results emitted between this window's open and close snapshots. |
-| `incremental_matches` | Cumulative matched paths at window close. |
-| `latency` | Window completion latency. |
-| `window_cardinality` | Number of elements assigned to the window. |
+| Column | Meaning |
+|---|---|
+| `window_id` | Position in the final retained window vector. |
+| `t_open`, `t_close` | Window bounds on the relative timestamp axis. Membership is `[t_open, t_close)`. |
+| `normalized_estimated_cost` | Stored window cost. It is the smoothed normalized estimator in modes `11`–`15`; fixed mode `10` stores raw `E_init × E`. |
+| `window_results` | Difference between the sink's distinct-pair counters recorded at window close and open. |
+| `incremental_matches` | Legacy cumulative-match snapshot stored in `window.total_matched_results`; it is populated when a later-closing window is appended and is not a duplicate of `window_results`. |
+| `latency` | Process CPU seconds from window construction to eviction. Discarded adaptive windows use `-1`; still-open windows can remain `0`. |
+| `window_cardinality` | Number of admitted edge memberships assigned to the window. |
 | `window_size` | `t_close - t_open`. |
 
-### Slide Results (`slides_results`)
+### Slide results
 
 ```text
 t_open,t_close,latency_sec,elements,new_results,cost_norm
 ```
 
-| Column | Description |
-|--------|-------------|
-| `t_open` | Slide open timestamp. |
-| `t_close` | Slide close timestamp. |
-| `latency_sec` | Wall-clock latency for the slide interval. |
-| `elements` | Edges seen in the slide interval. |
-| `new_results` | Matches emitted during the slide interval. |
-| `cost_norm` | Normalized cost at the slide boundary. |
+| Column | Meaning |
+|---|---|
+| `t_open`, `t_close` | Slide interval on the relative timestamp axis. |
+| `latency_sec` | Process CPU time between opening this slide record and opening the next one, or reaching end of input. |
+| `elements` | Admitted query-relevant edges observed in the slide. |
+| `new_results` | Difference between distinct-pair sink counters at slide close and open. |
+| `cost_norm` | Current normalized cost copied into the slide record at its boundary. |
 
-### Functions Results (`functions_results`)
+### Functions results
 
 ```text
 alef,avg_deg,lef,max_deg,nm
 ```
 
-These are the cost components used by the adaptive modes and load-shedding control logic.
+The columns are written whenever `compute_load_estimation` runs:
 
-## Important Notes
+- `lef = (E_init + 1)(2E - E_init) / 2`
+- `alef = lef / max_deg`
+- `avg_deg = E / V`
+- `max_deg` is the maximum out-degree retained across active windows
+- `nm = E_init × E`
 
-1. Configuration files do not support comments.
-2. Do not insert spaces around `=`.
-3. Timestamps should be non-decreasing for predictable window expiration.
-4. For modes `10`-`15`, `max_size` must be greater than or equal to `min_size`.
-5. `tuples_results` output is currently disabled in `code/main.cpp`.
-6. `MEMORY_PROFILER` is currently set to `false`; the active auxiliary output is `functions_results`, not a memory-profiler CSV.
+Fixed mode `10` and mode `4` normally leave this file with only its header. Tuple-level output remains disabled in `main.cpp`, and `MEMORY_PROFILER` is currently `false`.
+
+## Operational notes
+
+1. Existing output files with the same generated name are truncated when a run starts.
+2. Stream ordering is required for consistent expiration; negative relative timestamps are skipped.
+3. Only labels present in the selected automaton contribute to processing and output counters.
+4. Query label counts are not checked before constructing the automaton; provide the exact count listed above.
+5. Modes `10`–`15` require both `min_size` and `max_size` in the file, even though fixed mode `10` does not use them.
+6. `normalization_horizon=0` means all history, while `load_average_horizon=0` means the overlap-derived default.
+7. The executable does not currently print a usage message when its configuration argument is omitted.
