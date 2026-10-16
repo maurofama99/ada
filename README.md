@@ -10,13 +10,13 @@ The experiments use timestamp-ordered graph streams with synthetic high-load int
 
 The LDBC SNB SF10 update stream contains 22.79 million edges over 54.0 days. It includes three sustained spike intervals generated with 4×, 3×, and 5× rate multipliers.
 
-![LDBC input rate with highlighted spikes](code/dataset/ldbc/ldbc_input_rate_spikes.png)
+![LDBC input rate with highlighted spikes](code/dataset/ldbc_input_rate_spikes.png)
 
 #### Stack Overflow
 
 The Stack Overflow stream contains 5.24 million answer and comment edges over 800 days. Timestamp compression introduces two spike intervals at 3× and 2× while retaining the original interactions and overall duration.
 
-![Stack Overflow input rate with highlighted spikes](code/dataset/so/so_input_rate_spikes.png)
+![Stack Overflow input rate with highlighted spikes](code/dataset/so_input_rate_spikes.png)
 
 #### Comparison vs ADWIN
 
